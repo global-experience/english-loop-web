@@ -93,7 +93,7 @@ export default function Home() {
       {error && <div className="error-banner" role="alert">{error}</div>}
       <header className="topbar">
         <div className="brand-mark">EL</div>
-        <div><p className="eyebrow">ENGLISH LOOP</p><h1>{user.display_name}님의 학습 루프</h1></div>
+        <div><p className="eyebrow">LOOPINE</p><h1>{user.display_name}님의 학습 루프</h1></div>
         <button className="avatar" aria-label="설정 열기" onClick={() => switchTab("settings")}><CircleUserRound size={23}/></button>
       </header>
 

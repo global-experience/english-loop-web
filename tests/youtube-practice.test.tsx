@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { YouTubePractice } from "@/components/YouTubePractice";
 import { apiFetch } from "@/lib/api";
 
+import { youtubeStore } from "@/lib/youtubeStore";
+
 vi.mock("@/lib/api", () => ({
-  ApiError: class ApiError extends Error {},
+  ApiError: class ApiError extends Error { },
   apiFetch: vi.fn(),
 }));
 
@@ -20,16 +22,20 @@ const player = {
 
 describe("YouTubePractice", () => {
   beforeEach(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+    }
+    youtubeStore.resetForTesting();
     vi.clearAllMocks();
     vi.mocked(apiFetch).mockResolvedValue({
       id: "job-1",
-      video_id: "m2UD0-IC7iY",
+      video_id: "rGQkLXIey4Y",
       status: "COMPLETED",
       provider: "LOCAL_GPU",
       progress: 100,
       error_message: null,
       result: {
-        video_id: "m2UD0-IC7iY",
+        video_id: "rGQkLXIey4Y",
         language: "English",
         language_code: "en",
         is_generated: true,
@@ -48,12 +54,12 @@ describe("YouTubePractice", () => {
   });
 
   it("loads automatic captions and starts a segment loop", async () => {
-    render(<YouTubePractice/>);
+    render(<YouTubePractice />);
 
     expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
     expect(apiFetch).toHaveBeenCalledWith("/api/youtube/jobs", expect.objectContaining({ method: "POST" }));
     expect(screen.getByText("YouTube 자동 생성 자막")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /YouTube 열기/ })).toHaveAttribute("href", "https://www.youtube.com/watch?v=m2UD0-IC7iY");
+    expect(screen.getByRole("link", { name: /YouTube 열기/ })).toHaveAttribute("href", "https://www.youtube.com/watch?v=rGQkLXIey4Y");
 
     await waitFor(() => expect(window.YT?.Player).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: /Let's begin the meeting/ }));
@@ -63,8 +69,8 @@ describe("YouTubePractice", () => {
   });
 
   it("changes the repeat count used by the selected line", async () => {
-    render(<YouTubePractice/>);
-    await screen.findByRole("heading", { name: "Welcome to Office English." });
+    render(<YouTubePractice />);
+    expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "5회" }));
     expect(screen.getByRole("button", { name: "5회 반복 시작" })).toBeInTheDocument();

@@ -1,6 +1,6 @@
 {
-  "name": "English Loop",
-  "short_name": "English Loop",
+  "name": "Loopine",
+  "short_name": "Loopine",
   "description": "오늘 배운 영어 표현을 실제 대화까지 연결하는 개인 학습 루프",
   "start_url": "/",
   "display": "standalone",
@@ -13,4 +13,3 @@
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
-

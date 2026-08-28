@@ -19,19 +19,19 @@ export function ContentLibrary() {
   function cacheContent(content: Content) {
     const urls = [content.media_url ? mediaUrl(content.media_url) : null].filter(Boolean);
     navigator.serviceWorker.controller?.postMessage({ type: "CACHE_CONTENT", urls });
-    localStorage.setItem(`english-loop:offline:${content.id}`, JSON.stringify(content));
+    localStorage.setItem(`loopine:offline:${content.id}`, JSON.stringify(content));
     setMessage(`“${content.title}”을 오프라인 목록에 저장했어요.`);
   }
   function removeOffline(content: Content) {
     const urls = [content.media_url ? mediaUrl(content.media_url) : null].filter(Boolean);
     navigator.serviceWorker.controller?.postMessage({ type: "REMOVE_CONTENT", urls });
-    localStorage.removeItem(`english-loop:offline:${content.id}`);
+    localStorage.removeItem(`loopine:offline:${content.id}`);
     setMessage("오프라인 사본을 삭제했어요.");
   }
   async function clearAll() {
     if (!confirm("오프라인 저장 콘텐츠를 모두 삭제할까요?")) return;
     navigator.serviceWorker.controller?.postMessage({ type: "CLEAR_OFFLINE_CONTENT" });
-    Object.keys(localStorage).filter((key) => key.startsWith("english-loop:offline:")).forEach((key) => localStorage.removeItem(key));
+    Object.keys(localStorage).filter((key) => key.startsWith("loopine:offline:")).forEach((key) => localStorage.removeItem(key));
     setMessage("오프라인 콘텐츠를 모두 삭제했어요.");
   }
 
@@ -65,4 +65,3 @@ function ContentForm({ onCreated }: { onCreated: () => void }) {
   }
   return <form className="inline-form" onSubmit={submit}><div className="segmented"><button type="button" className={mode === "link" ? "active" : ""} onClick={() => setMode("link")}><ExternalLink size={15}/> 직접 URL</button><button type="button" className={mode === "upload" ? "active" : ""} onClick={() => setMode("upload")}><Upload size={15}/> 파일 업로드</button></div><label>제목<input name="title" required maxLength={200}/></label><label>주제<input name="topic" required maxLength={120}/></label><label>한국어 요약<textarea name="summary" required maxLength={3000}/></label>{mode === "link" ? <label>직접 재생 가능한 HTTPS 오디오 URL<input name="url" type="url" required/></label> : <label>오디오 파일 (15MB 이하)<input name="media" type="file" accept="audio/mpeg,audio/mp4,audio/wav,audio/ogg" required/></label>}<button className="primary-button" disabled={busy}>{busy ? "등록 중…" : "콘텐츠 등록"}</button></form>;
 }
-

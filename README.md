@@ -1,6 +1,6 @@
-# English Loop Web
+# Loopine Web
 
-English Loop의 Next.js PWA 프런트엔드입니다. FastAPI 백엔드는 별도 저장소인 `global-experience/english-loop-service`에서 관리합니다.
+Loopine의 Next.js PWA 프런트엔드입니다. FastAPI 백엔드는 별도 저장소인 `global-experience/loopine-server-api`에서 관리합니다.
 
 ## Local development
 
@@ -22,7 +22,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=/backend
-API_PROXY_ORIGIN=https://YOUR_RENDER_SERVICE.onrender.com
+API_PROXY_ORIGIN=https://loopine-server-api.onrender.com
 ```
 
 `/backend` 요청은 `next.config.ts`의 rewrite를 통해 Render의 FastAPI로 전달됩니다.

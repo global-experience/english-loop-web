@@ -9,6 +9,7 @@ const scrollToMock = vi.fn();
 
 vi.mock("@/lib/api", () => ({
   apiFetch: apiFetchMock,
+  getApiBase: () => "http://localhost:8000",
   mediaUrl: (path: string | null) => path,
   ApiError: class ApiError extends Error {
     status = 500;

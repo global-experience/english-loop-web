@@ -1,5 +1,5 @@
-const SHELL_CACHE = "english-loop-shell-v2";
-const OFFLINE_CACHE = "english-loop-offline-content-v1";
+const SHELL_CACHE = "loopine-shell-v2";
+const OFFLINE_CACHE = "loopine-offline-content-v1";
 const SHELL = ["/", "/login", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

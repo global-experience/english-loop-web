@@ -21,7 +21,7 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
   async function downloadExport() {
     const data = await apiFetch("/api/export");
     const href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-    const anchor = document.createElement("a"); anchor.href = href; anchor.download = `english-loop-export-${new Date().toISOString().slice(0,10)}.json`; anchor.click(); URL.revokeObjectURL(href);
+    const anchor = document.createElement("a"); anchor.href = href; anchor.download = `loopine-export-${new Date().toISOString().slice(0,10)}.json`; anchor.click(); URL.revokeObjectURL(href);
   }
   async function logout() { await apiFetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; }
   async function revealActionKey() {
@@ -35,7 +35,7 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
       setMessage("내 계정의 Custom GPT Action 키를 복사했어요.");
     } catch { setMessage(revealed ? "Action 키를 표시했어요. 길게 눌러 복사하세요." : "Action 키를 불러오지 못했습니다. 다시 시도해 주세요."); }
   }
-  async function clearOffline() { if (!confirm("이 기기에 오프라인 저장한 콘텐츠를 모두 삭제할까요?")) return; navigator.serviceWorker.controller?.postMessage({ type: "CLEAR_OFFLINE_CONTENT" }); Object.keys(localStorage).filter((key) => key.startsWith("english-loop:offline:")).forEach((key) => localStorage.removeItem(key)); setMessage("오프라인 콘텐츠를 삭제했어요."); }
+  async function clearOffline() { if (!confirm("이 기기에 오프라인 저장한 콘텐츠를 모두 삭제할까요?")) return; navigator.serviceWorker.controller?.postMessage({ type: "CLEAR_OFFLINE_CONTENT" }); Object.keys(localStorage).filter((key) => key.startsWith("loopine:offline:")).forEach((key) => localStorage.removeItem(key)); setMessage("오프라인 콘텐츠를 삭제했어요."); }
 
   return <div className="view-stack"><header className="view-title"><p className="eyebrow">SETTINGS</p><h2>내 학습 방식에 맞게<br/>루프 조정하기.</h2></header>
     <form className="settings-form" onSubmit={save}><section><div className="settings-heading"><span>01</span><div><h3>프로필과 목표</h3><p>학습 계획과 Custom GPT 컨텍스트에 사용됩니다.</p></div></div><label>표시 이름<input name="display_name" defaultValue={user.display_name} required/></label><label>영어 수준<select name="english_level" defaultValue={user.english_level}>{["A1","A2","B1","B2","C1"].map((level) => <option key={level}>{level}</option>)}</select></label><label>학습 목표 (쉼표로 구분)<textarea name="goals" defaultValue={user.goals.join(", ")}/></label></section>

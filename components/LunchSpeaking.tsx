@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import type { Activity, Expression } from "@/lib/types";
 
 export function LunchSpeaking({ activity, expressions, topic, onComplete }: { activity: Activity; expressions: Expression[]; topic: string; onComplete: () => Promise<void> }) {
-  const draftKey = `english-loop:lunch:${activity.id}`;
+  const draftKey = `loopine:lunch:${activity.id}`;
   const [prepared, setPrepared] = useState("");
   const [keywords, setKeywords] = useState("");
   const [hidden, setHidden] = useState(false);
@@ -116,4 +116,3 @@ export function LunchSpeaking({ activity, expressions, topic, onComplete }: { ac
 function Score({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <div><strong>{label}</strong><div className="score-picker">{[1,2,3,4,5].map((score) => <button key={score} className={score === value ? "active" : ""} onClick={() => onChange(score)}>{score}</button>)}</div></div>;
 }
-

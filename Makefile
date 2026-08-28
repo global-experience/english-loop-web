@@ -10,4 +10,4 @@ test:
 	docker compose --profile test run --rm web-test
 
 build:
-	docker build -t english-loop-web .
+	docker build -t loopine .

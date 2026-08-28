@@ -16,7 +16,7 @@ describe("LunchSpeaking", () => {
     fireEvent.change(screen.getByPlaceholderText(/project · challenge/), { target: { value: "scope · learned" } });
     fireEvent.click(screen.getByRole("button", { name: /문장 숨기기/ }));
     expect(screen.getByPlaceholderText(/영어로 2–3문장/)).toHaveClass("blurred");
-    expect(localStorage.getItem(`english-loop:lunch:${activity.id}`)).toContain("scope");
+    expect(localStorage.getItem(`loopine:lunch:${activity.id}`)).toContain("scope");
   });
 
   it("runs the one-minute timer", () => {
@@ -26,4 +26,3 @@ describe("LunchSpeaking", () => {
     expect(screen.getByText("00:58")).toBeInTheDocument();
   });
 });
-

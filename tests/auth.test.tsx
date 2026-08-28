@@ -7,6 +7,7 @@ const apiFetchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api", () => ({
   apiFetch: apiFetchMock,
+  getApiBase: () => "http://localhost:8000",
 }));
 
 describe("LoginPage registration", () => {
@@ -62,7 +63,7 @@ describe("App splash", () => {
     vi.useFakeTimers();
     render(<LoginPage/>);
 
-    expect(screen.getByRole("status", { name: "English Loop 시작 화면" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loopine 시작 화면" })).toBeInTheDocument();
     expect(document.documentElement).toHaveClass("splash-active");
     expect(document.body).toHaveClass("splash-active");
     await act(async () => vi.advanceTimersByTime(1600));
