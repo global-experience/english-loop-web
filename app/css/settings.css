@@ -1,0 +1,111 @@
+/* Profile, data, offline, and Action settings */
+.settings-form {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-form section {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .32);
+}
+
+.settings-heading {
+  display: flex;
+  gap: 12px;
+}
+
+.settings-heading>span {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--acid);
+  font: 700 9px var(--font-display);
+}
+
+.settings-heading h3,
+.settings-heading p {
+  margin: 0;
+}
+
+.settings-heading h3 {
+  font: 650 17px var(--font-display);
+}
+
+.settings-heading p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.settings-tools {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-tools>button {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: transparent;
+  text-align: left;
+}
+
+.settings-tools>button>svg {
+  padding: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e5e1d6;
+}
+
+.settings-tools strong,
+.settings-tools small {
+  display: block;
+}
+
+.settings-tools strong {
+  font-size: 12px;
+}
+
+.settings-tools small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.settings-tools>button.danger {
+  color: #9e3f30;
+}
+
+.action-key-panel {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border-radius: 13px;
+  color: white;
+  background: var(--ink);
+}
+
+.action-key-panel code {
+  overflow-wrap: anywhere;
+  color: var(--acid);
+  font-size: 9px;
+  line-height: 1.5;
+  user-select: all;
+}
+
+.action-key-panel small {
+  color: #b9c1bc;
+  font-size: 9px;
+  line-height: 1.45;
+}

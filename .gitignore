@@ -1,0 +1,10 @@
+.env*
+!.env.example
+!.env.*.example
+.next/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store

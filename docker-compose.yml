@@ -1,0 +1,21 @@
+name: english-loop-web
+
+services:
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        API_PROXY_ORIGIN: ${API_PROXY_ORIGIN:-}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      API_PROXY_ORIGIN: ${API_PROXY_ORIGIN:-}
+    ports:
+      - "3000:3000"
+
+  web-test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: builder
+    command: ["npm", "test", "--", "--run"]
