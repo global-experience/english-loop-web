@@ -2,6 +2,7 @@
 body:has([data-tab="feed"]) {
   overflow: hidden;
   height: 100dvh;
+  overscroll-behavior: none;
   touch-action: pan-y;
 }
 
@@ -42,7 +43,7 @@ body:has([data-tab="feed"]) {
 .feed-heading { display:flex; justify-content:space-between; align-items:end; padding:4px 3px 0; flex-shrink: 0; }
 .feed-heading h2 { margin:7px 0 0; font:650 clamp(29px,8vw,44px)/1 var(--font-display); letter-spacing:-.055em; }
 .feed-heading > span { color:var(--muted); font-size:10px; }
-.feed-stream { flex: 1; height: 100%; min-height: 0; max-height: 100%; overflow-y:auto; display:grid; grid-auto-rows:100%; gap:14px; scroll-snap-type:y mandatory; overscroll-behavior:contain; scrollbar-width:none; border-radius:26px; }
+.feed-stream { flex: 1; height: 100%; min-height: 0; max-height: 100%; overflow-y:auto; display:grid; grid-auto-rows:100%; gap:14px; scroll-snap-type:y mandatory; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; scroll-behavior:smooth; scrollbar-width:none; border-radius:26px; }
 .feed-stream::-webkit-scrollbar { display:none; }
 
 .feed-pc-nav { display: none; }

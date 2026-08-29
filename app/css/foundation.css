@@ -20,14 +20,32 @@
 }
 
 html {
-  background: #d8d5cc;
+  min-height: 100%;
+  background: var(--paper);
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 body {
   margin: 0;
+  min-height: 100dvh;
   color: var(--ink);
   font-family: var(--font-body), sans-serif;
   background: var(--paper);
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--paper);
+  pointer-events: none;
 }
 
 button,
@@ -46,6 +64,7 @@ button {
   width: min(100%, 760px);
   margin: 0 auto;
   padding: calc(22px + var(--safe-top)) calc(18px + var(--safe-right)) calc(112px + var(--safe-bottom)) calc(18px + var(--safe-left));
+  background: var(--paper);
   overflow: hidden;
 }
 
@@ -358,6 +377,7 @@ button {
 .tab-viewport {
   position: relative;
   min-height: calc(100dvh - 190px);
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab-scene {
