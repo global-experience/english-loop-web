@@ -4,6 +4,7 @@ import Script from "next/script";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bookmark, Check, ChevronDown, ChevronUp, CircleAlert, LoaderCircle, Play, Sparkles, Subtitles, Volume2, VolumeX } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { isNativeAppRuntime, shouldStartFeedMuted } from "@/lib/nativeRuntime";
 import type { FeedVideo } from "@/lib/types";
 
 type FeedResponse = {
@@ -34,7 +35,7 @@ function isNativeApp() {
   const capacitor = (window as Window & {
     Capacitor?: { isNativePlatform?: () => boolean };
   }).Capacitor;
-  return capacitor?.isNativePlatform?.() === true || navigator.userAgent.includes("LoopineNative/");
+  return isNativeAppRuntime(capacitor, navigator.userAgent);
 }
 
 export function FeedView({ openLearning }: { openLearning: (videoUrl: string) => void }) {
@@ -111,7 +112,11 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
 
     // Native WebViews explicitly allow media playback without a user gesture.
     // Browsers/PWAs must still begin muted to comply with autoplay policies.
-    const shouldMute = userMutedRef.current || (!isNativeApp() && !userInteractedRef.current);
+    const shouldMute = shouldStartFeedMuted({
+      native: isNativeApp(),
+      userInteracted: userInteractedRef.current,
+      userMuted: userMutedRef.current,
+    });
 
     const player = new window.YT.Player(target, {
       videoId: ytVideoId,

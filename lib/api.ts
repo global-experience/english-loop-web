@@ -1,11 +1,16 @@
 export function getApiBase(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
-  const isLoopbackEnv = envUrl === "http://localhost:8000" || envUrl === "http://127.0.0.1:8000";
+  const isLocalDevEnv = envUrl ? isLocalDevApiUrl(envUrl) : false;
 
-  // Production uses the same-origin /backend rewrite. Absolute non-local URLs
-  // are also respected for deployments that do not use the rewrite.
-  if (envUrl && !isLoopbackEnv) {
+  // Keep production traffic same-origin. NEXT_PUBLIC_* values are bundled into
+  // browser JavaScript, so the deployed API origin must stay server-side behind
+  // the /backend rewrite configured by API_PROXY_ORIGIN.
+  if (envUrl && (envUrl.startsWith("/") || isLocalDevEnv)) {
     return envUrl;
+  }
+
+  if (envUrl) {
+    return "/backend";
   }
 
   if (typeof window !== "undefined") {
@@ -13,6 +18,23 @@ export function getApiBase(): string {
   }
 
   return envUrl || "http://localhost:8000";
+}
+
+function isLocalDevApiUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.hostname === "::1" ||
+      url.hostname === "[::1]" ||
+      url.hostname.startsWith("192.168.") ||
+      url.hostname.startsWith("10.") ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(url.hostname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export class ApiError extends Error {

@@ -26,6 +26,8 @@ API_PROXY_ORIGIN=https://loopine-server-api.onrender.com
 ```
 
 `/backend` 요청은 `next.config.ts`의 rewrite를 통해 Render의 FastAPI로 전달됩니다.
+`NEXT_PUBLIC_API_BASE_URL`은 브라우저 번들에 포함되므로 운영에서는 Render 주소를 직접 넣지 않습니다.
+Render 주소는 Vercel 서버에서만 읽는 `API_PROXY_ORIGIN`에만 설정합니다.
 
 ## Verification
 

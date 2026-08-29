@@ -19,9 +19,15 @@ describe("getApiBase", () => {
     expect(getApiBase()).toBe(`${window.location.protocol}//${window.location.hostname}:8000`);
   });
 
-  it("accepts an explicitly configured remote API origin", () => {
+  it("ignores a remote API origin in the public browser config", () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.loopine.example/");
 
-    expect(getApiBase()).toBe("https://api.loopine.example");
+    expect(getApiBase()).toBe("/backend");
+  });
+
+  it("allows LAN API origins for local device testing", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://192.168.0.34:8000/");
+
+    expect(getApiBase()).toBe("http://192.168.0.34:8000");
   });
 });
