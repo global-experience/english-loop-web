@@ -3,10 +3,17 @@ import { headers } from "next/headers";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "localhost:3000";
-  const protocol = requestHeaders.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
-  const image = `${protocol}://${host}/og.png`;
+  let image = "/og.png";
+  if (!process.env.CAPACITOR_BUILD) {
+    try {
+      const requestHeaders = await headers();
+      const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "localhost:3000";
+      const protocol = requestHeaders.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
+      image = `${protocol}://${host}/og.png`;
+    } catch {
+      // Fallback for static builds
+    }
+  }
   const title = "Loopine — 오늘 배운 표현을 진짜 내 말로";
   const description = "출근 리스닝부터 밤 ChatGPT 음성 대화까지 연결하는 개인 영어 학습 루프";
   return {

@@ -1,10 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Vercel supplies its own Next.js build adapter. Next.js 16.3 currently
-  // conflicts with that adapter when standalone output is enabled, while the
-  // Docker image still needs standalone output.
-  output: process.env.VERCEL ? undefined : "standalone",
+  output: process.env.CAPACITOR_BUILD ? "export" : process.env.VERCEL ? undefined : "standalone",
+  trailingSlash: true,
+  images: { unoptimized: true },
   poweredByHeader: false,
   async headers() {
     return [

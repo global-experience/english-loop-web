@@ -109,6 +109,9 @@ export function YouTubePractice() {
     playerRef.current = new window.YT.Player(playerHostRef.current, {
       videoId,
       host: "https://www.youtube-nocookie.com",
+      // controls: 0: 구간 반복(시작 지점 이동) 시 유튜브 재생 버튼, 자막 버튼, 상단/하단 UI가 자동으로 팝업되는 현상을 완전히 제거
+      // cc_load_policy: 0 / iv_load_policy: 3: 플레이어 내부 자막 및 안내 레이어 비활성화 (웹 앱 자체 자막 리스트 사용)
+      // modestbranding: 1 / rel: 0: 유튜브 로고 및 추천 영상 노출 최소화
       playerVars: { controls: 0, cc_load_policy: 0, modestbranding: 1, rel: 0, playsinline: 1, iv_load_policy: 3 },
       events: { onReady: () => setPlayerReady(true) },
     });
@@ -206,16 +209,16 @@ export function YouTubePractice() {
     progressVal >= 90
       ? "자막 데이터 최종 정리 및 화면 생성 중..."
       : progressVal >= 60
-      ? "Groq AI가 음성 대사를 문장별로 정리하고 있어요."
-      : progressVal >= 30
-      ? "영상 오디오를 추출하여 AI에 전달하고 있어요."
-      : jobProvider === "LOCAL_GPU"
-      ? "집 3090 GPU 서버에서 정밀하게 분석하고 있어요."
-      : executionTarget === "LOCAL_CLOUD"
-      ? "로컬 Mac 클라우드 러너에서 분석하고 있어요."
-      : executionTarget === "RENDER_CLOUD"
-      ? "Render 클라우드 러너에서 분석하고 있어요."
-      : "영상 및 자막 정보를 준비하고 있어요.";
+        ? "Groq AI가 음성 대사를 문장별로 정리하고 있어요."
+        : progressVal >= 30
+          ? "영상 오디오를 추출하여 AI에 전달하고 있어요."
+          : jobProvider === "LOCAL_GPU"
+            ? "집 3090 GPU 서버에서 정밀하게 분석하고 있어요."
+            : executionTarget === "LOCAL_CLOUD"
+              ? "로컬 Mac 클라우드 러너에서 분석하고 있어요."
+              : executionTarget === "RENDER_CLOUD"
+                ? "Render 클라우드 러너에서 분석하고 있어요."
+                : "영상 및 자막 정보를 준비하고 있어요.";
 
   return (
     <section className="youtube-practice">
@@ -269,16 +272,16 @@ export function YouTubePractice() {
             {transcript?.source === "groq_whisper"
               ? "YouTube 자막 없음 · Groq Whisper 음성 전사"
               : transcript?.source === "cloudflare_whisper"
-              ? "YouTube 자막 없음 · Cloudflare Workers AI 음성 전사"
-              : transcript?.source === "whisper"
-              ? "YouTube 자막 없음 · 3090 Whisper 음성 전사"
-              : transcript?.source === "youtube_caption+whisper"
-              ? "YouTube 자막 + Whisper 문장 복원"
-              : transcript?.is_generated
-              ? "YouTube 자동 생성 자막"
-              : transcript
-              ? "게시자가 등록한 자막"
-              : "영상 정보를 준비하고 있습니다"}
+                ? "YouTube 자막 없음 · Cloudflare Workers AI 음성 전사"
+                : transcript?.source === "whisper"
+                  ? "YouTube 자막 없음 · 3090 Whisper 음성 전사"
+                  : transcript?.source === "youtube_caption+whisper"
+                    ? "YouTube 자막 + Whisper 문장 복원"
+                    : transcript?.is_generated
+                      ? "YouTube 자동 생성 자막"
+                      : transcript
+                        ? "게시자가 등록한 자막"
+                        : "영상 정보를 준비하고 있습니다"}
           </small>
         </div>
         <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noreferrer">

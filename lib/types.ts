@@ -84,6 +84,22 @@ export type User = {
   recording_retention_days: number;
 };
 
+export type FeedVideo = {
+  id: string;
+  youtube_video_id: string;
+  youtube_url: string;
+  title: string;
+  channel_title: string;
+  thumbnail_url: string;
+  published_at: string | null;
+  duration_seconds: number;
+  language: string | null;
+  caption_available: boolean;
+  base_score: number;
+  status: string;
+  saved_status: "PROCESSING" | "READY" | "FAILED" | null;
+};
+
 export type Report = {
   session_id: string;
   study_date: string;
@@ -110,4 +126,3 @@ export type Analytics = {
   newly_mastered: number;
   weaknesses: Array<{ category: string; occurrence_count: number; latest_severity: number; average_severity: number; trend: string; description_ko: string }>;
 };
-

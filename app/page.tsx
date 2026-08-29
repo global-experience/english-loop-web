@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, BookOpen, CalendarDays, CircleUserRound, RefreshCw, Settings, WifiOff } from "lucide-react";
+import { BarChart3, BookOpen, CalendarDays, CircleUserRound, Clapperboard, RefreshCw, Settings, WifiOff } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { TodayData, User } from "@/lib/types";
 import { ServiceWorker } from "@/components/ServiceWorker";
@@ -11,12 +11,15 @@ import { ReviewView } from "@/components/ReviewView";
 import { ReportView } from "@/components/ReportView";
 import { SettingsView } from "@/components/SettingsView";
 import { AppSplash, useAppSplash } from "@/components/AppSplash";
+import { FeedView } from "@/components/FeedView";
+import { youtubeStore } from "@/lib/youtubeStore";
 
-type Tab = "today" | "learn" | "review" | "report" | "settings";
+type Tab = "today" | "feed" | "learn" | "review" | "report" | "settings";
 type TabDirection = "forward" | "back";
 
 const nav = [
   { id: "today" as const, label: "오늘", Icon: CalendarDays },
+  { id: "feed" as const, label: "피드", Icon: Clapperboard },
   { id: "learn" as const, label: "학습", Icon: BookOpen },
   { id: "review" as const, label: "복습", Icon: RefreshCw },
   { id: "report" as const, label: "리포트", Icon: BarChart3 },
@@ -82,12 +85,18 @@ export default function Home() {
     switchTab("learn");
   };
 
+  const openFeedVideo = (videoUrl: string) => {
+    void youtubeStore.loadTranscript(videoUrl);
+    setLearningMode("youtube");
+    switchTab("learn");
+  };
+
   if (!splash.ready || splash.visible) return <AppSplash/>;
   if (loading) return <main className="center-state"><img className="pulse-logo" src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /><p>오늘의 학습 루프를 준비하고 있어요.</p></main>;
   if (!user || !today) return <main className="center-state"><p>{error || "학습 데이터를 불러오지 못했습니다."}</p><button className="primary-button" onClick={() => void refresh()}>다시 시도</button></main>;
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-tab={tab}>
       <ServiceWorker />
       {!online && <div className="offline-banner" role="status"><WifiOff size={15}/> 오프라인 — 작성 내용은 이 기기에 보관됩니다.</div>}
       {error && <div className="error-banner" role="alert">{error}</div>}
@@ -100,6 +109,7 @@ export default function Home() {
       <div className="tab-viewport" role="tabpanel" id={`panel-${tab}`} aria-label={`${nav.find((item) => item.id === tab)?.label} 화면`}>
         <div className={`tab-scene tab-scene-${tabDirection}`} key={tab}>
           {tab === "today" && <TodayView today={today} user={user} refresh={refresh} openLearning={openLearning}/>} 
+          {tab === "feed" && <FeedView openLearning={openFeedVideo}/>}
           {tab === "learn" && <LearningView today={today} mode={learningMode} setMode={setLearningMode} refresh={refresh}/>} 
           {tab === "review" && <ReviewView/>}
           {tab === "report" && <ReportView/>}
