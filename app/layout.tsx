@@ -13,6 +13,13 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     manifest: "/manifest.webmanifest",
+    icons: {
+      icon: [
+        { url: "/icons/loopine-logo.svg", type: "image/svg+xml" },
+        { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      ],
+      apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    },
     appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Loopine" },
     openGraph: { title, description, type: "website", images: [{ url: image, width: 1200, height: 630, alt: "Loopine 학습 루프" }] },
     twitter: { card: "summary_large_image", title, description, images: [image] },

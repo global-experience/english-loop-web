@@ -83,7 +83,7 @@ export default function Home() {
   };
 
   if (!splash.ready || splash.visible) return <AppSplash/>;
-  if (loading) return <main className="center-state"><div className="pulse-logo">EL</div><p>오늘의 학습 루프를 준비하고 있어요.</p></main>;
+  if (loading) return <main className="center-state"><img className="pulse-logo" src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /><p>오늘의 학습 루프를 준비하고 있어요.</p></main>;
   if (!user || !today) return <main className="center-state"><p>{error || "학습 데이터를 불러오지 못했습니다."}</p><button className="primary-button" onClick={() => void refresh()}>다시 시도</button></main>;
 
   return (
@@ -92,7 +92,7 @@ export default function Home() {
       {!online && <div className="offline-banner" role="status"><WifiOff size={15}/> 오프라인 — 작성 내용은 이 기기에 보관됩니다.</div>}
       {error && <div className="error-banner" role="alert">{error}</div>}
       <header className="topbar">
-        <div className="brand-mark">EL</div>
+        <div className="brand-mark"><img src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /></div>
         <div><p className="eyebrow">LOOPINE</p><h1>{user.display_name}님의 학습 루프</h1></div>
         <button className="avatar" aria-label="설정 열기" onClick={() => switchTab("settings")}><CircleUserRound size={23}/></button>
       </header>

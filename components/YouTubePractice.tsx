@@ -109,7 +109,7 @@ export function YouTubePractice() {
     playerRef.current = new window.YT.Player(playerHostRef.current, {
       videoId,
       host: "https://www.youtube-nocookie.com",
-      playerVars: { cc_load_policy: 1, playsinline: 1, rel: 0 },
+      playerVars: { controls: 0, cc_load_policy: 0, modestbranding: 1, rel: 0, playsinline: 1, iv_load_policy: 3 },
       events: { onReady: () => setPlayerReady(true) },
     });
     return () => {

@@ -62,10 +62,16 @@ button {
   height: 48px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--ink);
   border-radius: 50%;
-  font: 700 13px var(--font-display);
-  letter-spacing: .06em;
+  overflow: hidden;
+  background: var(--ink);
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .topbar h1 {
@@ -454,12 +460,9 @@ button {
 .pulse-logo {
   width: 70px;
   height: 70px;
-  display: grid;
-  place-items: center;
+  display: block;
   border-radius: 50%;
-  color: white;
-  background: var(--ink);
-  font: 700 18px var(--font-display);
+  object-fit: cover;
   animation: pulse 1.4s ease-in-out infinite;
 }
 

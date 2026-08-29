@@ -54,7 +54,7 @@ export default function LoginPage() {
   const AuthIcon = mode === "login" ? LockKeyhole : UserPlus;
   return (
     <main className="login-page">
-      <section className="login-brand"><div className="brand-mark inverse">EL</div><p className="eyebrow">CLOSED LEARNING LOOP</p><h1>들은 영어를<br /><em>내 말로.</em></h1><p>출근길에 만난 표현을 점심에 말하고, 밤의 실제 대화까지 연결하세요.</p></section>
+      <section className="login-brand"><div className="brand-mark inverse"><img src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /></div><p className="eyebrow">CLOSED LEARNING LOOP</p><h1>들은 영어를<br /><em>내 말로.</em></h1><p>출근길에 만난 표현을 점심에 말하고, 밤의 실제 대화까지 연결하세요.</p></section>
       <form className="login-card" onSubmit={submit}>
         <div className="auth-switch" role="tablist" aria-label="계정 접근 방식">
           <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => switchMode("login")}>로그인</button>

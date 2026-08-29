@@ -45,15 +45,15 @@ export function AppSplash() {
 
   return (
     <main className="splash-page" role="status" aria-label="Loopine 시작 화면">
-      <div className="splash-orbit splash-orbit-outer" aria-hidden="true"/>
-      <div className="splash-orbit splash-orbit-inner" aria-hidden="true"/>
+      <div className="splash-orbit splash-orbit-outer" aria-hidden="true" />
+      <div className="splash-orbit splash-orbit-inner" aria-hidden="true" />
       <div className="splash-center">
-        <div className="splash-logo" aria-hidden="true"><span>EL</span></div>
+        <img className="splash-logo" src="/icons/loopine-logo.svg" alt="" aria-hidden="true" />
         <p className="eyebrow">CLOSED LEARNING LOOP</p>
         <h1>Loopine</h1>
         <p>들은 영어를, 내 말로.</p>
       </div>
-      <div className="splash-loader" aria-hidden="true"><span/></div>
+      <div className="splash-loader" aria-hidden="true"><span /></div>
     </main>
   );
 }
