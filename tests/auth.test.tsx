@@ -10,14 +10,58 @@ vi.mock("@/lib/api", () => ({
   getApiBase: () => "http://localhost:8000",
 }));
 
+describe("LoginPage authentication redirect", () => {
+  beforeEach(() => {
+    apiFetchMock.mockReset();
+    sessionStorage.setItem(SPLASH_SESSION_KEY, "true");
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { href: "/login" },
+    });
+  });
+
+  it("redirects to / when user is already logged in", async () => {
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path === "/api/me") {
+        return Promise.resolve({ id: "user-1", email: "test@example.com" });
+      }
+      return Promise.resolve({});
+    });
+
+    render(<LoginPage />);
+    await waitFor(() => {
+      expect(window.location.href).toBe("/");
+    });
+  });
+
+  it("shows login form when user is not logged in", async () => {
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path === "/api/me") {
+        return Promise.reject({ status: 401 });
+      }
+      return Promise.resolve({});
+    });
+
+    render(<LoginPage />);
+    expect(await screen.findByRole("heading", { name: "나의 루프에 로그인" })).toBeInTheDocument();
+  });
+});
+
 describe("LoginPage registration", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path === "/api/me") {
+        return Promise.reject({ status: 401 });
+      }
+      return Promise.resolve({});
+    });
     sessionStorage.setItem(SPLASH_SESSION_KEY, "true");
   });
 
   it("validates password confirmation and submits a new account", async () => {
-    render(<LoginPage/>);
+    render(<LoginPage />);
+    expect(await screen.findByRole("heading", { name: "나의 루프에 로그인" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "회원가입" }));
 
     expect(screen.getByRole("heading", { name: "새 학습 루프 만들기" })).toBeInTheDocument();
@@ -32,21 +76,26 @@ describe("LoginPage registration", () => {
     fireEvent.click(screen.getByRole("button", { name: /계정 만들기/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("비밀번호 확인이 일치하지 않습니다.");
-    expect(apiFetchMock).not.toHaveBeenCalled();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/auth/register", expect.anything());
 
-    apiFetchMock.mockRejectedValueOnce(new Error("이미 가입된 이메일입니다."));
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path === "/api/me") return Promise.reject({ status: 401 });
+      if (path === "/api/auth/register") return Promise.reject(new Error("이미 가입된 이메일입니다."));
+      return Promise.resolve({});
+    });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "SecurePass1" } });
     fireEvent.click(screen.getByRole("button", { name: /계정 만들기/ }));
 
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
-    expect(apiFetchMock).toHaveBeenCalledWith("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify({
-        display_name: "새 학습자",
-        email: "new@example.com",
-        password: "SecurePass1",
-        english_level: "B2",
-      }),
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          display_name: "새 학습자",
+          email: "new@example.com",
+          password: "SecurePass1",
+          english_level: "B2",
+        }),
+      });
     });
     expect(await screen.findByRole("alert")).toHaveTextContent("이미 가입된 이메일입니다.");
   });
@@ -55,13 +104,17 @@ describe("LoginPage registration", () => {
 describe("App splash", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path === "/api/me") return Promise.reject({ status: 401 });
+      return Promise.resolve({});
+    });
     sessionStorage.removeItem(SPLASH_SESSION_KEY);
   });
   afterEach(() => vi.useRealTimers());
 
   it("shows an animated launch screen once per app session", async () => {
     vi.useFakeTimers();
-    render(<LoginPage/>);
+    render(<LoginPage />);
 
     expect(screen.getByRole("status", { name: "Loopine 시작 화면" })).toBeInTheDocument();
     expect(document.documentElement).toHaveClass("splash-active");

@@ -1,0 +1,19 @@
+name: loopine-dev
+
+services:
+  web:
+    build:
+      context: .
+      target: deps
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      - API_PROXY_ORIGIN=${API_PROXY_ORIGIN:-}
+      - WATCHPACK_POLLING=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"

@@ -59,7 +59,7 @@ describe("YouTubePractice", () => {
     expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
     expect(apiFetch).toHaveBeenCalledWith("/api/youtube/jobs", expect.objectContaining({ method: "POST" }));
     expect(screen.getByText("YouTube 자동 생성 자막")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /YouTube 열기/ })).toHaveAttribute("href", "https://www.youtube.com/watch?v=rGQkLXIey4Y");
+    expect(screen.getByRole("button", { name: /YouTube 열기/ })).toBeInTheDocument();
 
     await waitFor(() => expect(window.YT?.Player).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: /Let's begin the meeting/ }));

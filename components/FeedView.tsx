@@ -125,11 +125,13 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
         autoplay: 1,
         mute: shouldMute ? 1 : 0,
         playsinline: 1,
-        controls: 1,
+        controls: 0,
+        cc_load_policy: 1,
         rel: 0,
         enablejsapi: 1,
         modestbranding: 1,
         iv_load_policy: 3,
+        loop: 1
       },
       events: {
         onReady: () => {

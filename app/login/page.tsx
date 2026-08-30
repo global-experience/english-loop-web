@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, LockKeyhole, UserPlus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import type { User } from "@/lib/types";
 import { AppSplash, useAppSplash } from "@/components/AppSplash";
 
 type AuthMode = "login" | "register";
@@ -18,6 +19,28 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    if (!splash.ready || splash.visible) return;
+    let cancelled = false;
+    apiFetch<User>("/api/me")
+      .then((me) => {
+        if (!cancelled && me?.id) {
+          window.location.href = "/";
+        } else if (!cancelled) {
+          setCheckingAuth(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCheckingAuth(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [splash.ready, splash.visible]);
 
   function switchMode(nextMode: AuthMode) {
     if (nextMode === mode) return;
@@ -63,7 +86,7 @@ export default function LoginPage() {
     } finally { setBusy(false); }
   }
 
-  if (!splash.ready || splash.visible) return <AppSplash />;
+  if (!splash.ready || splash.visible || checkingAuth) return <AppSplash />;
 
   const AuthIcon = mode === "login" ? LockKeyhole : UserPlus;
   return (

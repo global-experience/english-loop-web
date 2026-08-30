@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Download, ExternalLink, FileAudio, Plus, Trash2, Upload } from "lucide-react";
 import { apiFetch, mediaUrl } from "@/lib/api";
 import type { Content } from "@/lib/types";
+import { openExternalUrl } from "@/lib/openExternal";
 
 export function ContentLibrary() {
   const [items, setItems] = useState<Content[]>([]);
@@ -38,7 +39,7 @@ export function ContentLibrary() {
   return <section className="library-view"><div className="section-heading"><div><p className="eyebrow">CONTENT LIBRARY</p><h2>내 학습 콘텐츠</h2></div><button className="small-button" onClick={() => setShowForm((value) => !value)}><Plus size={16}/> 등록</button></div>
     {showForm && <ContentForm onCreated={() => { setShowForm(false); void load(); }}/>} 
     {message && <p className="save-message" role="status">{message}</p>}
-    <div className="library-list">{items.map((content) => <article key={content.id}><span className="content-icon"><FileAudio/></span><div><p><span>{content.level}</span> {content.topic}</p><h3>{content.title}</h3><small>{content.source_type} · {content.duration_seconds || "—"}초</small></div><div className="library-actions">{content.source_url && <a href={content.source_url} target="_blank" rel="noreferrer" aria-label="원본 링크 열기"><ExternalLink size={18}/></a>}<button onClick={() => cacheContent(content)} aria-label="오프라인 저장"><Download size={18}/></button><button onClick={() => removeOffline(content)} aria-label="오프라인 사본 삭제"><Trash2 size={18}/></button></div></article>)}</div>
+    <div className="library-list">{items.map((content) => <article key={content.id}><span className="content-icon"><FileAudio/></span><div><p><span>{content.level}</span> {content.topic}</p><h3>{content.title}</h3><small>{content.source_type} · {content.duration_seconds || "—"}초</small></div><div className="library-actions">{content.source_url && <button type="button" onClick={() => void openExternalUrl(content.source_url)} aria-label="원본 링크 열기"><ExternalLink size={18}/></button>}<button onClick={() => cacheContent(content)} aria-label="오프라인 저장"><Download size={18}/></button><button onClick={() => removeOffline(content)} aria-label="오프라인 사본 삭제"><Trash2 size={18}/></button></div></article>)}</div>
     <button className="text-button danger" onClick={() => void clearAll()}><Trash2 size={16}/> 오프라인 저장 전체 삭제</button>
   </section>;
 }

@@ -329,7 +329,7 @@ button {
   transform: translateX(-50%);
   width: min(calc(100% - 28px - var(--safe-left) - var(--safe-right)), 704px);
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   padding: 9px 8px;
   border: 1px solid rgba(255, 255, 255, .12);
   border-radius: 22px;

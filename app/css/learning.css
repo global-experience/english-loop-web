@@ -130,7 +130,8 @@
   font-size: 9px;
 }
 
-.youtube-source a {
+.youtube-source a,
+.youtube-source button {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -138,6 +139,10 @@
   color: var(--ink);
   font-size: 10px;
   font-weight: 800;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
 .youtube-error {

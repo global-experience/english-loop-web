@@ -3,6 +3,7 @@
 import { ArrowUpRight, Check, Clipboard, ExternalLink, Headphones, MessageCircle, Mic2, Moon, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
 import type { TodayData, User } from "@/lib/types";
 import type { LearningMode } from "./LearningView";
+import { openExternalUrl } from "@/lib/openExternal";
 
 const activityMeta = {
   MORNING_COMMUTE: { label: "출근 리스닝", detail: "대본 없이 듣고 입 모양으로 따라 하기", Icon: Headphones, mode: "morning" as LearningMode },
@@ -43,7 +44,7 @@ export function TodayView({ today, user, refresh, openLearning }: Props) {
       alert("설정에서 Custom GPT URL을 먼저 등록해주세요.");
       return;
     }
-    window.open(user.custom_gpt_url, "_blank", "noopener,noreferrer");
+    void openExternalUrl(user.custom_gpt_url);
   }
 
   if (!plan) {

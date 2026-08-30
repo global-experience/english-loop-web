@@ -1,13 +1,10 @@
-.PHONY: up down test build
+.PHONY: dev prod down
 
-up:
+dev:
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+prod:
 	docker compose up --build
 
 down:
-	docker compose down
-
-test:
-	docker compose --profile test run --rm web-test
-
-build:
-	docker build -t loopine .
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml down
