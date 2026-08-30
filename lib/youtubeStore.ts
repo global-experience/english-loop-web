@@ -49,7 +49,9 @@ export type YouTubePracticeState = {
 
 const DEFAULT_VIDEO_ID = "rGQkLXIey4Y";
 const DEFAULT_VIDEO_URL = `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
-const STORAGE_KEY = "loopine_youtube_practice_v1";
+// Bump when transcript timing semantics change so an open PWA session cannot
+// keep replaying stale server data after a deployment.
+const STORAGE_KEY = "loopine_youtube_practice_v2";
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 

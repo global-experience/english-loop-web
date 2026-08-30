@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { YouTubePractice } from "@/components/YouTubePractice";
+import { effectiveSegmentEnd, YouTubePractice } from "@/components/YouTubePractice";
 import { apiFetch } from "@/lib/api";
 
 import { youtubeStore } from "@/lib/youtubeStore";
@@ -75,5 +75,20 @@ describe("YouTubePractice", () => {
     fireEvent.click(screen.getByRole("button", { name: "5회" }));
     expect(screen.getByRole("button", { name: "5회 반복 시작" })).toBeInTheDocument();
     expect(screen.getByText("누르면 바로 5회 반복")).toBeInTheDocument();
+  });
+
+  it("extends an implausibly short caption until the next cue", () => {
+    const segments = [
+      {
+        text: "Was first broadcast on the BBC Learning English website in October 2014.",
+        start: 2.6,
+        end: 3.9,
+        duration: 1.3,
+      },
+      { text: "For more English language learning programmes.", start: 7.96, end: 9.26, duration: 1.3 },
+    ];
+
+    expect(effectiveSegmentEnd(segments, 0)).toBeGreaterThan(6.9);
+    expect(effectiveSegmentEnd(segments, 0)).toBeLessThan(7.96);
   });
 });

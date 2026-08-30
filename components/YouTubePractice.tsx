@@ -4,6 +4,7 @@ import Script from "next/script";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, LoaderCircle, Pause, Play, RotateCcw, Youtube } from "lucide-react";
 import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
+import type { TranscriptSegment } from "@/lib/youtubeStore";
 
 type YouTubePlayer = {
   cueVideoById: (videoId: string) => void;
@@ -36,6 +37,23 @@ function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainder = Math.floor(seconds % 60);
   return `${minutes}:${remainder.toString().padStart(2, "0")}`;
+}
+
+export function effectiveSegmentEnd(segments: TranscriptSegment[], index: number) {
+  const segment = segments[index];
+  if (!segment) return 0;
+
+  const wordCount = segment.text.trim().split(/\s+/).filter(Boolean).length;
+  const estimatedDuration = Math.max(1.2, Math.min(12, wordCount / 2.4 + 0.45));
+  const reportedDuration = Math.max(0, segment.end - segment.start);
+  if (reportedDuration >= estimatedDuration * 0.6) return segment.end;
+
+  const estimatedEnd = segment.start + estimatedDuration;
+  const nextStart = segments[index + 1]?.start;
+  if (nextStart != null && nextStart > segment.start + 0.25) {
+    return Math.max(segment.start + 0.25, Math.min(nextStart - 0.08, estimatedEnd));
+  }
+  return Math.max(segment.end, estimatedEnd);
 }
 
 export function YouTubePractice() {
@@ -159,12 +177,13 @@ export function YouTubePractice() {
     }
 
     setIsLooping(true);
+    const segmentEnd = effectiveSegmentEnd(transcript.segments, index);
     player.setPlaybackRate(playbackRate);
     player.seekTo(segment.start, true);
     player.playVideo();
 
     loopTimerRef.current = setInterval(() => {
-      if (transitioningRef.current || player.getCurrentTime() < segment.end + 0.05) return;
+      if (transitioningRef.current || player.getCurrentTime() < segmentEnd + 0.05) return;
       const nextCount = completedRef.current + 1;
       completedRef.current = nextCount;
       setCompletedRepeats(nextCount);
