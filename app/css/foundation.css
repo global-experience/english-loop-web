@@ -48,6 +48,14 @@ textarea,
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
+  touch-action: auto;
+  cursor: text;
+}
+
+html.translation-sheet-open,
+html.translation-sheet-open body {
+  overscroll-behavior: none;
+  scroll-behavior: auto;
 }
 
 img {

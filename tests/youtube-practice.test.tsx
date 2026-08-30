@@ -121,9 +121,16 @@ describe("YouTubePractice", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(await screen.findByText("오피스 영어에 오신 것을 환영합니다.")).toBeInTheDocument();
+    expect(document.body.style.position).toBe("fixed");
+    expect(document.documentElement).toHaveClass("translation-sheet-open");
+    expect(screen.getByText(/기기의 번역 메뉴/)).toBeInTheDocument();
     const translationCalls = vi.mocked(apiFetch).mock.calls.filter(([path]) =>
       String(path).includes("/translate"),
     );
     expect(translationCalls).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "번역 닫기" }));
+    expect(document.body.style.position).toBe("");
+    expect(document.documentElement).not.toHaveClass("translation-sheet-open");
   });
 });

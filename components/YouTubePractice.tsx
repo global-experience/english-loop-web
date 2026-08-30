@@ -87,23 +87,38 @@ export function effectiveSegmentEnd(segments: TranscriptSegment[], index: number
   return Math.max(segment.end, estimatedEnd);
 }
 
+type TranslationPlatform = "ios" | "android" | "web";
+
 function useMobileTranslationUi() {
   const [mobile, setMobile] = useState(false);
+  const [platform, setPlatform] = useState<TranslationPlatform>("web");
 
   useEffect(() => {
     const query = window.matchMedia?.("(max-width: 767px)");
     const capacitor = (window as typeof window & {
-      Capacitor?: { isNativePlatform?: () => boolean };
+      Capacitor?: {
+        getPlatform?: () => string;
+        isNativePlatform?: () => boolean;
+      };
     }).Capacitor;
     const update = () => {
       setMobile(isNativeAppRuntime(capacitor, navigator.userAgent) || query?.matches === true);
+      const capacitorPlatform = capacitor?.getPlatform?.();
+      const isIPadOs = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+      if (capacitorPlatform === "ios" || /iPad|iPhone|iPod/i.test(navigator.userAgent) || isIPadOs) {
+        setPlatform("ios");
+      } else if (capacitorPlatform === "android" || /Android/i.test(navigator.userAgent)) {
+        setPlatform("android");
+      } else {
+        setPlatform("web");
+      }
     };
     update();
     query?.addEventListener?.("change", update);
     return () => query?.removeEventListener?.("change", update);
   }, []);
 
-  return mobile;
+  return { mobile, platform };
 }
 
 export function YouTubePractice() {
@@ -129,7 +144,8 @@ export function YouTubePractice() {
   const [portalReady, setPortalReady] = useState(false);
   const [translationPanel, setTranslationPanel] = useState<TranslationPanelState | null>(null);
   const [selectionTooltip, setSelectionTooltip] = useState<SelectionTooltipState | null>(null);
-  const mobileTranslationUi = useMobileTranslationUi();
+  const { mobile: mobileTranslationUi, platform: translationPlatform } = useMobileTranslationUi();
+  const mobileTranslationSheetOpen = mobileTranslationUi && translationPanel !== null;
 
   const playerHostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
@@ -147,13 +163,49 @@ export function YouTubePractice() {
   }, []);
 
   useEffect(() => {
-    if (!translationPanel || !mobileTranslationUi) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
+    if (!mobileTranslationSheetOpen) return;
+
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const root = document.documentElement;
+    const previousBodyStyle = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+      overscrollBehavior: body.style.overscrollBehavior,
     };
-  }, [mobileTranslationUi, translationPanel]);
+    const previousRootStyle = {
+      overflow: root.style.overflow,
+      overscrollBehavior: root.style.overscrollBehavior,
+      scrollBehavior: root.style.scrollBehavior,
+    };
+
+    root.classList.add("translation-sheet-open");
+    root.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
+    root.style.scrollBehavior = "auto";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+
+    return () => {
+      root.classList.remove("translation-sheet-open");
+      Object.assign(body.style, previousBodyStyle);
+      root.style.overflow = previousRootStyle.overflow;
+      root.style.overscrollBehavior = previousRootStyle.overscrollBehavior;
+      if (window.scrollY !== scrollY) {
+        window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
+      }
+      root.style.scrollBehavior = previousRootStyle.scrollBehavior;
+    };
+  }, [mobileTranslationSheetOpen]);
 
   useEffect(() => {
     if (!translationPanel && !selectionTooltip) return;
@@ -654,7 +706,7 @@ export function YouTubePractice() {
     </section>
     {portalReady && translationPanel && createPortal(
       <div
-        className={`translation-layer ${mobileTranslationUi ? "mobile" : "desktop"}`}
+        className={`translation-layer ${mobileTranslationUi ? `mobile ${translationPlatform}` : "desktop"}`}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) setTranslationPanel(null);
         }}
@@ -670,45 +722,55 @@ export function YouTubePractice() {
           {mobileTranslationUi && <div className="translation-sheet-handle" aria-hidden="true" />}
           <header>
             <div>
-              <p className="eyebrow"><Sparkles size={12} /> GROQ AI TRANSLATION</p>
-              <h3 id="translation-panel-title">자연스러운 한국어 표현</h3>
+              {!mobileTranslationUi && <p className="eyebrow"><Sparkles size={12} /> GROQ AI TRANSLATION</p>}
+              <h3 id="translation-panel-title">{mobileTranslationUi ? "번역" : "자연스러운 한국어 표현"}</h3>
             </div>
             <button type="button" onClick={() => setTranslationPanel(null)} aria-label="번역 닫기">
               <X size={19} />
             </button>
           </header>
-          <div className="translation-copy original">
-            <span>ORIGINAL</span>
-            <p className="selectable-text" data-segment-id={translationPanel.segment.id} lang="en">
-              {translationPanel.segment.text}
-            </p>
-          </div>
-          <div className="translation-copy korean" aria-live="polite">
-            <span>KOREAN</span>
-            {translationPanel.loading && (
-              <p className="translation-loading"><LoaderCircle className="spin" size={17} /> 문맥에 맞게 번역하는 중…</p>
-            )}
-            {!translationPanel.loading && translationPanel.result && (
-              <p className="selectable-text" lang="ko">{translationPanel.result.translation}</p>
-            )}
-            {!translationPanel.loading && translationPanel.error && (
-              <div className="translation-error" role="alert">
-                <p>{translationPanel.error}</p>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    translateClickRef.current = 0;
-                    void requestSegmentTranslation(translationPanel.segment, event);
-                  }}
-                >
-                  다시 시도
-                </button>
-              </div>
-            )}
+          <div className="translation-content-card">
+            <div className="translation-copy original">
+              <span>다음으로 감지됨 · 영어</span>
+              <p className="selectable-text" data-segment-id={translationPanel.segment.id} lang="en">
+                {translationPanel.segment.text}
+              </p>
+            </div>
+            <div className="translation-copy korean" aria-live="polite">
+              <span>한국어</span>
+              {translationPanel.loading && (
+                <p className="translation-loading"><LoaderCircle className="spin" size={17} /> 문맥에 맞게 번역하는 중…</p>
+              )}
+              {!translationPanel.loading && translationPanel.result && (
+                <p className="selectable-text" lang="ko">{translationPanel.result.translation}</p>
+              )}
+              {!translationPanel.loading && translationPanel.error && (
+                <div className="translation-error" role="alert">
+                  <p>{translationPanel.error}</p>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      translateClickRef.current = 0;
+                      void requestSegmentTranslation(translationPanel.segment, event);
+                    }}
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <footer>
             <span>{translationPanel.result?.cached ? "DB 캐시에서 즉시 불러옴" : "최초 번역은 DB에 안전하게 저장됩니다"}</span>
-            {mobileTranslationUi && <small>영어 문구를 길게 눌러 OS 번역 메뉴를 사용할 수 있어요.</small>}
+            {mobileTranslationUi && (
+              <small>
+                {translationPlatform === "ios"
+                  ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’을 선택하세요."
+                  : translationPlatform === "android"
+                    ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’ 또는 ‘더보기’를 선택하세요."
+                    : "영어 문구를 길게 누르고 범위를 조절하면 기기의 번역 메뉴를 사용할 수 있어요."}
+              </small>
+            )}
           </footer>
         </section>
       </div>,
