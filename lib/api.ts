@@ -52,6 +52,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const apiBase = getApiBase();
   const method = (init.method || "GET").toUpperCase();
   const headers = new Headers(init.headers);
+  const internalSecret = process.env.NEXT_PUBLIC_INTERNAL_API_SECRET || "loopine-internal-secret-dev-key";
+  headers.set("X-Internal-Secret", internalSecret);
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) headers.set("X-CSRF-Token", decodeURIComponent(csrfToken()));
   const response = await fetch(`${apiBase}${path}`, { cache: "no-store", ...init, headers, credentials: "include" });

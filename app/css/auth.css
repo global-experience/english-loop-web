@@ -282,6 +282,14 @@ html.splash-active body {
   font-size: 11px;
 }
 
+.form-success {
+  margin: 0;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
 .form-note {
   margin: 0;
   color: var(--muted);

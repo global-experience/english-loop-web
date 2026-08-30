@@ -16,12 +16,14 @@ export default function LoginPage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [englishLevel, setEnglishLevel] = useState("B1");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   function switchMode(nextMode: AuthMode) {
     if (nextMode === mode) return;
     setMode(nextMode);
     setError("");
+    setNotice("");
     setPasswordConfirm("");
     if (nextMode === "register" && email === "learner@example.com") {
       setEmail("");
@@ -37,15 +39,27 @@ export default function LoginPage() {
     }
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       const path = mode === "login" ? "/api/auth/login" : "/api/auth/register";
       const payload = mode === "login"
         ? { email, password }
         : { display_name: displayName, email, password, english_level: englishLevel };
       await apiFetch(path, { method: "POST", body: JSON.stringify(payload) });
+      if (mode === "register") {
+        setMode("login");
+        setPassword("");
+        setPasswordConfirm("");
+        setNotice("가입 요청이 접수됐습니다. 관리자가 승인하면 로그인할 수 있어요.");
+        return;
+      }
       window.location.href = "/";
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : mode === "login" ? "로그인하지 못했습니다." : "회원가입하지 못했습니다.");
+      if (typeof caught === "object" && caught !== null && "code" in caught && caught.code === "ACCOUNT_PENDING_APPROVAL") {
+        setError("아직 관리자 승인 대기 중입니다. 승인 후 다시 로그인해 주세요.");
+      } else {
+        setError(caught instanceof Error ? caught.message : mode === "login" ? "로그인하지 못했습니다." : "회원가입하지 못했습니다.");
+      }
     } finally { setBusy(false); }
   }
 
@@ -68,9 +82,10 @@ export default function LoginPage() {
           <label>비밀번호<input type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={mode === "login" ? 8 : 10} placeholder="비밀번호" /></label>
           {mode === "register" && <><label>비밀번호 확인<input type="password" autoComplete="new-password" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} required minLength={10} placeholder="비밀번호 확인" /></label><p className="password-hint">10자 이상, 영문과 숫자를 각각 하나 이상 포함하세요.</p></>}
         </div>
+        {notice && <p className="form-success" role="status">{notice}</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-button" disabled={busy}>{busy ? "처리 중…" : <>{mode === "login" ? "로그인" : "계정 만들기"} <ArrowRight size={18} /></>}</button>
-        <p className="form-note">{mode === "login" ? "처음 확인할 때는 기본 계정을 사용할 수 있습니다." : "가입 후 자동 로그인되며, 본인 전용 샘플 대본과 오늘 학습 계획이 준비됩니다."}</p>
+        <p className="form-note">{mode === "login" ? "승인된 계정으로 로그인할 수 있습니다." : "가입 요청 후 관리자가 승인하면, 본인 전용 샘플 대본과 오늘 학습 계획이 준비됩니다."}</p>
       </form>
     </main>
   );

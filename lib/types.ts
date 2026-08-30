@@ -82,6 +82,7 @@ export type User = {
   custom_gpt_url: string | null;
   daily_minutes: number;
   recording_retention_days: number;
+  approval_status: "PENDING" | "APPROVED" | "REJECTED";
 };
 
 export type FeedVideo = {
