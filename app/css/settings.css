@@ -101,7 +101,6 @@
   color: var(--acid);
   font-size: 9px;
   line-height: 1.5;
-  user-select: all;
 }
 
 .action-key-panel small {

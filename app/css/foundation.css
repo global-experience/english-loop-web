@@ -38,6 +38,21 @@ body {
   overscroll-behavior-x: none;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+.selectable-text {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 body::before {

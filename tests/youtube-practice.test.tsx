@@ -40,8 +40,8 @@ describe("YouTubePractice", () => {
         language_code: "en",
         is_generated: true,
         segments: [
-          { text: "Welcome to Office English.", start: 4.2, duration: 2.5, end: 6.7 },
-          { text: "Let's begin the meeting.", start: 7, duration: 2, end: 9 },
+          { id: "a".repeat(64), text: "Welcome to Office English.", start: 4.2, duration: 2.5, end: 6.7 },
+          { id: "b".repeat(64), text: "Let's begin the meeting.", start: 7, duration: 2, end: 9 },
         ],
       },
     });
@@ -80,15 +80,50 @@ describe("YouTubePractice", () => {
   it("extends an implausibly short caption until the next cue", () => {
     const segments = [
       {
+        id: "a".repeat(64),
         text: "Was first broadcast on the BBC Learning English website in October 2014.",
         start: 2.6,
         end: 3.9,
         duration: 1.3,
       },
-      { text: "For more English language learning programmes.", start: 7.96, end: 9.26, duration: 1.3 },
+      { id: "b".repeat(64), text: "For more English language learning programmes.", start: 7.96, end: 9.26, duration: 1.3 },
     ];
 
     expect(effectiveSegmentEnd(segments, 0)).toBeGreaterThan(6.9);
     expect(effectiveSegmentEnd(segments, 0)).toBeLessThan(7.96);
+  });
+
+  it("opens a mobile translation bottom sheet and prevents rapid duplicate requests", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    render(<YouTubePractice />);
+    expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      segment_id: "a".repeat(64),
+      video_id: "rGQkLXIey4Y",
+      source_text: "Welcome to Office English.",
+      translation: "오피스 영어에 오신 것을 환영합니다.",
+      model: "llama-3.3-70b-versatile",
+      cached: false,
+    });
+
+    const translateButton = screen.getByRole("button", { name: /번역 보기/ });
+    fireEvent.click(translateButton);
+    fireEvent.click(translateButton);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByText("오피스 영어에 오신 것을 환영합니다.")).toBeInTheDocument();
+    const translationCalls = vi.mocked(apiFetch).mock.calls.filter(([path]) =>
+      String(path).includes("/translate"),
+    );
+    expect(translationCalls).toHaveLength(1);
   });
 });

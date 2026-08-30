@@ -19,8 +19,8 @@ type TabDirection = "forward" | "back";
 
 const nav = [
   { id: "today" as const, label: "오늘", Icon: CalendarDays },
-  { id: "feed" as const, label: "피드", Icon: Clapperboard },
   { id: "learn" as const, label: "학습", Icon: BookOpen },
+  { id: "feed" as const, label: "피드", Icon: Clapperboard },
   { id: "review" as const, label: "복습", Icon: RefreshCw },
   { id: "report" as const, label: "리포트", Icon: BarChart3 },
   // { id: "settings" as const, label: "설정", Icon: Settings },
