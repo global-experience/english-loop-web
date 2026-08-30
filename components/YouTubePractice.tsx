@@ -5,7 +5,6 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, LoaderCircle, Pause, Play, RotateCcw, Youtube } from "lucide-react";
 import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
 import type { TranscriptSegment } from "@/lib/youtubeStore";
-import { openExternalUrl } from "@/lib/openExternal";
 
 type YouTubePlayer = {
   cueVideoById: (videoId: string) => void;
@@ -304,13 +303,9 @@ export function YouTubePractice() {
                         : "영상 정보를 준비하고 있습니다"}
           </small>
         </div>
-        <button
-          type="button"
-          className="youtube-open-link"
-          onClick={() => void openExternalUrl(`https://www.youtube.com/watch?v=${videoId}`)}
-        >
+        <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noreferrer">
           YouTube 열기 <ExternalLink size={14} />
-        </button>
+        </a>
       </div>
 
       {error && <div className="youtube-error" role="alert">{error}</div>}

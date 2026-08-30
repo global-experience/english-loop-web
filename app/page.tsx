@@ -5,7 +5,6 @@ import { BarChart3, BookOpen, CalendarDays, CircleUserRound, Clapperboard, Refre
 import { apiFetch, ApiError } from "@/lib/api";
 import type { TodayData, User } from "@/lib/types";
 import { ServiceWorker } from "@/components/ServiceWorker";
-import { ExternalLinkInterceptor } from "@/components/ExternalLinkInterceptor";
 import { TodayView } from "@/components/TodayView";
 import { LearningView, type LearningMode } from "@/components/LearningView";
 import { ReviewView } from "@/components/ReviewView";
@@ -99,7 +98,6 @@ export default function Home() {
   return (
     <main className="app-shell" data-tab={tab}>
       <ServiceWorker />
-      <ExternalLinkInterceptor />
       {!online && <div className="offline-banner" role="status"><WifiOff size={15} /> 오프라인 — 작성 내용은 이 기기에 보관됩니다.</div>}
       {error && <div className="error-banner" role="alert">{error}</div>}
       <header className="topbar">
