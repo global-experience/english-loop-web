@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { effectiveSegmentEnd, YouTubePractice } from "@/components/YouTubePractice";
+import { effectiveSegmentEnd, findGrammarChunks, YouTubePractice } from "@/components/YouTubePractice";
 import { apiFetch } from "@/lib/api";
 
 import { youtubeStore } from "@/lib/youtubeStore";
@@ -26,6 +26,8 @@ describe("YouTubePractice", () => {
       sessionStorage.clear();
     }
     youtubeStore.resetForTesting();
+    delete window.LoopineNativeTranslation;
+    delete window.LoopineNativeTranslationHost;
     vi.clearAllMocks();
     vi.mocked(apiFetch).mockResolvedValue({
       id: "job-1",
@@ -93,6 +95,13 @@ describe("YouTubePractice", () => {
     expect(effectiveSegmentEnd(segments, 0)).toBeLessThan(7.96);
   });
 
+  it("detects useful grammar chunks without an AI request", () => {
+    expect(findGrammarChunks("I have to leave as soon as the meeting ends.")).toEqual([
+      { text: "have to", label: "have to", meaning: "~해야 한다 · 의무/필요" },
+      { text: "as soon as", label: "as soon as", meaning: "~하자마자" },
+    ]);
+  });
+
   it("opens a mobile translation bottom sheet and prevents rapid duplicate requests", async () => {
     vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
       matches: query.includes("max-width"),
@@ -132,5 +141,43 @@ describe("YouTubePractice", () => {
     fireEvent.click(screen.getByRole("button", { name: "번역 닫기" }));
     expect(document.body.style.position).toBe("");
     expect(document.documentElement).not.toHaveClass("translation-sheet-open");
+  });
+
+  it("uses the Capacitor native translation sheet instead of the web dialog", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    const present = vi.fn();
+    const update = vi.fn();
+    window.LoopineNativeTranslation = { present, update, notify: vi.fn() };
+    render(<YouTubePractice />);
+    expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      segment_id: "a".repeat(64),
+      video_id: "rGQkLXIey4Y",
+      source_text: "Welcome to Office English.",
+      translation: "오피스 영어에 오신 것을 환영합니다.",
+      model: "openai/gpt-oss-120b",
+      cached: false,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /번역 보기/ }));
+
+    expect(present).toHaveBeenCalledWith(expect.objectContaining({
+      sourceText: "Welcome to Office English.",
+      loading: true,
+    }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      translation: "오피스 영어에 오신 것을 환영합니다.",
+      loading: false,
+    })));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

@@ -13,6 +13,7 @@ import { SettingsView } from "@/components/SettingsView";
 import { AppSplash, useAppSplash } from "@/components/AppSplash";
 import { FeedView } from "@/components/FeedView";
 import { youtubeStore } from "@/lib/youtubeStore";
+import { triggerHapticSelection } from "@/lib/haptics";
 
 type Tab = "today" | "feed" | "learn" | "review" | "report" | "settings";
 type TabDirection = "forward" | "back";
@@ -70,6 +71,7 @@ export default function Home() {
   };
 
   const switchTab = (nextTab: Tab) => {
+    void triggerHapticSelection();
     if (nextTab === tab) {
       scrollToTop("smooth");
       return;

@@ -667,6 +667,49 @@
   touch-action: auto;
 }
 
+.translation-grammar {
+  margin-top: 12px;
+}
+
+.translation-grammar>strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10px;
+}
+
+.translation-grammar>div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.translation-grammar span {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(216, 239, 103, .18);
+}
+
+.translation-grammar b {
+  color: inherit;
+  font-size: 11px;
+}
+
+.translation-grammar small {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.translation-layer.mobile .translation-grammar>strong,
+.translation-layer.mobile .translation-grammar b {
+  color: #fff;
+}
+
+.translation-layer.mobile .translation-grammar small {
+  color: rgba(255, 255, 255, .66);
+}
+
 .translation-loading {
   display: flex;
   align-items: center;

@@ -8,9 +8,11 @@ services:
     command: npm run dev
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
-      - API_PROXY_ORIGIN=${API_PROXY_ORIGIN:-}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-/backend}
+      - API_PROXY_ORIGIN=${API_PROXY_ORIGIN:-http://host.docker.internal:8000}
       - WATCHPACK_POLLING=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
       - /app/node_modules

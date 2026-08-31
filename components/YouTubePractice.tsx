@@ -27,14 +27,37 @@ type TranslationPanelState = {
   top: number;
 };
 
-type SelectionTooltipState = {
-  segmentId: string;
-  sourceText: string;
-  translation: string;
-  loading: boolean;
-  error: string;
-  left: number;
-  top: number;
+export type GrammarChunk = {
+  text: string;
+  label: string;
+  meaning: string;
+};
+
+type NativeTranslationUpdate = {
+  translation?: string;
+  loading?: boolean;
+  error?: string;
+  selectionText?: string;
+  selectionTranslation?: string;
+};
+
+type NativeTranslationBridge = {
+  present: (payload: {
+    segmentId: string;
+    sourceText: string;
+    translation: string;
+    loading: boolean;
+    error: string;
+    grammarChunks: GrammarChunk[];
+  }) => void;
+  update?: (payload: NativeTranslationUpdate) => void;
+  notify?: (payload: { message: string; kind?: "success" | "error" }) => void;
+};
+
+type AndroidTranslationHost = {
+  present: (payload: string) => void;
+  update?: (payload: string) => void;
+  notify?: (payload: string) => void;
 };
 
 type YouTubePlayer = {
@@ -61,7 +84,53 @@ declare global {
         },
       ) => YouTubePlayer;
     };
+    LoopineNativeTranslation?: NativeTranslationBridge;
+    LoopineNativeTranslationHost?: AndroidTranslationHost;
   }
+}
+
+function getNativeTranslationBridge(): NativeTranslationBridge | undefined {
+  if (typeof window === "undefined") return undefined;
+  if (window.LoopineNativeTranslation?.present) return window.LoopineNativeTranslation;
+  const host = window.LoopineNativeTranslationHost;
+  if (!host?.present) return undefined;
+  return {
+    present: (payload) => host.present(JSON.stringify(payload)),
+    update: (payload) => host.update?.(JSON.stringify(payload)),
+    notify: (payload) => host.notify?.(JSON.stringify(payload)),
+  };
+}
+
+const GRAMMAR_CHUNK_PATTERNS: Array<{ pattern: RegExp; label: string; meaning: string }> = [
+  { pattern: /\b(?:have|has|had) to\b/gi, label: "have to", meaning: "~해야 한다 · 의무/필요" },
+  { pattern: /\b(?:am|is|are|was|were) going to\b/gi, label: "be going to", meaning: "~할 예정이다 · 계획" },
+  { pattern: /\bused to\b/gi, label: "used to", meaning: "예전에는 ~하곤 했다" },
+  { pattern: /\bwould like to\b/gi, label: "would like to", meaning: "~하고 싶다 · 공손한 표현" },
+  { pattern: /\b(?:am|is|are|was|were) supposed to\b/gi, label: "be supposed to", meaning: "~하기로 되어 있다" },
+  { pattern: /\b(?:need|needs|needed) to\b/gi, label: "need to", meaning: "~할 필요가 있다" },
+  { pattern: /\b(?:want|wants|wanted) to\b/gi, label: "want to", meaning: "~하고 싶다" },
+  { pattern: /\bmake sure\b/gi, label: "make sure", meaning: "반드시 확인하다" },
+  { pattern: /\bas soon as\b/gi, label: "as soon as", meaning: "~하자마자" },
+  { pattern: /\beven though\b/gi, label: "even though", meaning: "비록 ~이지만" },
+  { pattern: /\bkind of\b/gi, label: "kind of", meaning: "약간 · 어느 정도" },
+  { pattern: /\ba lot of\b/gi, label: "a lot of", meaning: "많은" },
+  { pattern: /\b(?:there is|there are|there was|there were)\b/gi, label: "there be", meaning: "~이 있다" },
+];
+
+export function findGrammarChunks(sourceText: string): GrammarChunk[] {
+  const chunks: GrammarChunk[] = [];
+  const seen = new Set<string>();
+  for (const { pattern, label, meaning } of GRAMMAR_CHUNK_PATTERNS) {
+    pattern.lastIndex = 0;
+    for (const match of sourceText.matchAll(pattern)) {
+      const text = match[0].trim();
+      const key = `${label}:${text.toLowerCase()}`;
+      if (!text || seen.has(key)) continue;
+      seen.add(key);
+      chunks.push({ text, label, meaning });
+    }
+  }
+  return chunks;
 }
 
 function formatTime(seconds: number) {
@@ -143,7 +212,6 @@ export function YouTubePractice() {
   const [isLooping, setIsLooping] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
   const [translationPanel, setTranslationPanel] = useState<TranslationPanelState | null>(null);
-  const [selectionTooltip, setSelectionTooltip] = useState<SelectionTooltipState | null>(null);
   const { mobile: mobileTranslationUi, platform: translationPlatform } = useMobileTranslationUi();
   const mobileTranslationSheetOpen = mobileTranslationUi && translationPanel !== null;
 
@@ -154,7 +222,8 @@ export function YouTubePractice() {
   const transitioningRef = useRef(false);
   const completedRef = useRef(0);
   const translateClickRef = useRef(0);
-  const selectionRequestRef = useRef(0);
+  const nativeSelectionRequestRef = useRef(0);
+  const nativeSelectionCacheRef = useRef(new Map<string, string>());
 
   // Initialize default load if store has no transcript or active loading
   useEffect(() => {
@@ -208,15 +277,98 @@ export function YouTubePractice() {
   }, [mobileTranslationSheetOpen]);
 
   useEffect(() => {
-    if (!translationPanel && !selectionTooltip) return;
+    if (!translationPanel) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setTranslationPanel(null);
-      setSelectionTooltip(null);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [selectionTooltip, translationPanel]);
+  }, [translationPanel]);
+
+  useEffect(() => {
+    const handleNativeTranslationAction = (rawEvent: Event) => {
+      const event = rawEvent as CustomEvent<{
+        action?: "selection" | "save";
+        segmentId?: string;
+        text?: string;
+      }>;
+      const { action, segmentId, text: rawText } = event.detail || {};
+      const sourceText = rawText?.replace(/\s+/g, " ").trim() || "";
+      const segment = transcript?.segments.find((item) => item.id === segmentId);
+      const bridge = getNativeTranslationBridge();
+      if (!action || !segment || !sourceText || sourceText.length > 300 || !bridge) return;
+
+      const translateSelection = async () => apiFetch<TranslationResponse>(
+        `/api/v1/transcript/segments/${segment.id}/translate`,
+        { method: "POST", body: JSON.stringify({ video_id: videoId, selection_text: sourceText }) },
+      );
+
+      if (action === "selection") {
+        const cacheKey = `${segment.id}:${sourceText.toLowerCase()}`;
+        const cached = nativeSelectionCacheRef.current.get(cacheKey);
+        if (cached) {
+          bridge.update?.({ selectionText: sourceText, selectionTranslation: cached, loading: false });
+          return;
+        }
+        const requestId = nativeSelectionRequestRef.current + 1;
+        nativeSelectionRequestRef.current = requestId;
+        bridge.update?.({ selectionText: sourceText, selectionTranslation: "", loading: true });
+        void translateSelection()
+          .then((result) => {
+            if (nativeSelectionRequestRef.current !== requestId) return;
+            nativeSelectionCacheRef.current.set(cacheKey, result.translation);
+            bridge.update?.({
+              selectionText: sourceText,
+              selectionTranslation: result.translation,
+              loading: false,
+            });
+          })
+          .catch((caught) => {
+            if (nativeSelectionRequestRef.current !== requestId) return;
+            bridge.update?.({
+              selectionText: sourceText,
+              selectionTranslation: "",
+              loading: false,
+              error: caught instanceof Error ? caught.message : "선택한 구절을 번역하지 못했습니다.",
+            });
+          });
+        return;
+      }
+
+      void (async () => {
+        try {
+          const cacheKey = `${segment.id}:${sourceText.toLowerCase()}`;
+          const cached = nativeSelectionCacheRef.current.get(cacheKey);
+          const result = cached
+            ? { translation: cached }
+            : sourceText === segment.text && segment.translation
+              ? { translation: segment.translation }
+              : await translateSelection();
+          await apiFetch("/api/expressions", {
+            method: "POST",
+            body: JSON.stringify({
+              canonical_text: sourceText,
+              korean_meaning: result.translation,
+              example_sentence: segment.text,
+              category: "YOUTUBE_VOCAB",
+              level: "B1",
+              tags: ["youtube", "selected-text", videoId],
+            }),
+          });
+          bridge.notify?.({ message: "단어장과 복습 목록에 저장했어요.", kind: "success" });
+        } catch (caught) {
+          bridge.notify?.({
+            message: caught instanceof Error ? caught.message : "단어장에 저장하지 못했습니다.",
+            kind: "error",
+          });
+        }
+      })();
+    };
+
+    window.addEventListener("loopine:native-translation-action", handleNativeTranslationAction);
+    return () => window.removeEventListener("loopine:native-translation-action", handleNativeTranslationAction);
+  }, [transcript, videoId]);
 
   const clearLoopTimers = useCallback(() => {
     if (loopTimerRef.current) clearInterval(loopTimerRef.current);
@@ -352,7 +504,20 @@ export function YouTubePractice() {
     if (now - translateClickRef.current < 500) return;
     translateClickRef.current = now;
     const position = panelPosition(event);
+    const nativeBridge = mobileTranslationUi ? getNativeTranslationBridge() : undefined;
+    const nativePayload = (translation = "", loading = false, error = "") => ({
+      segmentId: segment.id,
+      sourceText: segment.text,
+      translation,
+      loading,
+      error,
+      grammarChunks: findGrammarChunks(segment.text),
+    });
     if (!segment.id) {
+      if (nativeBridge?.present) {
+        nativeBridge.present(nativePayload("", false, "이 자막은 이전 캐시 데이터입니다. 자막을 다시 불러와 주세요."));
+        return;
+      }
       setTranslationPanel({
         segment,
         result: null,
@@ -363,6 +528,10 @@ export function YouTubePractice() {
       return;
     }
     if (segment.translation) {
+      if (nativeBridge?.present) {
+        nativeBridge.present(nativePayload(segment.translation));
+        return;
+      }
       setTranslationPanel({
         segment,
         result: {
@@ -380,15 +549,19 @@ export function YouTubePractice() {
       return;
     }
 
-    setTranslationPanel({ segment, result: null, loading: true, error: "", ...position });
+    if (nativeBridge?.present) nativeBridge.present(nativePayload("", true));
+    else setTranslationPanel({ segment, result: null, loading: true, error: "", ...position });
     try {
       const result = await apiFetch<TranslationResponse>(
         `/api/v1/transcript/segments/${segment.id}/translate`,
         { method: "POST", body: JSON.stringify({ video_id: videoId }) },
       );
-      setTranslationPanel((current) => current?.segment.id === segment.id
-        ? { ...current, result, loading: false, error: "" }
-        : current);
+      if (nativeBridge?.update) nativeBridge.update({ translation: result.translation, loading: false, error: "" });
+      else {
+        setTranslationPanel((current) => current?.segment.id === segment.id
+          ? { ...current, result, loading: false, error: "" }
+          : current);
+      }
       if (transcript) {
         setStoreState({
           transcript: {
@@ -400,53 +573,18 @@ export function YouTubePractice() {
         });
       }
     } catch (caught) {
-      setTranslationPanel((current) => current?.segment.id === segment.id
-        ? {
-            ...current,
-            loading: false,
-            error: caught instanceof Error ? caught.message : "AI 번역을 불러오지 못했습니다.",
-          }
-        : current);
+      const message = caught instanceof Error ? caught.message : "AI 번역을 불러오지 못했습니다.";
+      if (nativeBridge?.update) nativeBridge.update({ loading: false, error: message });
+      else {
+        setTranslationPanel((current) => current?.segment.id === segment.id
+          ? { ...current, loading: false, error: message }
+          : current);
+      }
     }
   }
 
-  async function handleTextSelection(event: ReactMouseEvent<HTMLElement>) {
-    if (mobileTranslationUi || event.button !== 0) return;
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
-    const sourceText = selection.toString().replace(/\s+/g, " ").trim();
-    if (!sourceText || sourceText.length > 300) return;
-    const anchor = selection.anchorNode;
-    const anchorElement = anchor instanceof Element ? anchor : anchor?.parentElement;
-    const selectable = anchorElement?.closest<HTMLElement>(".selectable-text[data-segment-id]");
-    const segmentId = selectable?.dataset.segmentId;
-    if (!segmentId || !transcript?.segments.some((item) => item.id === segmentId)) return;
-
-    const rect = selection.getRangeAt(0).getBoundingClientRect();
-    const left = Math.max(154, Math.min(window.innerWidth - 154, rect.left + rect.width / 2));
-    const top = Math.max(96, rect.top - 12);
-    const requestId = selectionRequestRef.current + 1;
-    selectionRequestRef.current = requestId;
-    setSelectionTooltip({ segmentId, sourceText, translation: "", loading: true, error: "", left, top });
-    try {
-      const result = await apiFetch<TranslationResponse>(
-        `/api/v1/transcript/segments/${segmentId}/translate`,
-        { method: "POST", body: JSON.stringify({ video_id: videoId, selection_text: sourceText }) },
-      );
-      if (selectionRequestRef.current !== requestId) return;
-      setSelectionTooltip({ segmentId, sourceText, translation: result.translation, loading: false, error: "", left, top });
-    } catch (caught) {
-      if (selectionRequestRef.current !== requestId) return;
-      setSelectionTooltip({
-        segmentId,
-        sourceText,
-        translation: "",
-        loading: false,
-        error: caught instanceof Error ? caught.message : "선택한 문구를 번역하지 못했습니다.",
-        left,
-        top,
-      });
-    }
+  function handleTextSelection(_event: ReactMouseEvent<HTMLElement>) {
+    return;
   }
 
   const trimmedInput = videoInput.trim();
@@ -485,313 +623,313 @@ export function YouTubePractice() {
 
   return (
     <>
-    <section className="youtube-practice" onMouseUp={handleTextSelection}>
-      <Script
-        src="https://www.youtube.com/iframe_api"
-        strategy="afterInteractive"
-        onReady={() => {
-          if (window.YT?.Player) setApiReady(true);
-        }}
-        onError={() => setStoreState({ error: "YouTube 플레이어를 불러오지 못했습니다." })}
-      />
-
-      <header className="youtube-practice-head">
-        <div>
-          <p className="eyebrow">YOUTUBE · TRANSCRIPT LOOP</p>
-          <h2>실제 자막을 골라<br />그 구간만 반복하기</h2>
-          <p>공개 영상의 영어 자막을 불러와 원하는 문장을 바로 듣고 따라 말해 보세요.</p>
-        </div>
-        <span>
-          <Youtube size={18} /> 개인 실습
-        </span>
-      </header>
-
-      <form className="youtube-url-form" onSubmit={submitVideo}>
-        <label className="sr-only" htmlFor="youtube-url">
-          YouTube 영상 주소
-        </label>
-        <input
-          id="youtube-url"
-          type="url"
-          value={videoInput}
-          onChange={(event) => setStoreState({ videoInput: event.target.value })}
-          placeholder="YouTube 영상 주소를 붙여넣으세요"
-          required
+      <section
+        className="youtube-practice"
+      // onMouseUp={handleTextSelection}
+      >
+        <Script
+          src="https://www.youtube.com/iframe_api"
+          strategy="afterInteractive"
+          onReady={() => {
+            if (window.YT?.Player) setApiReady(true);
+          }}
+          onError={() => setStoreState({ error: "YouTube 플레이어를 불러오지 못했습니다." })}
         />
-        <button type="submit" disabled={isSubmitDisabled}>
-          {loading && !isNewUrl ? <LoaderCircle className="spin" size={17} /> : "자막 불러오기"}
-        </button>
-      </form>
 
-      <div className="youtube-frame" aria-label="YouTube 학습 영상">
-        <div ref={playerHostRef} />
-      </div>
-
-      <div className="youtube-source">
-        <div>
-          <strong>
-            {transcript ? `${transcript.language} · ${transcript.segments.length}개 문장` : "YouTube 학습 영상"}
-          </strong>
-          <small>
-            {transcript?.source === "groq_whisper"
-              ? "YouTube 자막 없음 · Groq Whisper 음성 전사"
-              : transcript?.source === "cloudflare_whisper"
-                ? "YouTube 자막 없음 · Cloudflare Workers AI 음성 전사"
-                : transcript?.source === "whisper"
-                  ? "YouTube 자막 없음 · 3090 Whisper 음성 전사"
-                  : transcript?.source === "youtube_caption+whisper"
-                    ? "YouTube 자막 + Whisper 문장 복원"
-                    : transcript?.is_generated
-                      ? "YouTube 자동 생성 자막"
-                      : transcript
-                        ? "게시자가 등록한 자막"
-                        : "영상 정보를 준비하고 있습니다"}
-          </small>
-        </div>
-        <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noreferrer">
-          YouTube 열기 <ExternalLink size={14} />
-        </a>
-      </div>
-
-      {error && <div className="youtube-error" role="alert">{error}</div>}
-
-      <div className="youtube-loop-settings" aria-label="반복 재생 설정">
-        <div>
-          <span>반복</span>
-          {(
-            [1, 3, 5] as const
-          ).map((count) => (
-            <button
-              key={count}
-              type="button"
-              className={repeatTarget === count ? "active" : ""}
-              onClick={() => {
-                if (isLooping) stopLoop(true);
-                setStoreState({ repeatTarget: count });
-              }}
-            >
-              {count}회
-            </button>
-          ))}
-        </div>
-        <div>
-          <span>속도</span>
-          {(
-            [0.75, 1, 1.25] as const
-          ).map((rate) => (
-            <button
-              key={rate}
-              type="button"
-              className={playbackRate === rate ? "active" : ""}
-              onClick={() => setStoreState({ playbackRate: rate })}
-            >
-              {rate}×
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loading && (
-        <div className="youtube-loading" aria-live="polite">
-          <div className="youtube-progress-ring">
-            <svg width="100" height="100" viewBox="0 0 100 100">
-              <circle
-                cx="50"
-                cy="50"
-                r={radius}
-                stroke="rgba(24, 32, 29, 0.12)"
-                strokeWidth="7"
-                fill="none"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r={radius}
-                stroke="var(--coral)"
-                strokeWidth="7"
-                fill="none"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                transform="rotate(-90 50 50)"
-                style={{ transition: "stroke-dashoffset 0.4s ease" }}
-              />
-            </svg>
-            <div className="youtube-progress-percent">
-              <span>{progressVal}%</span>
-            </div>
+        <header className="youtube-practice-head">
+          <div>
+            <p className="eyebrow">YOUTUBE · TRANSCRIPT LOOP</p>
+            <h2>실제 자막을 골라<br />그 구간만 반복하기</h2>
+            <p>공개 영상의 영어 자막을 불러와 원하는 문장을 바로 듣고 따라 말해 보세요.</p>
           </div>
+          <span>
+            <Youtube size={18} /> 개인 실습
+          </span>
+        </header>
 
-          <strong>영어 대사를 문장으로 정리하는 중…</strong>
-          <span>{statusDetail}</span>
+        <form className="youtube-url-form" onSubmit={submitVideo}>
+          <label className="sr-only" htmlFor="youtube-url">
+            YouTube 영상 주소
+          </label>
+          <input
+            id="youtube-url"
+            type="url"
+            value={videoInput}
+            onChange={(event) => setStoreState({ videoInput: event.target.value })}
+            placeholder="YouTube 영상 주소를 붙여넣으세요"
+            required
+          />
+          <button type="submit" disabled={isSubmitDisabled}>
+            {loading && !isNewUrl ? <LoaderCircle className="spin" size={17} /> : "자막 불러오기"}
+          </button>
+        </form>
+
+        <div className="youtube-frame" aria-label="YouTube 학습 영상">
+          <div ref={playerHostRef} />
         </div>
-      )}
 
-      {!loading && !transcript && !error && (
-        <div className="youtube-empty-state">
-          <p>YouTube 영상 주소를 입력하고 <strong>자막 불러오기</strong>를 누르면 문장별 반복 연습이 시작됩니다.</p>
+        <div className="youtube-source">
+          <div>
+            <strong>
+              {transcript ? `${transcript.language} · ${transcript.segments.length}개 문장` : "YouTube 학습 영상"}
+            </strong>
+            <small>
+              {transcript?.source === "groq_whisper"
+                ? "YouTube 자막 없음 · Groq Whisper 음성 전사"
+                : transcript?.source === "cloudflare_whisper"
+                  ? "YouTube 자막 없음 · Cloudflare Workers AI 음성 전사"
+                  : transcript?.source === "whisper"
+                    ? "YouTube 자막 없음 · 3090 Whisper 음성 전사"
+                    : transcript?.source === "youtube_caption+whisper"
+                      ? "YouTube 자막 + Whisper 문장 복원"
+                      : transcript?.is_generated
+                        ? "YouTube 자동 생성 자막"
+                        : transcript
+                          ? "게시자가 등록한 자막"
+                          : "영상 정보를 준비하고 있습니다"}
+            </small>
+          </div>
+          <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noreferrer">
+            YouTube 열기 <ExternalLink size={14} />
+          </a>
         </div>
-      )}
 
-      {!loading && transcript && selected && (
-        <>
-          <div className="youtube-shadowing">
-            <p className="eyebrow">SELECTED LINE · {formatTime(selected.start)}</p>
-            <h3 className="selectable-text" data-segment-id={selected.id}>{selected.text}</h3>
-            <p>
-              {isLooping
-                ? `구간 반복 중 · ${completedRepeats} / ${repeatTarget}`
-                : "재생을 누르면 이 자막 구간만 반복합니다."}
-            </p>
-            <div className="youtube-shadow-actions">
-              <button type="button" className="primary-button" onClick={() => startLoop()}>
-                {isLooping ? <RotateCcw size={17} /> : <Play size={17} />}{" "}
-                {isLooping ? "처음부터 다시" : `${repeatTarget}회 반복 시작`}
+        {error && <div className="youtube-error" role="alert">{error}</div>}
+
+        <div className="youtube-loop-settings" aria-label="반복 재생 설정">
+          <div>
+            <span>반복</span>
+            {(
+              [1, 3, 5] as const
+            ).map((count) => (
+              <button
+                key={count}
+                type="button"
+                className={repeatTarget === count ? "active" : ""}
+                onClick={() => {
+                  if (isLooping) stopLoop(true);
+                  setStoreState({ repeatTarget: count });
+                }}
+              >
+                {count}회
               </button>
+            ))}
+          </div>
+          <div>
+            <span>속도</span>
+            {(
+              [0.75, 1, 1.25] as const
+            ).map((rate) => (
+              <button
+                key={rate}
+                type="button"
+                className={playbackRate === rate ? "active" : ""}
+                onClick={() => setStoreState({ playbackRate: rate })}
+              >
+                {rate}×
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading && (
+          <div className="youtube-loading" aria-live="polite">
+            <div className="youtube-progress-ring">
+              <svg width="100" height="100" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r={radius}
+                  stroke="rgba(24, 32, 29, 0.12)"
+                  strokeWidth="7"
+                  fill="none"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r={radius}
+                  stroke="var(--coral)"
+                  strokeWidth="7"
+                  fill="none"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  transform="rotate(-90 50 50)"
+                  style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                />
+              </svg>
+              <div className="youtube-progress-percent">
+                <span>{progressVal}%</span>
+              </div>
+            </div>
+
+            <strong>영어 대사를 문장으로 정리하는 중…</strong>
+            <span>{statusDetail}</span>
+          </div>
+        )}
+
+        {!loading && !transcript && !error && (
+          <div className="youtube-empty-state">
+            <p>YouTube 영상 주소를 입력하고 <strong>자막 불러오기</strong>를 누르면 문장별 반복 연습이 시작됩니다.</p>
+          </div>
+        )}
+
+        {!loading && transcript && selected && (
+          <>
+            <div className="youtube-shadowing">
+              <p className="eyebrow">SELECTED LINE · {formatTime(selected.start)}</p>
+              <h3 className="selectable-text" data-segment-id={selected.id}>{selected.text}</h3>
+              <p>
+                {isLooping
+                  ? `구간 반복 중 · ${completedRepeats} / ${repeatTarget}`
+                  : "재생을 누르면 이 자막 구간만 반복합니다."}
+              </p>
+              <div className="youtube-shadow-actions">
+                <button type="button" className="primary-button" onClick={() => startLoop()}>
+                  {isLooping ? <RotateCcw size={17} /> : <Play size={17} />}{" "}
+                  {isLooping ? "처음부터 다시" : `${repeatTarget}회 반복 시작`}
+                </button>
+                <button
+                  type="button"
+                  className="icon-toggle"
+                  aria-label="반복 재생 중지"
+                  disabled={!isLooping}
+                  onClick={() => stopLoop(true)}
+                >
+                  <Pause size={17} />
+                </button>
+              </div>
               <button
                 type="button"
-                className="icon-toggle"
-                aria-label="반복 재생 중지"
-                disabled={!isLooping}
-                onClick={() => stopLoop(true)}
+                className="youtube-translate-button"
+                onClick={(event) => void requestSegmentTranslation(selected, event)}
+                aria-haspopup="dialog"
               >
-                <Pause size={17} />
+                <Languages size={16} /> 번역 보기
+                {selected.translation && <span>저장됨</span>}
               </button>
             </div>
-            <button
-              type="button"
-              className="youtube-translate-button"
-              onClick={(event) => void requestSegmentTranslation(selected, event)}
-              aria-haspopup="dialog"
-            >
-              <Languages size={16} /> 번역 보기
-              {selected.translation && <span>저장됨</span>}
-            </button>
-          </div>
 
-          <div className="youtube-transcript-list" aria-label="영상 자막 목록">
-            <div className="youtube-transcript-head">
-              <div>
-                <p className="eyebrow">FULL TRANSCRIPT</p>
-                <strong>연습할 문장을 선택하세요</strong>
-              </div>
-              <small>누르면 바로 {repeatTarget}회 반복</small>
-            </div>
-            <ol>
-              {transcript.segments.map((segment, index) => (
-                <li key={`${segment.start}-${index}`}>
-                  {segment.scene && (index === 0 || transcript.segments[index - 1]?.scene !== segment.scene) && (
-                    <p className="youtube-scene-label">장면 {segment.scene}</p>
-                  )}
-                  <button
-                    type="button"
-                    className={selectedIndex === index ? "active" : ""}
-                    onClick={() => startLoop(index)}
-                  >
-                    <time>{formatTime(segment.start)}</time>
-                    <span>{segment.text}</span>
-                    <Play size={14} />
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </>
-      )}
-
-      <p className="youtube-copyright">
-        개인 학습용 비공식 연동입니다. 영상은 공식 YouTube 플레이어로 재생하며, 내려받은 임시 오디오는 전사 직후 삭제하고
-        재처리 방지를 위한 문장 데이터만 서버에 캐시합니다.
-      </p>
-    </section>
-    {portalReady && translationPanel && createPortal(
-      <div
-        className={`translation-layer ${mobileTranslationUi ? `mobile ${translationPlatform}` : "desktop"}`}
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setTranslationPanel(null);
-        }}
-      >
-        <section
-          className="translation-panel"
-          role="dialog"
-          aria-modal={mobileTranslationUi}
-          aria-labelledby="translation-panel-title"
-          style={mobileTranslationUi ? undefined : { left: translationPanel.left, top: translationPanel.top }}
-          onMouseUp={handleTextSelection}
-        >
-          {mobileTranslationUi && <div className="translation-sheet-handle" aria-hidden="true" />}
-          <header>
-            <div>
-              {!mobileTranslationUi && <p className="eyebrow"><Sparkles size={12} /> GROQ AI TRANSLATION</p>}
-              <h3 id="translation-panel-title">{mobileTranslationUi ? "번역" : "자연스러운 한국어 표현"}</h3>
-            </div>
-            <button type="button" onClick={() => setTranslationPanel(null)} aria-label="번역 닫기">
-              <X size={19} />
-            </button>
-          </header>
-          <div className="translation-content-card">
-            <div className="translation-copy original">
-              <span>다음으로 감지됨 · 영어</span>
-              <p className="selectable-text" data-segment-id={translationPanel.segment.id} lang="en">
-                {translationPanel.segment.text}
-              </p>
-            </div>
-            <div className="translation-copy korean" aria-live="polite">
-              <span>한국어</span>
-              {translationPanel.loading && (
-                <p className="translation-loading"><LoaderCircle className="spin" size={17} /> 문맥에 맞게 번역하는 중…</p>
-              )}
-              {!translationPanel.loading && translationPanel.result && (
-                <p className="selectable-text" lang="ko">{translationPanel.result.translation}</p>
-              )}
-              {!translationPanel.loading && translationPanel.error && (
-                <div className="translation-error" role="alert">
-                  <p>{translationPanel.error}</p>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      translateClickRef.current = 0;
-                      void requestSegmentTranslation(translationPanel.segment, event);
-                    }}
-                  >
-                    다시 시도
-                  </button>
+            <div className="youtube-transcript-list" aria-label="영상 자막 목록">
+              <div className="youtube-transcript-head">
+                <div>
+                  <p className="eyebrow">FULL TRANSCRIPT</p>
+                  <strong>연습할 문장을 선택하세요</strong>
                 </div>
-              )}
+                <small>누르면 바로 {repeatTarget}회 반복</small>
+              </div>
+              <ol>
+                {transcript.segments.map((segment, index) => (
+                  <li key={`${segment.start}-${index}`}>
+                    {segment.scene && (index === 0 || transcript.segments[index - 1]?.scene !== segment.scene) && (
+                      <p className="youtube-scene-label">장면 {segment.scene}</p>
+                    )}
+                    <button
+                      type="button"
+                      className={selectedIndex === index ? "active" : ""}
+                      onClick={() => startLoop(index)}
+                    >
+                      <time>{formatTime(segment.start)}</time>
+                      <span>{segment.text}</span>
+                      <Play size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ol>
             </div>
-          </div>
-          <footer>
-            <span>{translationPanel.result?.cached ? "DB 캐시에서 즉시 불러옴" : "최초 번역은 DB에 안전하게 저장됩니다"}</span>
-            {mobileTranslationUi && (
-              <small>
-                {translationPlatform === "ios"
-                  ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’을 선택하세요."
-                  : translationPlatform === "android"
-                    ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’ 또는 ‘더보기’를 선택하세요."
-                    : "영어 문구를 길게 누르고 범위를 조절하면 기기의 번역 메뉴를 사용할 수 있어요."}
-              </small>
+          </>
+        )}
+
+        <p className="youtube-copyright">
+          개인 학습용 비공식 연동입니다. 영상은 공식 YouTube 플레이어로 재생하며, 내려받은 임시 오디오는 전사 직후 삭제하고
+          재처리 방지를 위한 문장 데이터만 서버에 캐시합니다.
+        </p>
+      </section>
+      {portalReady && translationPanel && createPortal(
+        <div
+          className={`translation-layer ${mobileTranslationUi ? `mobile ${translationPlatform}` : "desktop"}`}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setTranslationPanel(null);
+          }}
+        >
+          <section
+            className="translation-panel"
+            role="dialog"
+            aria-modal={mobileTranslationUi}
+            aria-labelledby="translation-panel-title"
+            style={mobileTranslationUi ? undefined : { left: translationPanel.left, top: translationPanel.top }}
+          // onMouseUp={handleTextSelection}
+          >
+            {mobileTranslationUi && <div className="translation-sheet-handle" aria-hidden="true" />}
+            <header>
+              <div>
+                {!mobileTranslationUi && <p className="eyebrow"><Sparkles size={12} /> GROQ AI TRANSLATION</p>}
+                <h3 id="translation-panel-title">{mobileTranslationUi ? "번역" : "자연스러운 한국어 표현"}</h3>
+              </div>
+              <button type="button" onClick={() => setTranslationPanel(null)} aria-label="번역 닫기">
+                <X size={19} />
+              </button>
+            </header>
+            <div className="translation-content-card">
+              <div className="translation-copy original">
+                <span>다음으로 감지됨 · 영어</span>
+                <p className="selectable-text" data-segment-id={translationPanel.segment.id} lang="en">
+                  {translationPanel.segment.text}
+                </p>
+              </div>
+              <div className="translation-copy korean" aria-live="polite">
+                <span>한국어</span>
+                {translationPanel.loading && (
+                  <p className="translation-loading"><LoaderCircle className="spin" size={17} /> 문맥에 맞게 번역하는 중…</p>
+                )}
+                {!translationPanel.loading && translationPanel.result && (
+                  <p className="selectable-text" lang="ko">{translationPanel.result.translation}</p>
+                )}
+                {!translationPanel.loading && translationPanel.error && (
+                  <div className="translation-error" role="alert">
+                    <p>{translationPanel.error}</p>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        translateClickRef.current = 0;
+                        void requestSegmentTranslation(translationPanel.segment, event);
+                      }}
+                    >
+                      다시 시도
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {findGrammarChunks(translationPanel.segment.text).length > 0 && (
+              <div className="translation-grammar">
+                <strong>문법 덩어리</strong>
+                <div>
+                  {findGrammarChunks(translationPanel.segment.text).map((chunk) => (
+                    <span key={`${chunk.label}-${chunk.text}`}>
+                      <b>{chunk.text}</b>
+                      <small>{chunk.meaning}</small>
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
-          </footer>
-        </section>
-      </div>,
-      document.body,
-    )}
-    {portalReady && selectionTooltip && !mobileTranslationUi && createPortal(
-      <aside
-        className="selection-translation-tooltip"
-        style={{ left: selectionTooltip.left, top: selectionTooltip.top }}
-        role="status"
-      >
-        <button type="button" onClick={() => setSelectionTooltip(null)} aria-label="선택 번역 닫기">
-          <X size={14} />
-        </button>
-        <strong>{selectionTooltip.sourceText}</strong>
-        {selectionTooltip.loading && <span><LoaderCircle className="spin" size={13} /> 직역하는 중…</span>}
-        {!selectionTooltip.loading && selectionTooltip.translation && <p>{selectionTooltip.translation}</p>}
-        {!selectionTooltip.loading && selectionTooltip.error && <p className="error">{selectionTooltip.error}</p>}
-      </aside>,
-      document.body,
-    )}
+            <footer>
+              <span>{translationPanel.result?.cached ? "DB 캐시에서 즉시 불러옴" : "최초 번역은 DB에 안전하게 저장됩니다"}</span>
+              {mobileTranslationUi && (
+                <small>
+                  {translationPlatform === "ios"
+                    ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’을 선택하세요."
+                    : translationPlatform === "android"
+                      ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’ 또는 ‘더보기’를 선택하세요."
+                      : "영어 문구를 길게 누르고 범위를 조절하면 기기의 번역 메뉴를 사용할 수 있어요."}
+                </small>
+              )}
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }

@@ -94,6 +94,33 @@
   display: block;
 }
 
+.vocabulary-list article {
+  align-items: flex-start;
+  padding: 14px 0;
+}
+
+.vocabulary-list article>div {
+  min-width: 0;
+}
+
+.vocabulary-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--acid);
+}
+
+.vocabulary-list p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .compact-list strong {
   font: 600 13px var(--font-display);
 }

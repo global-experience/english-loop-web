@@ -20,6 +20,7 @@ self.addEventListener("fetch", (event) => {
   // API calls use their own authenticated origin and must retain the browser's
   // normal CORS and cookie behavior. Only opt-in audio may use cross-origin cache.
   if (url.origin !== self.location.origin && event.request.destination !== "audio") return;
+  if (url.pathname.startsWith("/backend/") || url.pathname.startsWith("/api/")) return;
   if (event.request.mode === "navigate") {
     event.respondWith(fetch(event.request).catch(() => caches.match("/")));
     return;
