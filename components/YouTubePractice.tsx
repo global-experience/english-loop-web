@@ -35,10 +35,10 @@ export type GrammarChunk = {
 
 type NativeTranslationUpdate = {
   translation?: string;
-  loading?: boolean;
-  error?: string;
   selectionText?: string;
   selectionTranslation?: string;
+  loading?: boolean;
+  error?: string;
 };
 
 type NativeTranslationBridge = {
@@ -222,8 +222,8 @@ export function YouTubePractice() {
   const transitioningRef = useRef(false);
   const completedRef = useRef(0);
   const translateClickRef = useRef(0);
-  const nativeSelectionRequestRef = useRef(0);
   const nativeSelectionCacheRef = useRef(new Map<string, string>());
+  const nativeSelectionRequestRef = useRef(0);
 
   // Initialize default load if store has no transcript or active loading
   useEffect(() => {
@@ -308,12 +308,12 @@ export function YouTubePractice() {
         const cacheKey = `${segment.id}:${sourceText.toLowerCase()}`;
         const cached = nativeSelectionCacheRef.current.get(cacheKey);
         if (cached) {
-          bridge.update?.({ selectionText: sourceText, selectionTranslation: cached, loading: false });
+          bridge.update?.({ selectionText: sourceText, selectionTranslation: cached });
           return;
         }
         const requestId = nativeSelectionRequestRef.current + 1;
         nativeSelectionRequestRef.current = requestId;
-        bridge.update?.({ selectionText: sourceText, selectionTranslation: "", loading: true });
+        bridge.update?.({ selectionText: sourceText, selectionTranslation: "번역 중…" });
         void translateSelection()
           .then((result) => {
             if (nativeSelectionRequestRef.current !== requestId) return;
@@ -321,7 +321,6 @@ export function YouTubePractice() {
             bridge.update?.({
               selectionText: sourceText,
               selectionTranslation: result.translation,
-              loading: false,
             });
           })
           .catch((caught) => {
@@ -329,7 +328,6 @@ export function YouTubePractice() {
             bridge.update?.({
               selectionText: sourceText,
               selectionTranslation: "",
-              loading: false,
               error: caught instanceof Error ? caught.message : "선택한 구절을 번역하지 못했습니다.",
             });
           });
@@ -447,6 +445,7 @@ export function YouTubePractice() {
     const segment = transcript?.segments[index];
     const player = playerRef.current;
     if (!segment) return;
+    setTranslationPanel(null);
     setStoreState({ selectedIndex: index, error: "" });
     setCompletedRepeats(0);
     completedRef.current = 0;
@@ -583,10 +582,6 @@ export function YouTubePractice() {
     }
   }
 
-  function handleTextSelection(_event: ReactMouseEvent<HTMLElement>) {
-    return;
-  }
-
   const trimmedInput = videoInput.trim();
   const isNewUrl = trimmedInput.length > 0 && (!videoId || !trimmedInput.includes(videoId));
   const isSubmitDisabled = !trimmedInput || (loading && !isNewUrl);
@@ -610,7 +605,7 @@ export function YouTubePractice() {
     progressVal >= 90
       ? "자막 데이터 최종 정리 및 화면 생성 중..."
       : progressVal >= 60
-        ? "Groq AI가 음성 대사를 문장별로 정리하고 있어요."
+        ? "AI가 음성 대사를 문장별로 정리하고 있어요."
         : progressVal >= 30
           ? "영상 오디오를 추출하여 AI에 전달하고 있어요."
           : jobProvider === "LOCAL_GPU"
@@ -668,7 +663,8 @@ export function YouTubePractice() {
           <div ref={playerHostRef} />
         </div>
 
-        <div className="youtube-source">
+        {/* [claim] rollback 부분 */}
+        {/* <div className="youtube-source">
           <div>
             <strong>
               {transcript ? `${transcript.language} · ${transcript.segments.length}개 문장` : "YouTube 학습 영상"}
@@ -692,7 +688,7 @@ export function YouTubePractice() {
           <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noreferrer">
             YouTube 열기 <ExternalLink size={14} />
           </a>
-        </div>
+        </div> */}
 
         {error && <div className="youtube-error" role="alert">{error}</div>}
 
@@ -779,11 +775,23 @@ export function YouTubePractice() {
             <div className="youtube-shadowing">
               <p className="eyebrow">SELECTED LINE · {formatTime(selected.start)}</p>
               <h3 className="selectable-text" data-segment-id={selected.id}>{selected.text}</h3>
-              <p>
-                {isLooping
-                  ? `구간 반복 중 · ${completedRepeats} / ${repeatTarget}`
-                  : "재생을 누르면 이 자막 구간만 반복합니다."}
-              </p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                <p className="video-repeat-title">
+                  {isLooping
+                    ? `구간 반복 중 · ${completedRepeats} / ${repeatTarget}`
+                    : "재생을 누르면 이 자막 구간만 반복합니다."}
+                </p>
+                <button
+                  type="button"
+                  className="youtube-translate-button"
+                  onClick={(event) => void requestSegmentTranslation(selected, event)}
+                  aria-haspopup="dialog"
+                >
+                  <Languages size={16} /> 번역
+                  {/* [refactor]: 불필요한 기능이라 주석 처리 */}
+                  {/* {selected.translation && <span>저장됨</span>} */}
+                </button>
+              </div>
               <div className="youtube-shadow-actions">
                 <button type="button" className="primary-button" onClick={() => startLoop()}>
                   {isLooping ? <RotateCcw size={17} /> : <Play size={17} />}{" "}
@@ -799,7 +807,8 @@ export function YouTubePractice() {
                   <Pause size={17} />
                 </button>
               </div>
-              <button
+              {/* [claim]: rollback 할 부분 */}
+              {/* <button
                 type="button"
                 className="youtube-translate-button"
                 onClick={(event) => void requestSegmentTranslation(selected, event)}
@@ -807,7 +816,7 @@ export function YouTubePractice() {
               >
                 <Languages size={16} /> 번역 보기
                 {selected.translation && <span>저장됨</span>}
-              </button>
+              </button> */}
             </div>
 
             <div className="youtube-transcript-list" aria-label="영상 자막 목록">
@@ -857,13 +866,11 @@ export function YouTubePractice() {
             role="dialog"
             aria-modal={mobileTranslationUi}
             aria-labelledby="translation-panel-title"
-            style={mobileTranslationUi ? undefined : { left: translationPanel.left, top: translationPanel.top }}
-          // onMouseUp={handleTextSelection}
           >
             {mobileTranslationUi && <div className="translation-sheet-handle" aria-hidden="true" />}
             <header>
               <div>
-                {!mobileTranslationUi && <p className="eyebrow"><Sparkles size={12} /> GROQ AI TRANSLATION</p>}
+                {!mobileTranslationUi && <p className="eyebrow"><Sparkles size={12} /> AI TRANSLATION</p>}
                 <h3 id="translation-panel-title">{mobileTranslationUi ? "번역" : "자연스러운 한국어 표현"}</h3>
               </div>
               <button type="button" onClick={() => setTranslationPanel(null)} aria-label="번역 닫기">
@@ -915,14 +922,16 @@ export function YouTubePractice() {
               </div>
             )}
             <footer>
-              <span>{translationPanel.result?.cached ? "DB 캐시에서 즉시 불러옴" : "최초 번역은 DB에 안전하게 저장됩니다"}</span>
+              {/* [refactor]: 다음 정보가 뜨도록 수정 */}
+              {/* <span>{translationPanel.result?.cached ? "DB 캐시에서 즉시 불러옴" : "최초 번역은 DB에 안전하게 저장됩니다"}</span> */}
+              <span>현재 웹에서는 드래그 번역 기능이 없습니다. 앱에서 만나보세요!</span>
               {mobileTranslationUi && (
                 <small>
                   {translationPlatform === "ios"
-                    ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’을 선택하세요."
+                    ? "앱에서는 영어 문구를 드래그하면 선택한 구절만 기기 번역으로 자동 표시됩니다."
                     : translationPlatform === "android"
-                      ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘번역’ 또는 ‘더보기’를 선택하세요."
-                      : "영어 문구를 길게 누르고 범위를 조절하면 기기의 번역 메뉴를 사용할 수 있어요."}
+                      ? "영어 문구를 길게 누르고 범위를 조절한 뒤 ‘기기 번역’을 선택하세요."
+                      : "영어 문구를 드래그하여 원하는 범위를 지정할 수 있어요."}
                 </small>
               )}
             </footer>

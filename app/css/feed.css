@@ -91,7 +91,11 @@ body:has([data-tab="feed"]) {
     max-width: none;
   }
 
-  [data-tab="feed"] .topbar,
+  [data-tab="feed"] .topbar {
+    width: min(100%, 960px);
+    margin-inline: auto;
+  }
+
   [data-tab="feed"] .tab-viewport {
     width: min(100%, 760px);
     margin-inline: auto;

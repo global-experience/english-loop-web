@@ -102,6 +102,28 @@ export default function Home() {
       <ServiceWorker />
       {!online && <div className="offline-banner" role="status"><WifiOff size={15} /> 오프라인 — 작성 내용은 이 기기에 보관됩니다.</div>}
       {error && <div className="error-banner" role="alert">{error}</div>}
+      <nav className="desktop-side-nav" aria-label="데스크탑 주요 메뉴">
+        {/* <div className="desktop-side-brand" onClick={() => switchTab("today")} role="button" tabIndex={0} title="오늘 화면으로 이동">
+          <img src="/icons/loopine-logo.svg" alt="Loopine" />
+        </div> */}
+        <div className="desktop-side-menu" role="tablist">
+          {nav.map(({ id, label, Icon }) => (
+            <button
+              id={`desktop-side-tab-${id}`}
+              role="tab"
+              aria-selected={tab === id}
+              className={tab === id ? "active" : ""}
+              key={id}
+              onClick={() => switchTab(id)}
+              title={label}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
       <header className="topbar">
         <div className="brand-mark"><img src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /></div>
         <div><p className="eyebrow">LOOPINE</p><h1>{user.display_name}님의 학습 루프</h1></div>

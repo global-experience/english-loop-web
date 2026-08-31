@@ -47,7 +47,7 @@ textarea,
 .selectable-text {
   -webkit-user-select: text;
   user-select: text;
-  -webkit-touch-callout: default;
+  -webkit-touch-callout: none;
   touch-action: auto;
   cursor: text;
 }
@@ -98,6 +98,10 @@ button {
   gap: 12px;
   align-items: center;
   margin-bottom: 22px;
+}
+
+.desktop-side-nav {
+  display: none;
 }
 
 .brand-mark {
