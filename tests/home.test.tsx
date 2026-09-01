@@ -38,7 +38,7 @@ describe("Home", () => {
     await screen.findByText("오늘의 학습 루틴");
 
     fireEvent.click(document.getElementById("tab-learn")!);
-    expect(scrollToMock).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: "auto" });
+    expect(scrollToMock).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: "instant" });
     const learnPanel = document.getElementById("panel-learn");
     expect(learnPanel).toHaveClass("tab-pane", "active", "tab-scene-forward");
     expect(document.getElementById("panel-today")).toHaveClass("inactive");
