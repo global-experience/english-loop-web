@@ -24,7 +24,7 @@ const APP_SHELL_KEY = "loopine:app-shell:v1";
 const BOOTSTRAP_KEY = "loopine:bootstrap:v1";
 
 function canUseStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
 }
 
 export function isAppTab(value: unknown): value is AppTab {
@@ -42,40 +42,27 @@ export function requestIdleWork(callback: () => void, timeout = 1200) {
 }
 
 export function readAppShellSnapshot(): AppShellSnapshot | null {
-  if (!canUseStorage()) return null;
-  try {
-    const raw = window.localStorage.getItem(APP_SHELL_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<AppShellSnapshot>;
-    if (!isAppTab(parsed.activeTab)) return null;
-    const visitedTabs = Array.isArray(parsed.visitedTabs)
-      ? parsed.visitedTabs.filter(isAppTab)
-      : [parsed.activeTab];
-    return {
-      activeTab: parsed.activeTab,
-      visitedTabs: Array.from(new Set([parsed.activeTab, ...visitedTabs])),
-      learningMode: parsed.learningMode || "morning",
-      scrollPositions: parsed.scrollPositions || {},
-      savedAt: Number(parsed.savedAt) || Date.now(),
-    };
-  } catch {
-    return null;
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage?.removeItem(APP_SHELL_KEY);
+      window.sessionStorage?.removeItem(APP_SHELL_KEY);
+    } catch {
+      // Ignore storage errors.
+    }
   }
+  return null;
 }
 
-export function saveAppShellSnapshot(snapshot: AppShellSnapshot) {
-  if (!canUseStorage()) return;
-  try {
-    window.localStorage.setItem(APP_SHELL_KEY, JSON.stringify(snapshot));
-  } catch {
-    // Ignore storage quota/private mode errors.
-  }
+export function saveAppShellSnapshot(_snapshot: AppShellSnapshot) {
+  // Tab/scroll state is preserved in React memory during the active session only,
+  // and resets to the Today tab upon page reload/refresh as requested.
 }
 
 export function readBootstrapSnapshot(): BootstrapSnapshot | null {
   if (!canUseStorage()) return null;
   try {
-    const raw = window.localStorage.getItem(BOOTSTRAP_KEY);
+    window.localStorage?.removeItem(BOOTSTRAP_KEY);
+    const raw = window.sessionStorage.getItem(BOOTSTRAP_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as BootstrapSnapshot;
     if (!parsed.user?.id || !parsed.today?.study_date) return null;
@@ -88,7 +75,7 @@ export function readBootstrapSnapshot(): BootstrapSnapshot | null {
 export function saveBootstrapSnapshot(user: User, today: TodayData) {
   if (!canUseStorage()) return;
   try {
-    window.localStorage.setItem(BOOTSTRAP_KEY, JSON.stringify({ user, today, savedAt: Date.now() }));
+    window.sessionStorage.setItem(BOOTSTRAP_KEY, JSON.stringify({ user, today, savedAt: Date.now() }));
   } catch {
     // Ignore storage quota/private mode errors.
   }
