@@ -379,6 +379,13 @@ button {
   background: rgba(24, 32, 29, .94);
   box-shadow: 0 15px 45px rgba(20, 25, 23, .22);
   backdrop-filter: blur(18px);
+  transition: transform .22s ease, opacity .18s ease;
+}
+
+body.keyboard-open .bottom-nav {
+  transform: translate(-50%, calc(100% + 18px + var(--safe-bottom)));
+  opacity: 0;
+  pointer-events: none;
 }
 
 .bottom-nav button {
@@ -421,6 +428,26 @@ button {
   position: relative;
   min-height: calc(100dvh - 190px);
   -webkit-overflow-scrolling: touch;
+}
+
+.tab-pane {
+  width: 100%;
+}
+
+.tab-pane.active {
+  position: relative;
+  visibility: visible;
+}
+
+.tab-pane.inactive {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  contain: layout style paint;
 }
 
 .tab-scene {
@@ -518,6 +545,34 @@ button {
   padding: calc(30px + var(--safe-top)) calc(30px + var(--safe-right)) calc(30px + var(--safe-bottom)) calc(30px + var(--safe-left));
   text-align: center;
   background: var(--paper);
+}
+
+.shell-loading-card {
+  min-height: calc(100dvh - 240px);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 40px 22px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: rgba(255, 253, 247, .54);
+  color: var(--muted);
+  text-align: center;
+}
+
+.shell-loading-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font: 650 26px/1.05 var(--font-display);
+  letter-spacing: -.04em;
+}
+
+.shell-loading-card p {
+  max-width: 360px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .pulse-logo {

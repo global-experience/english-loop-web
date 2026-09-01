@@ -68,7 +68,7 @@ describe("LoginPage registration", () => {
     expect(screen.getByLabelText("이메일")).toHaveValue("");
     expect(screen.getByLabelText("비밀번호")).toHaveValue("");
 
-    fireEvent.change(screen.getByLabelText("표시 이름"), { target: { value: "새 학습자" } });
+    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "새 학습자" } });
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "new@example.com" } });
     fireEvent.change(screen.getByLabelText("영어 수준"), { target: { value: "B2" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "SecurePass1" } });

@@ -224,6 +224,7 @@ export function YouTubePractice() {
   const translateClickRef = useRef(0);
   const nativeSelectionCacheRef = useRef(new Map<string, string>());
   const nativeSelectionRequestRef = useRef(0);
+  const activeTabRef = useRef(true);
 
   // Initialize default load if store has no transcript or active loading
   useEffect(() => {
@@ -305,32 +306,10 @@ export function YouTubePractice() {
       );
 
       if (action === "selection") {
-        const cacheKey = `${segment.id}:${sourceText.toLowerCase()}`;
-        const cached = nativeSelectionCacheRef.current.get(cacheKey);
-        if (cached) {
-          bridge.update?.({ selectionText: sourceText, selectionTranslation: cached });
-          return;
-        }
-        const requestId = nativeSelectionRequestRef.current + 1;
-        nativeSelectionRequestRef.current = requestId;
-        bridge.update?.({ selectionText: sourceText, selectionTranslation: "번역 중…" });
-        void translateSelection()
-          .then((result) => {
-            if (nativeSelectionRequestRef.current !== requestId) return;
-            nativeSelectionCacheRef.current.set(cacheKey, result.translation);
-            bridge.update?.({
-              selectionText: sourceText,
-              selectionTranslation: result.translation,
-            });
-          })
-          .catch((caught) => {
-            if (nativeSelectionRequestRef.current !== requestId) return;
-            bridge.update?.({
-              selectionText: sourceText,
-              selectionTranslation: "",
-              error: caught instanceof Error ? caught.message : "선택한 구절을 번역하지 못했습니다.",
-            });
-          });
+        // Text selection inside the native sheet intentionally stays local.
+        // iOS/Android should expose their own Look Up/Translate affordance;
+        // do not call the server for every drag-range adjustment.
+        nativeSelectionRequestRef.current += 1;
         return;
       }
 
@@ -388,6 +367,25 @@ export function YouTubePractice() {
     },
     [clearLoopTimers, selectedIndex, transcript]
   );
+
+  useEffect(() => {
+    const handleTabVisibility = (rawEvent: Event) => {
+      const event = rawEvent as CustomEvent<{ tab?: string; active?: boolean }>;
+      if (event.detail?.tab !== "learn") return;
+      activeTabRef.current = event.detail.active === true;
+      if (!activeTabRef.current) stopLoop(false);
+    };
+    const pauseForBackground = () => {
+      activeTabRef.current = false;
+      stopLoop(false);
+    };
+    window.addEventListener("loopine:tab-visibility", handleTabVisibility);
+    window.addEventListener("loopine:app-background", pauseForBackground);
+    return () => {
+      window.removeEventListener("loopine:tab-visibility", handleTabVisibility);
+      window.removeEventListener("loopine:app-background", pauseForBackground);
+    };
+  }, [stopLoop]);
 
   useEffect(() => {
     const previousReadyHandler = window.onYouTubeIframeAPIReady;
@@ -924,7 +922,7 @@ export function YouTubePractice() {
             <footer>
               {/* [refactor]: 다음 정보가 뜨도록 수정 */}
               {/* <span>{translationPanel.result?.cached ? "DB 캐시에서 즉시 불러옴" : "최초 번역은 DB에 안전하게 저장됩니다"}</span> */}
-              <span>현재 웹에서는 드래그 번역 기능이 없습니다. 앱에서 만나보세요!</span>
+              <span>선택한 구절은 기기 번역 메뉴를 사용하고, 전체 문장은 Loopine 번역으로 저장됩니다.</span>
               {mobileTranslationUi && (
                 <small>
                   {translationPlatform === "ios"

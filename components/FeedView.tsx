@@ -63,6 +63,7 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
   const playerRef = useRef<FeedPlayer | null>(null);
   const playerHostRef = useRef<HTMLDivElement>(null);
   const currentVideoIdRef = useRef<string | null>(null);
+  const activeTabRef = useRef(true);
 
   // ── YouTube IFrame API readiness ──
   useEffect(() => {
@@ -167,11 +168,44 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
+    if (!activeTabRef.current) {
+      try { player.pauseVideo(); } catch { /* player not ready yet */ }
+      return;
+    }
     try {
       if (isMuted) player.mute();
       else { player.unMute(); player.playVideo(); }
     } catch { /* player not ready yet */ }
   }, [isMuted]);
+
+  useEffect(() => {
+    const handleTabVisibility = (rawEvent: Event) => {
+      const event = rawEvent as CustomEvent<{ tab?: string; active?: boolean }>;
+      if (event.detail?.tab !== "feed") return;
+      activeTabRef.current = event.detail.active === true;
+      const player = playerRef.current;
+      if (!player) return;
+      try {
+        if (activeTabRef.current) {
+          player.playVideo();
+        } else {
+          player.pauseVideo();
+        }
+      } catch {
+        // Ignore transient YouTube iframe state.
+      }
+    };
+    const pauseForBackground = () => {
+      activeTabRef.current = false;
+      try { playerRef.current?.pauseVideo(); } catch { /* ignore */ }
+    };
+    window.addEventListener("loopine:tab-visibility", handleTabVisibility);
+    window.addEventListener("loopine:app-background", pauseForBackground);
+    return () => {
+      window.removeEventListener("loopine:tab-visibility", handleTabVisibility);
+      window.removeEventListener("loopine:app-background", pauseForBackground);
+    };
+  }, []);
 
   const scrollToVideo = (index: number) => {
     if (index < 0 || index >= items.length) return;

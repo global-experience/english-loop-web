@@ -90,7 +90,7 @@ class YouTubeStore {
 
   private restoreFromStorage() {
     try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<YouTubePracticeState>;
         this.state = {
@@ -108,7 +108,7 @@ class YouTubeStore {
   private saveToStorage() {
     if (typeof window === "undefined") return;
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
     } catch {
       // Ignore storage errors
     }

@@ -37,22 +37,22 @@ describe("Home", () => {
     render(<Home/>);
     await screen.findByText("오늘의 학습 루틴");
 
-    fireEvent.click(screen.getByRole("tab", { name: "학습" }));
+    fireEvent.click(document.getElementById("tab-learn")!);
     expect(scrollToMock).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: "auto" });
     const learnPanel = document.getElementById("panel-learn");
-    expect(learnPanel).toHaveClass("tab-viewport");
-    expect(learnPanel?.firstElementChild).toHaveClass("tab-scene-forward");
-    expect(screen.getByRole("tab", { name: "학습" })).toHaveAttribute("aria-selected", "true");
+    expect(learnPanel).toHaveClass("tab-pane", "active", "tab-scene-forward");
+    expect(document.getElementById("panel-today")).toHaveClass("inactive");
+    expect(document.getElementById("tab-learn")).toHaveAttribute("aria-selected", "true");
 
-    fireEvent.click(screen.getByRole("tab", { name: "학습" }));
+    fireEvent.click(document.getElementById("tab-learn")!);
     expect(scrollToMock).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: "smooth" });
 
-    fireEvent.click(screen.getByRole("tab", { name: "점심" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "점심" }));
     expect(document.getElementById("learning-panel-lunch")).toHaveClass("mode-scene-forward");
     fireEvent.click(screen.getByRole("tab", { name: "출근" }));
     expect(document.getElementById("learning-panel-morning")).toHaveClass("mode-scene-back");
 
-    fireEvent.click(screen.getByRole("tab", { name: "오늘" }));
-    expect(document.getElementById("panel-today")?.firstElementChild).toHaveClass("tab-scene-back");
+    fireEvent.click(document.getElementById("tab-today")!);
+    expect(document.getElementById("panel-today")).toHaveClass("tab-scene-back");
   });
 });
