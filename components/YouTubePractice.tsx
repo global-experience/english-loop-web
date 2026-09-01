@@ -306,10 +306,35 @@ export function YouTubePractice() {
       );
 
       if (action === "selection") {
-        // Text selection inside the native sheet intentionally stays local.
-        // iOS/Android should expose their own Look Up/Translate affordance;
-        // do not call the server for every drag-range adjustment.
         nativeSelectionRequestRef.current += 1;
+        const requestId = nativeSelectionRequestRef.current;
+        bridge.update?.({
+          selectionText: sourceText,
+          selectionTranslation: "번역하는 중…",
+        });
+        void (async () => {
+          try {
+            const cacheKey = `${segment.id}:${sourceText.toLowerCase()}`;
+            const cached = nativeSelectionCacheRef.current.get(cacheKey);
+            const result = cached
+              ? { translation: cached }
+              : sourceText === segment.text && segment.translation
+                ? { translation: segment.translation }
+                : await translateSelection();
+            if (nativeSelectionRequestRef.current !== requestId) return;
+            nativeSelectionCacheRef.current.set(cacheKey, result.translation);
+            bridge.update?.({
+              selectionText: sourceText,
+              selectionTranslation: result.translation,
+            });
+          } catch (caught) {
+            if (nativeSelectionRequestRef.current !== requestId) return;
+            bridge.update?.({
+              selectionText: sourceText,
+              selectionTranslation: caught instanceof Error ? caught.message : "선택한 구절을 번역하지 못했습니다.",
+            });
+          }
+        })();
         return;
       }
 

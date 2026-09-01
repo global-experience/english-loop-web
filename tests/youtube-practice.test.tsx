@@ -208,7 +208,14 @@ describe("YouTubePractice", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^번역/ }));
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ loading: false })));
-    vi.mocked(apiFetch).mockClear();
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      segment_id: "a".repeat(64),
+      video_id: "rGQkLXIey4Y",
+      source_text: "Office English",
+      translation: "오피스 영어",
+      model: "openai/gpt-oss-120b",
+      cached: false,
+    });
 
     window.dispatchEvent(new CustomEvent("loopine:native-translation-action", {
       detail: {
@@ -218,7 +225,6 @@ describe("YouTubePractice", () => {
       },
     }));
 
-    expect(apiFetch).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalledWith(expect.objectContaining({ selectionText: "Office English" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ selectionText: "Office English", selectionTranslation: "오피스 영어" })));
   });
 });
