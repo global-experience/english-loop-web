@@ -85,3 +85,8 @@ export function emitTabVisibility(tab: AppTab, active: boolean) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("loopine:tab-visibility", { detail: { tab, active } }));
 }
+
+export function emitTabReselect(tab: AppTab) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("loopine:tab-reselect", { detail: { tab } }));
+}

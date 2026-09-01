@@ -14,6 +14,7 @@ import { triggerHapticSelection } from "@/lib/haptics";
 import { isNativeAppRuntime } from "@/lib/nativeRuntime";
 import {
   APP_TABS,
+  emitTabReselect,
   emitTabVisibility,
   isAppTab,
   readAppShellSnapshot,
@@ -204,7 +205,7 @@ export default function Home() {
     return () => window.removeEventListener("popstate", onPopState);
   }, [tab]);
 
-  const scrollToTop = (behavior: ScrollBehavior) => {
+  const scrollToTop = (behavior: ScrollBehavior = "smooth") => {
     window.scrollTo({ top: 0, left: 0, behavior });
   };
 
@@ -212,17 +213,21 @@ export default function Home() {
     void triggerHapticSelection();
     scrollPositionsRef.current[tabRef.current] = window.scrollY;
     if (nextTab === tab) {
-      scrollToTop("instant");
+      emitTabReselect(nextTab);
+      scrollToTop("smooth");
       scrollPositionsRef.current[nextTab] = 0;
       return;
     }
     const direction: TabDirection = APP_TABS.indexOf(nextTab) > APP_TABS.indexOf(tab) ? "forward" : "back";
+    emitTabVisibility(tabRef.current, false);
     setTabDirection(direction);
     setVisitedTabs((current) => Array.from(new Set([...current, nextTab])));
     setTab(nextTab);
-    window.scrollTo({ top: scrollPositionsRef.current[nextTab] || 0, left: 0, behavior: "instant" });
+
+    const targetY = scrollPositionsRef.current[nextTab] || 0;
+    window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
     window.requestAnimationFrame(() => {
-      window.scrollTo({ top: scrollPositionsRef.current[nextTab] || 0, left: 0, behavior: "instant" });
+      window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
     });
   };
 
