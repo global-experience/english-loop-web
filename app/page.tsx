@@ -296,7 +296,7 @@ export default function Home() {
               className={`tab-pane ${active ? "active" : "inactive"} ${active ? `tab-scene tab-scene-${tabDirection}` : ""}`}
             >
               {paneTab === "today" && (needsBootstrap ? bootstrapFallback : <TodayView today={today} user={user} refresh={refresh} openLearning={openLearning} />)}
-              {paneTab === "feed" && <FeedView openLearning={openFeedVideo} />}
+              {paneTab === "feed" && <FeedView active={active} openLearning={openFeedVideo} />}
               {paneTab === "learn" && (today ? <LearningView today={today} mode={learningMode} setMode={setLearningMode} refresh={refresh} /> : bootstrapFallback)}
               {paneTab === "review" && <ReviewView />}
               {paneTab === "report" && <ReportView />}

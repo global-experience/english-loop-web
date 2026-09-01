@@ -17,6 +17,7 @@ type FeedResponse = {
 type FeedPlayer = {
   playVideo: () => void;
   pauseVideo: () => void;
+  stopVideo?: () => void;
   mute: () => void;
   unMute: () => void;
   isMuted: () => boolean;
@@ -38,7 +39,7 @@ function isNativeApp() {
   return isNativeAppRuntime(capacitor, navigator.userAgent);
 }
 
-export function FeedView({ openLearning }: { openLearning: (videoUrl: string) => void }) {
+export function FeedView({ active = true, openLearning }: { active?: boolean; openLearning: (videoUrl: string) => void }) {
   const [items, setItems] = useState<FeedVideo[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(() =>
@@ -63,7 +64,18 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
   const playerRef = useRef<FeedPlayer | null>(null);
   const playerHostRef = useRef<HTMLDivElement>(null);
   const currentVideoIdRef = useRef<string | null>(null);
-  const activeTabRef = useRef(true);
+  const activeTabRef = useRef(active);
+
+  const pausePlayer = useCallback((hardStop = false) => {
+    const player = playerRef.current;
+    if (!player) return;
+    try {
+      player.pauseVideo();
+      if (hardStop) player.stopVideo?.();
+    } catch {
+      // Ignore transient YouTube iframe state.
+    }
+  }, []);
 
   // ── YouTube IFrame API readiness ──
   useEffect(() => {
@@ -90,7 +102,7 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
       if (!userMutedRef.current) {
         // Unmute the active player directly (no iframe reload)
         const player = playerRef.current;
-        if (player) {
+        if (player && activeTabRef.current) {
           try { player.unMute(); player.playVideo(); } catch { /* ignore */ }
         }
         setIsMuted(false);
@@ -105,8 +117,12 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
 
   // ── Create / destroy YT.Player when activeIndex or apiReady changes ──
   useEffect(() => {
+    activeTabRef.current = active;
     const video = items[activeIndex];
-    if (!apiReady || !window.YT?.Player || !video) return;
+    if (!active || !apiReady || !window.YT?.Player || !video) {
+      if (!active) pausePlayer(true);
+      return;
+    }
 
     const hostEl = playerHostRef.current;
     if (!hostEl) return;
@@ -151,7 +167,10 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
         onReady: () => {
           currentVideoIdRef.current = ytVideoId;
           setIsMuted(shouldMute);
-          try { player.playVideo(); } catch { /* ignore */ }
+          try {
+            if (activeTabRef.current) player.playVideo();
+            else pausePlayer(true);
+          } catch { /* ignore */ }
         },
       },
     }) as unknown as FeedPlayer;
@@ -162,21 +181,27 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
       // Cleanup only if this effect re-runs (activeIndex changed)
       // The destroy happens at the top of the next effect run
     };
-  }, [apiReady, activeIndex, items]);
+  }, [active, apiReady, activeIndex, items, pausePlayer]);
 
   // ── Sync mute state to player when user toggles ──
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
+    activeTabRef.current = active;
     if (!activeTabRef.current) {
-      try { player.pauseVideo(); } catch { /* player not ready yet */ }
+      pausePlayer(true);
       return;
     }
     try {
       if (isMuted) player.mute();
       else { player.unMute(); player.playVideo(); }
     } catch { /* player not ready yet */ }
-  }, [isMuted]);
+  }, [active, isMuted, pausePlayer]);
+
+  useEffect(() => {
+    activeTabRef.current = active;
+    if (!active) pausePlayer(true);
+  }, [active, pausePlayer]);
 
   useEffect(() => {
     const handleTabVisibility = (rawEvent: Event) => {
@@ -189,7 +214,7 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
         if (activeTabRef.current) {
           player.playVideo();
         } else {
-          player.pauseVideo();
+          pausePlayer(true);
         }
       } catch {
         // Ignore transient YouTube iframe state.
@@ -197,25 +222,68 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
     };
     const pauseForBackground = () => {
       activeTabRef.current = false;
-      try { playerRef.current?.pauseVideo(); } catch { /* ignore */ }
+      pausePlayer(true);
+    };
+    const handleTabReselect = (rawEvent: Event) => {
+      const event = rawEvent as CustomEvent<{ tab?: string }>;
+      if (event.detail?.tab !== "feed") return;
+      setActiveIndex(0);
+      activeIndexRef.current = 0;
+      streamRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
     };
     window.addEventListener("loopine:tab-visibility", handleTabVisibility);
+    window.addEventListener("loopine:tab-reselect", handleTabReselect);
     window.addEventListener("loopine:app-background", pauseForBackground);
     return () => {
       window.removeEventListener("loopine:tab-visibility", handleTabVisibility);
+      window.removeEventListener("loopine:tab-reselect", handleTabReselect);
       window.removeEventListener("loopine:app-background", pauseForBackground);
     };
-  }, []);
+  }, [pausePlayer]);
 
-  const scrollToVideo = (index: number) => {
+  const scrollToVideo = (index: number, behavior: ScrollBehavior = "smooth") => {
     if (index < 0 || index >= items.length) return;
     const root = streamRef.current;
     if (!root) return;
     const targetCard = root.querySelector<HTMLElement>(`[data-feed-index="${index}"]`);
     if (targetCard) {
-      targetCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      targetCard.scrollIntoView({ behavior, block: "start" });
     }
   };
+
+  const activeIndexRef = useRef(activeIndex);
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  // Restore scroll position to active video instantly when returning to feed tab
+  useEffect(() => {
+    if (!active) return;
+    const root = streamRef.current;
+    const targetIndex = activeIndexRef.current;
+    if (!root || targetIndex <= 0) return;
+
+    const restore = () => {
+      const targetCard = root.querySelector<HTMLElement>(`[data-feed-index="${targetIndex}"]`);
+      if (targetCard) {
+        root.style.scrollBehavior = "auto";
+        root.style.scrollSnapType = "none";
+        root.scrollTop = targetCard.offsetTop;
+        window.requestAnimationFrame(() => {
+          root.style.scrollSnapType = "";
+          root.style.scrollBehavior = "";
+        });
+      }
+    };
+
+    restore();
+    const rafId = window.requestAnimationFrame(restore);
+    const timerId = window.setTimeout(restore, 30);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timerId);
+    };
+  }, [active]);
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current || cursor === null) return;
@@ -253,6 +321,7 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
     if (!root || !items.length) return;
     const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-feed-index]"));
     const observer = new IntersectionObserver((entries) => {
+      if (!activeTabRef.current) return;
       const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
       if (!visible || visible.intersectionRatio < 0.62) return;
       const nextIndex = Number((visible.target as HTMLElement).dataset.feedIndex || 0);

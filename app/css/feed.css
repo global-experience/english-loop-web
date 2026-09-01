@@ -72,7 +72,7 @@ body:has([data-tab="feed"]) {
   scroll-snap-type: y mandatory;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   scrollbar-width: none;
   border-radius: 26px;
 }
