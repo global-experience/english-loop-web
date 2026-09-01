@@ -4,7 +4,7 @@ import Script from "next/script";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bookmark, Check, ChevronDown, ChevronUp, CircleAlert, LoaderCircle, Play, Sparkles, Subtitles, Volume2, VolumeX } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { isNativeAppRuntime, shouldStartFeedMuted } from "@/lib/nativeRuntime";
+import { isNativeAppRuntime, shouldStartFeedMuted, hasUserActivation } from "@/lib/nativeRuntime";
 import type { FeedVideo } from "@/lib/types";
 
 type FeedResponse = {
@@ -41,7 +41,13 @@ function isNativeApp() {
 export function FeedView({ openLearning }: { openLearning: (videoUrl: string) => void }) {
   const [items, setItems] = useState<FeedVideo[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(() =>
+    shouldStartFeedMuted({
+      native: isNativeApp(),
+      userInteracted: false,
+      userMuted: false,
+    })
+  );
   const [seed, setSeed] = useState("");
   const [cursor, setCursor] = useState<number | null>(0);
   const [loading, setLoading] = useState(true);
@@ -69,8 +75,15 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
     return () => { window.onYouTubeIframeAPIReady = prev; };
   }, []);
 
-  // ── First user gesture → unlock audio ──
+  // ── First user gesture / existing sticky activation → unlock audio ──
   useEffect(() => {
+    if (hasUserActivation()) {
+      userInteractedRef.current = true;
+      if (!userMutedRef.current) {
+        setIsMuted(false);
+      }
+    }
+
     const unlock = () => {
       userInteractedRef.current = true;
       if (!userMutedRef.current) {
@@ -110,12 +123,12 @@ export function FeedView({ openLearning }: { openLearning: (videoUrl: string) =>
     const target = document.createElement("div");
     hostEl.appendChild(target);
 
-    // Native WebViews explicitly allow media playback without a user gesture.
-    // Browsers/PWAs must still begin muted to comply with autoplay policies.
+    // If document has sticky user activation (e.g. user navigated in SPA) or is Native, play unmuted!
     const shouldMute = shouldStartFeedMuted({
       native: isNativeApp(),
       userInteracted: userInteractedRef.current,
       userMuted: userMutedRef.current,
+      hasBeenActive: hasUserActivation(),
     });
 
     const player = new window.YT.Player(target, {

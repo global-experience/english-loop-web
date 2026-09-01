@@ -99,7 +99,7 @@ export default function LoginPage() {
         </div>
         <AuthIcon size={26} /><div><p className="eyebrow">{mode === "login" ? "PRIVATE ACCESS" : "START YOUR LOOP"}</p><h2>{mode === "login" ? "나의 루프에 로그인" : "새 학습 루프 만들기"}</h2></div>
         <div className={`auth-fields auth-fields-${mode}`} key={mode}>
-          {mode === "register" && <label>표시 이름<input type="text" autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={80} placeholder="표시 이름" /></label>}
+          {mode === "register" && <label>이름<input type="text" autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={80} placeholder="이름" /></label>}
           <label>이메일<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="이메일" /></label>
           {mode === "register" && <label>영어 수준<select value={englishLevel} onChange={(event) => setEnglishLevel(event.target.value)}>{["A1", "A2", "B1", "B2", "C1"].map((level) => <option key={level}>{level}</option>)}</select></label>}
           <label>비밀번호<input type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} required minLength={mode === "login" ? 8 : 10} placeholder="비밀번호" /></label>

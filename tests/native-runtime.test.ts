@@ -8,9 +8,11 @@ describe("native feed playback", () => {
     expect(isNativeAppRuntime(undefined, "Mobile Safari")).toBe(false);
   });
 
-  it("starts native playback with sound but keeps browser autoplay muted", () => {
-    expect(shouldStartFeedMuted({ native: true, userInteracted: false, userMuted: false })).toBe(false);
-    expect(shouldStartFeedMuted({ native: false, userInteracted: false, userMuted: false })).toBe(true);
-    expect(shouldStartFeedMuted({ native: true, userInteracted: true, userMuted: true })).toBe(true);
+  it("starts native playback with sound but respects user interaction and sticky activation in browser", () => {
+    expect(shouldStartFeedMuted({ native: true, userInteracted: false, userMuted: false, hasBeenActive: false })).toBe(false);
+    expect(shouldStartFeedMuted({ native: false, userInteracted: false, userMuted: false, hasBeenActive: false })).toBe(true);
+    expect(shouldStartFeedMuted({ native: false, userInteracted: false, userMuted: false, hasBeenActive: true })).toBe(false);
+    expect(shouldStartFeedMuted({ native: false, userInteracted: true, userMuted: false, hasBeenActive: false })).toBe(false);
+    expect(shouldStartFeedMuted({ native: true, userInteracted: true, userMuted: true, hasBeenActive: true })).toBe(true);
   });
 });
