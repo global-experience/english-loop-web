@@ -65,17 +65,13 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
     if (audioRef.current && line?.start_ms != null) audioRef.current.currentTime = line.start_ms / 1000;
     window.requestAnimationFrame(() => {
       const container = transcriptListRef.current;
-      const selectedRow = container?.querySelector<HTMLElement>(`[data-line-index="${bounded}"]`);
-      if (selectedRow && container) {
-        const rowTop = selectedRow.offsetTop;
-        const rowHeight = selectedRow.offsetHeight;
-        const containerScrollTop = container.scrollTop;
-        const containerHeight = container.clientHeight;
-        if (rowTop < containerScrollTop) {
-          container.scrollTo({ top: rowTop, behavior: "smooth" });
-        } else if (rowTop + rowHeight > containerScrollTop + containerHeight) {
-          container.scrollTo({ top: rowTop + rowHeight - containerHeight, behavior: "smooth" });
-        }
+      const selectedButton = container?.querySelector<HTMLElement>(`[data-line-index="${bounded}"]`);
+      const selectedItem = selectedButton?.closest("li") || selectedButton;
+      if (selectedItem && container) {
+        const containerRect = container.getBoundingClientRect();
+        const itemRect = selectedItem.getBoundingClientRect();
+        const targetScrollTop = container.scrollTop + (itemRect.top - containerRect.top);
+        container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: "smooth" });
       }
       if (revealWorkspace) window.setTimeout(() => currentSentenceRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
     });

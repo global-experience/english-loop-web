@@ -591,17 +591,13 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     onSessionEntryChange({ ...entry, transcriptLineId: segment.id });
     window.requestAnimationFrame(() => {
       const container = transcriptListRef.current;
-      const selectedRow = container?.querySelector<HTMLElement>(`[data-line-index="${index}"]`);
-      if (selectedRow && container) {
-        const rowTop = selectedRow.offsetTop;
-        const rowHeight = selectedRow.offsetHeight;
-        const containerScrollTop = container.scrollTop;
-        const containerHeight = container.clientHeight;
-        if (rowTop < containerScrollTop) {
-          container.scrollTo({ top: rowTop, behavior: "smooth" });
-        } else if (rowTop + rowHeight > containerScrollTop + containerHeight) {
-          container.scrollTo({ top: rowTop + rowHeight - containerHeight, behavior: "smooth" });
-        }
+      const selectedButton = container?.querySelector<HTMLElement>(`[data-line-index="${index}"]`);
+      const selectedItem = selectedButton?.closest("li") || selectedButton;
+      if (selectedItem && container) {
+        const containerRect = container.getBoundingClientRect();
+        const itemRect = selectedItem.getBoundingClientRect();
+        const targetScrollTop = container.scrollTop + (itemRect.top - containerRect.top);
+        container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: "smooth" });
       }
       if (revealWorkspace) {
         window.setTimeout(() => playerFrameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
