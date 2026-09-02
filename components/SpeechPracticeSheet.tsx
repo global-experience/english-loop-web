@@ -8,6 +8,56 @@ import { compareSpeech, saveRecordingOnDevice, type LearningSessionEntry, type L
 import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 type AttemptResponse = { id: string; created_at: string };
+type SttProvider = "MOCK" | "GROQ" | "WHISPER" | "CLOUDFLARE";
+type TranscriptionResponse = { text: string; provider: Exclude<SttProvider, "MOCK">; request_id: string };
+
+export interface NativeRecordingBridge {
+  present: (payload: { lineId: string; referenceText: string; spokenText?: string }) => void;
+  update?: (payload: { spokenText?: string; message?: string; error?: string; comparison?: SpeechComparison }) => void;
+  notify?: (payload: { message: string; kind?: "info" | "error" }) => void;
+  close?: () => void;
+}
+
+export interface AndroidRecordingHost {
+  present: (rawPayload: string) => void;
+  update?: (rawPayload: string) => void;
+  notify?: (rawPayload: string) => void;
+  close?: () => void;
+}
+
+declare global {
+  interface Window {
+    LoopineNativeRecording?: NativeRecordingBridge;
+    LoopineNativeRecordingHost?: AndroidRecordingHost;
+  }
+}
+
+export function getNativeRecordingBridge(): NativeRecordingBridge | undefined {
+  if (typeof window === "undefined") return undefined;
+  if (window.LoopineNativeRecording?.present) return window.LoopineNativeRecording;
+  const host = window.LoopineNativeRecordingHost;
+  if (!host?.present) return undefined;
+  return {
+    present: (payload) => host.present(JSON.stringify(payload)),
+    update: (payload) => host.update?.(JSON.stringify(payload)),
+    notify: (payload) => host.notify?.(JSON.stringify(payload)),
+    close: () => host.close?.(),
+  };
+}
+
+function base64RecordingToBlob(value: string, mimeType: string): Blob {
+  const binary = window.atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function transcribeRecording(blob: Blob): Promise<TranscriptionResponse> {
+  const extension = blob.type.includes("webm") ? "webm" : blob.type.includes("ogg") ? "ogg" : blob.type.includes("mpeg") ? "mp3" : "m4a";
+  const form = new FormData();
+  form.append("audio", blob, `practice.${extension}`);
+  return apiFetch<TranscriptionResponse>("/api/learning/speech/transcribe", { method: "POST", body: form });
+}
 
 export function SpeechPracticeSheet({
   open,
@@ -32,12 +82,153 @@ export function SpeechPracticeSheet({
   const [processing, setProcessing] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [spokenText, setSpokenText] = useState("");
+  const [sttProvider, setSttProvider] = useState<SttProvider>("MOCK");
   const [comparison, setComparison] = useState<SpeechComparison | null>(null);
   const [localRecording, setLocalRecording] = useState<LocalRecording | null>(null);
   const [message, setMessage] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const startedAtRef = useRef(0);
+  const nativeRecordingRef = useRef<LocalRecording | null>(null);
+  const sttProviderRef = useRef<SttProvider>("MOCK");
+
+  const onListenRef = useRef(onListen);
+  const onCloseRef = useRef(onClose);
+  const onSavedRef = useRef(onSaved);
+  const entryRef = useRef(entry);
+
+  useEffect(() => {
+    onListenRef.current = onListen;
+    onCloseRef.current = onClose;
+    onSavedRef.current = onSaved;
+    entryRef.current = entry;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setRecording(false);
+    setProcessing(false);
+    setSeconds(0);
+    setSpokenText("");
+    setSttProvider("MOCK");
+    setComparison(null);
+    setLocalRecording(null);
+    setMessage("");
+    nativeRecordingRef.current = null;
+    sttProviderRef.current = "MOCK";
+  }, [open, lineId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const nativeBridge = getNativeRecordingBridge();
+    if (!nativeBridge) return;
+
+    nativeBridge.present({ lineId, referenceText, spokenText: "" });
+
+    async function handleNativeAction(event: Event) {
+      const customEvent = event as CustomEvent<{
+        action: string;
+        slow?: boolean;
+        spokenText?: string;
+        lineId?: string;
+        audioBase64?: string;
+        mimeType?: string;
+        durationSeconds?: number;
+        localRecordingId?: string;
+        localRecordingStorage?: string;
+      }>;
+      const detail = customEvent.detail;
+      if (!detail) return;
+
+      if (detail.action === "listen") {
+        onListenRef.current(Boolean(detail.slow));
+      } else if (detail.action === "close") {
+        onCloseRef.current();
+      } else if (detail.action === "recorded" && detail.audioBase64) {
+        const activeBridge = getNativeRecordingBridge();
+        activeBridge?.update?.({ message: "녹음을 저장했어요. 음성을 텍스트로 변환하는 중입니다…" });
+        try {
+          const mimeType = detail.mimeType || "audio/mp4";
+          const recordingBlob = base64RecordingToBlob(detail.audioBase64, mimeType);
+          const durationSeconds = Math.max(1, Math.round(detail.durationSeconds || 1));
+          // Use the id only when the native layer actually wrote the file to disk.
+          // Otherwise store the blob we already have, so the recording really exists
+          // instead of an invented id that can never resolve.
+          if (detail.localRecordingId) {
+            nativeRecordingRef.current = {
+              id: detail.localRecordingId,
+              uri: null,
+              storage: "capacitor-filesystem",
+              mimeType,
+              durationSeconds,
+            };
+          } else {
+            try {
+              nativeRecordingRef.current = await saveRecordingOnDevice(recordingBlob, durationSeconds);
+            } catch {
+              nativeRecordingRef.current = { id: "", uri: null, storage: "memory", mimeType, durationSeconds };
+            }
+          }
+          const transcript = await transcribeRecording(recordingBlob);
+          sttProviderRef.current = transcript.provider;
+          setSttProvider(transcript.provider);
+          setSpokenText(transcript.text);
+          activeBridge?.update?.({
+            spokenText: transcript.text,
+            message: `음성 인식이 완료됐어요 (${transcript.provider}). 문장을 확인하고 자막과 비교해 보세요.`,
+          });
+        } catch (caught) {
+          sttProviderRef.current = "MOCK";
+          activeBridge?.update?.({
+            error: `${caught instanceof Error ? caught.message : "음성을 인식하지 못했습니다."} 녹음은 기기에 남아 있으며, 아래 문장을 직접 수정할 수 있어요.`,
+          });
+        }
+      } else if (detail.action === "compare" && detail.spokenText) {
+        const normalized = detail.spokenText.trim();
+        if (!normalized) return;
+        const result = compareSpeech(referenceText, normalized);
+        try {
+          await apiFetch<AttemptResponse>("/api/learning/speech-attempts", {
+            method: "POST",
+            body: JSON.stringify({
+              content_id: entryRef.current.contentId,
+              transcript_line_id: lineId,
+              activity_id: entryRef.current.activityId || null,
+              entry_source: entryRef.current.entrySource,
+              reference_text: referenceText,
+              stt_text: normalized,
+              comparison: result,
+              match_score: result.accuracy,
+              duration_seconds: nativeRecordingRef.current?.durationSeconds || 1,
+              local_recording_id: nativeRecordingRef.current?.id || null,
+              local_recording_storage: nativeRecordingRef.current?.id
+                ? nativeRecordingRef.current.storage
+                : null,
+              stt_provider: sttProviderRef.current,
+            }),
+          });
+          const activeBridge = getNativeRecordingBridge();
+          onSavedRef.current?.(result);
+          activeBridge?.update?.({
+            comparison: result,
+            message: "비교 결과를 저장했어요. 오디오는 기기에만 남고 복습·리포트에 연결됩니다.",
+          });
+        } catch (caught) {
+          const activeBridge = getNativeRecordingBridge();
+          activeBridge?.update?.({
+            error: caught instanceof Error ? caught.message : "비교 결과를 저장하지 못했습니다.",
+          });
+        }
+      }
+    }
+
+    window.addEventListener("loopine:native-recording-action", handleNativeAction);
+    return () => {
+      window.removeEventListener("loopine:native-recording-action", handleNativeAction);
+      const activeBridge = getNativeRecordingBridge();
+      activeBridge?.close?.();
+    };
+  }, [open, lineId, referenceText]);
 
   useEffect(() => {
     if (!open || !recording) return;
@@ -46,7 +237,7 @@ export function SpeechPracticeSheet({
   }, [open, recording]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || getNativeRecordingBridge()) return;
     const scrollY = window.scrollY;
     const body = document.body;
     const previous = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow };
@@ -71,7 +262,8 @@ export function SpeechPracticeSheet({
       recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data); };
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
-        void persistRecording(new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }));
+        const durationSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+        void persistRecording(new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }), durationSeconds);
       };
       recorderRef.current = recorder;
       startedAtRef.current = Date.now();
@@ -88,17 +280,28 @@ export function SpeechPracticeSheet({
     setRecording(false);
   }
 
-  async function persistRecording(blob: Blob) {
+  async function persistRecording(blob: Blob, durationSeconds: number) {
     setProcessing(true);
+    let saved: LocalRecording | null = null;
     try {
-      const saved = await saveRecordingOnDevice(blob, Math.max(1, seconds));
+      saved = await saveRecordingOnDevice(blob, durationSeconds);
       setLocalRecording(saved);
-      setMessage("녹음은 이 기기에 저장됐어요. STT 연결 전에는 아래 칸에서 인식 문장을 확인·수정할 수 있습니다.");
     } catch {
-      setMessage("녹음을 기기에 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.");
-    } finally {
-      setProcessing(false);
+      setMessage("녹음을 기기에 저장하지 못했지만 음성 인식은 계속 시도합니다.");
     }
+    try {
+      setMessage("녹음을 저장했어요. 음성을 텍스트로 변환하는 중입니다…");
+      const transcript = await transcribeRecording(blob);
+      setSpokenText(transcript.text);
+      setSttProvider(transcript.provider);
+      sttProviderRef.current = transcript.provider;
+      setMessage(`음성 인식이 완료됐어요 (${transcript.provider}). 인식 문장을 확인·수정한 뒤 비교해 보세요.`);
+    } catch (caught) {
+      setSttProvider("MOCK");
+      sttProviderRef.current = "MOCK";
+      setMessage(`${caught instanceof Error ? caught.message : "음성을 인식하지 못했습니다."}${saved ? " 녹음은 이 기기에 저장됐어요." : ""} 아래 문장을 직접 입력해도 됩니다.`);
+    }
+    setProcessing(false);
   }
 
   async function compareAndSave() {
@@ -126,7 +329,7 @@ export function SpeechPracticeSheet({
           duration_seconds: localRecording?.durationSeconds || seconds,
           local_recording_id: localRecording?.id || null,
           local_recording_storage: localRecording?.storage || null,
-          stt_provider: "MOCK",
+          stt_provider: sttProvider,
         }),
       });
       setMessage("비교 결과를 저장했어요. 오디오는 기기에만 남고 복습·리포트에는 텍스트 결과가 연결됩니다.");
@@ -138,7 +341,9 @@ export function SpeechPracticeSheet({
     }
   }
 
-  if (!open || !portalReady) return null;
+  const isNative = Boolean(open && typeof window !== "undefined" && getNativeRecordingBridge());
+  if (!open || !portalReady || isNative) return null;
+
   return createPortal(
     <div className={`speech-sheet-layer ${mobile ? "mobile" : "desktop"}`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="speech-sheet" role="dialog" aria-modal={mobile} aria-labelledby="speech-sheet-title">
@@ -152,7 +357,7 @@ export function SpeechPracticeSheet({
           <div><strong>{recording ? "녹음 중" : localRecording ? "녹음 저장됨" : "준비되면 눌러 녹음"}</strong><span>{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")} · 기기 저장</span></div>
           {recording && <Pause size={18} />}
         </div>
-        <label className="speech-stt-input"><span>STT 인식 문장 <em>현재 Mock adapter</em></span><textarea value={spokenText} onChange={(event) => setSpokenText(event.target.value)} placeholder="STT 연결 전: 인식 결과를 입력하거나 수정하세요" /></label>
+        <label className="speech-stt-input"><span>STT 인식 문장 <em>{sttProvider === "MOCK" ? "녹음 후 자동 인식" : sttProvider}</em></span><textarea value={spokenText} onChange={(event) => setSpokenText(event.target.value)} placeholder="녹음이 끝나면 인식된 문장이 자동으로 표시됩니다" /></label>
         <button className="primary-button speech-compare-button" onClick={() => void compareAndSave()} disabled={processing || recording}><Check size={17} /> 자막과 비교하기</button>
         {comparison && <div className="speech-comparison"><div><span>일치 단어</span><strong>{comparison.accuracy}%</strong></div><p><b>빠진 단어</b>{comparison.missingWords.length ? comparison.missingWords.map((word, index) => <mark key={`${word}-${index}`}>{word}</mark>) : <em>없음</em>}</p><p><b>다르게 인식된 단어</b>{comparison.differentWords.length ? comparison.differentWords.map((word, index) => <mark className="different" key={`${word}-${index}`}>{word}</mark>) : <em>없음</em>}</p><small>이 값은 자막 단어와 STT 텍스트의 일치도이며, 전문적인 발음·억양 점수가 아닙니다.</small></div>}
         {message && <p className="speech-message" role="status">{message}</p>}
@@ -161,4 +366,3 @@ export function SpeechPracticeSheet({
     document.body
   );
 }
-

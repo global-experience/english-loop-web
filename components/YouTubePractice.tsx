@@ -619,6 +619,20 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   async function saveSelectedExpression() {
     const segment = transcript?.segments[selectedIndex];
     if (!segment) return;
+    if (savedLines.has(segment.id)) {
+      try {
+        await apiFetch(`/api/review/saved-items/${segment.id}`, { method: "DELETE" });
+      } catch {
+        // Unsaving locally still updates UI if API fails
+      }
+      setSavedLines((current) => {
+        const next = new Set(current);
+        next.delete(segment.id);
+        return next;
+      });
+      setSessionMessage("복습 목록에서 문장 저장을 취소했어요.");
+      return;
+    }
     let translation = segment.translation || "복습할 문장";
     if (!segment.translation) {
       try {
@@ -920,7 +934,14 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
               </p>
               <div className="current-sentence-tools">
                 <button type="button" onClick={(event) => void requestSegmentTranslation(selected, event)} aria-haspopup="dialog"><Languages size={15} /> 번역 보기</button>
-                <button type="button" onClick={() => void saveSelectedExpression()}><Bookmark size={15} /> 문장 저장</button>
+                <button
+                  type="button"
+                  className={savedLines.has(selected.id) ? "saved" : ""}
+                  onClick={() => void saveSelectedExpression()}
+                >
+                  <Bookmark size={15} fill={savedLines.has(selected.id) ? "currentColor" : "none"} />{" "}
+                  {savedLines.has(selected.id) ? "문장 저장됨" : "문장 저장"}
+                </button>
                 {/* <button type="button" onClick={() => { setStoreState({ playbackRate: Math.min(playbackRate, 0.75) }); window.setTimeout(() => startLoop(), 0); }}><Volume2 size={15} /> 느리게 듣기</button> */}
                 <button type="button" onClick={() => setShowTranscriptText((value) => !value)}>{showTranscriptText ? <EyeOff size={15} /> : <Eye size={15} />} 자막 {showTranscriptText ? "숨기기" : "보기"}</button>
               </div>

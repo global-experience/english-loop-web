@@ -13,6 +13,7 @@ import { youtubeStore } from "@/lib/youtubeStore";
 import { triggerHapticSelection } from "@/lib/haptics";
 import { isNativeAppRuntime } from "@/lib/nativeRuntime";
 import type { LearningSessionEntry } from "@/lib/learningSession";
+import type { ReviewLearningTarget } from "@/components/ReviewView";
 import type { Activity, FeedVideo } from "@/lib/types";
 import {
   APP_TABS,
@@ -262,6 +263,23 @@ export default function Home() {
     switchTab("learn");
   };
 
+  // Review -> Learn: restore the same content and, when known, the same transcript line.
+  const openLearningFromReview = (target: ReviewLearningTarget) => {
+    const youtubeUrl = target.youtubeUrl
+      || (/^[A-Za-z0-9_-]{11}$/.test(target.contentId) ? `https://www.youtube.com/watch?v=${target.contentId}` : null);
+    if (youtubeUrl) youtubeStore.prepareVideo(youtubeUrl);
+    setLearningEntry({
+      contentId: target.contentId,
+      transcriptLineId: target.transcriptLineId || null,
+      entrySource: "library",
+      youtubeUrl,
+      title: target.title || null,
+      sourceLabel: target.sourceLabel || "복습에서 이어하기",
+    });
+    setLearningMode(youtubeUrl ? "youtube" : "library");
+    switchTab("learn");
+  };
+
   const openFeedVideo = (video: FeedVideo, transcriptLineId?: string | null) => {
     youtubeStore.prepareVideo(video.youtube_url);
     setLearningEntry({
@@ -337,7 +355,7 @@ export default function Home() {
               {paneTab === "today" && (needsBootstrap ? bootstrapFallback : <TodayView today={today} user={user} refresh={refresh} openLearning={openLearning} />)}
               {paneTab === "feed" && <FeedView active={active} openLearning={openFeedVideo} />}
               {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
-              {paneTab === "review" && <ReviewView />}
+              {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} />}
               {paneTab === "report" && <ReportView />}
               {paneTab === "settings" && (user ? <SettingsView user={user} onSaved={refresh} /> : bootstrapFallback)}
             </section>

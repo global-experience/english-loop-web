@@ -12,6 +12,9 @@ Object.defineProperty(window.HTMLMediaElement.prototype, "pause", {
   configurable: true,
   value: vi.fn(),
 });
+if (typeof Element !== "undefined" && !Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = vi.fn();
+}
 Object.defineProperty(navigator, "wakeLock", {
   configurable: true,
   value: { request: vi.fn().mockResolvedValue({ release: vi.fn().mockResolvedValue(undefined) }) },
@@ -31,3 +34,11 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// jsdom does not implement the object URL helpers the recording player relies on.
+if (typeof URL.createObjectURL !== "function") {
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:loopine/test") });
+}
+if (typeof URL.revokeObjectURL !== "function") {
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+}

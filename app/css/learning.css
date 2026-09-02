@@ -1217,6 +1217,18 @@
   background: transparent;
   font-size: 9px;
   font-weight: 800;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.current-sentence-tools button.saved {
+  color: var(--ink);
+  background: var(--acid);
+  border-color: var(--acid);
+  font-weight: 900;
+}
+
+.current-sentence-tools button.saved svg {
+  fill: currentColor;
 }
 
 .sentence-swipe-nav {
