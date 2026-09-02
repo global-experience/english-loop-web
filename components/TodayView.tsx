@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 import type { Activity, FeedVideo, TodayData, User } from "@/lib/types";
 import {
   fetchCoachHint,
@@ -51,11 +52,35 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
   const plan = today.plan;
   const activities = useMemo(() => plan?.activities || [], [plan]);
   const focus = useMemo(() => resolveTodayFocus(activities), [activities]);
-  const [sessionLabel, sessionDetail] = sessionCopy[today.coach_session.status];
+  // An unmapped status would throw while destructuring and take the whole tab down.
+  const [sessionLabel, sessionDetail] =
+    sessionCopy[today.coach_session?.status as keyof typeof sessionCopy] ?? sessionCopy.NOT_STARTED;
 
   const [videos, setVideos] = useState<AsyncSection<RecommendedVideos>>(idleSection);
   const [review, setReview] = useState<AsyncSection<TodayReviewSummary>>(idleSection);
   const [coach, setCoach] = useState<AsyncSection<CoachHintData>>(idleSection);
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const [planError, setPlanError] = useState("");
+
+  const noPlan = !plan;
+
+  /**
+   * Build today's routine on demand. A plan is otherwise only created when the account
+   * is approved or by the previous night's session, so any day in between would leave
+   * this tab with nothing to start.
+   */
+  async function createPlan() {
+    setCreatingPlan(true);
+    setPlanError("");
+    try {
+      await apiFetch("/api/today/plan", { method: "POST" });
+      await refresh();
+    } catch (caught) {
+      setPlanError(caught instanceof Error ? caught.message : "오늘 루틴을 만들지 못했습니다.");
+    } finally {
+      setCreatingPlan(false);
+    }
+  }
 
   const loadVideos = useCallback(async () => {
     setVideos((current) => ({ ...current, loading: true, error: "" }));
@@ -112,22 +137,9 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
     await navigator.clipboard.writeText("오늘 수업 시작");
   }
 
-  const staleSession = today.coach_session.status === "STARTED" && today.coach_session.started_at
+  const staleSession = today.coach_session?.status === "STARTED" && today.coach_session.started_at
     ? Date.now() - new Date(today.coach_session.started_at).getTime() > 45 * 60 * 1000
     : false;
-
-  if (!plan) {
-    return (
-      <div className="view-stack today-view">
-        <section className="empty-state">
-          <span className="eyebrow">{today.study_date}</span>
-          <h2>오늘 계획이 아직 없어요.</h2>
-          <p>샘플 시드를 다시 실행하거나 콘텐츠와 목표 표현을 선택해 계획을 만들어주세요.</p>
-          <button className="secondary-button" onClick={() => void refresh()}>다시 불러오기</button>
-        </section>
-      </div>
-    );
-  }
 
   return (
     <div className="view-stack today-view">
@@ -135,7 +147,17 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
         today={today}
         focus={focus}
         onStart={() => focus.step && openRoutine(focus.step.slot)}
+        noPlan={noPlan}
+        creatingPlan={creatingPlan}
+        onCreatePlan={() => void createPlan()}
       />
+
+      {planError && (
+        <div className="today-inline-error" role="alert">
+          <span>{planError}</span>
+          <button type="button" className="text-button" onClick={() => void refresh()}>다시 불러오기</button>
+        </div>
+      )}
 
       {staleSession && (
         <div className="warning-card" role="status">
@@ -163,7 +185,19 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
         onStartReview={() => openReview?.()}
       />
 
-      <TodayRoutine activities={activities} states={focus.states} onOpen={openRoutine} />
+      {noPlan ? (
+        <section className="today-section" aria-label="오늘의 루틴">
+          <div className="section-heading">
+            <div><p className="eyebrow">YOUR DAY</p><h2>오늘의 루틴</h2></div>
+            <span>4단계</span>
+          </div>
+          <p className="muted-copy today-empty-line">
+            오늘 루틴을 만들면 출근 듣기 · 점심 말하기 · 퇴근 자막 없이 말하기 · 밤 음성 대화 4단계가 열립니다.
+          </p>
+        </section>
+      ) : (
+        <TodayRoutine activities={activities} states={focus.states} onOpen={openRoutine} />
+      )}
 
       <CoachHint
         hint={coach.data}

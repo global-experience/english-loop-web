@@ -167,5 +167,5 @@ export function stepOpensCoach(slot: RoutineSlot | null | undefined): boolean {
 }
 
 export function targetExpressionCount(today: TodayData): number {
-  return today.plan?.target_expressions.length ?? 0;
+  return today.plan?.target_expressions?.length ?? 0;
 }

@@ -202,10 +202,43 @@ describe("Today session state", () => {
     expect(screen.getByText("오늘의 분석이 리포트에 반영됐어요.")).toBeInTheDocument();
   });
 
-  it("offers a retry when the day has no plan", async () => {
-    mockApi();
+  it("keeps the tab usable on a day with no plan and can build the routine", async () => {
+    const calls: string[] = [];
+    mockApi((path) => {
+      calls.push(path);
+      if (path === "/api/today/plan") return { plan: null };
+      return undefined;
+    });
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    renderToday({ today: { ...today, plan: null }, refresh });
+
+    // The summary explains the state and offers the one action that fixes it.
+    const summary = document.querySelector(".today-summary") as HTMLElement;
+    expect(within(summary).getByText(/아직 없어요/)).toBeInTheDocument();
+    const create = within(summary).getByRole("button", { name: /오늘 루틴 만들기/ });
+
+    // The plan-independent sections still work, so the tab is not a dead end.
+    expect(await screen.findByRole("button", { name: /Small talk .* 피드에서 보기/ })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector(".today-review-strip dd")).not.toBeNull());
+    expect(await screen.findByText("다시 말할 문장 3개가 남아 있어요.")).toBeInTheDocument();
+    // No routine rows to open, so the section explains what unlocks them.
+    expect(document.querySelectorAll(".today-routine-row")).toHaveLength(0);
+    expect(screen.getByText(/4단계가 열립니다/)).toBeInTheDocument();
+
+    fireEvent.click(create);
+    await waitFor(() => expect(calls).toContain("/api/today/plan"));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("reports a failure to build the routine without breaking the tab", async () => {
+    mockApi((path) => {
+      if (path === "/api/today/plan") throw new Error("루틴을 만들지 못했습니다.");
+      return undefined;
+    });
     renderToday({ today: { ...today, plan: null } });
-    expect(screen.getByText("오늘 계획이 아직 없어요.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /다시 불러오기/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /오늘 루틴 만들기/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("루틴을 만들지 못했습니다.");
+    expect(await screen.findByRole("button", { name: /Small talk .* 피드에서 보기/ })).toBeInTheDocument();
   });
 });

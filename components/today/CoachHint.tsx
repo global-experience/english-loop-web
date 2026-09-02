@@ -37,9 +37,9 @@ export function CoachHint({
           <>
             <strong>{hint?.headline || "오늘 루틴부터 시작해 보세요."}</strong>
             <p>{hint?.body || "한 단계를 마치면 다음 행동을 여기에서 제안해 드려요."}</p>
-            {!!hint?.focusTags.length && (
+            {!!hint?.focusTags?.length && (
               <ul className="today-coach-tags">
-                {hint.focusTags.map((tag) => <li key={tag}>{tag}</li>)}
+                {(hint.focusTags || []).map((tag) => <li key={tag}>{tag}</li>)}
               </ul>
             )}
             {hint && !hint.personalised && (

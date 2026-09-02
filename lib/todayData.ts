@@ -35,7 +35,9 @@ export type TodayReviewSummary = ReviewQueueSummary & { speakAgainCount: number 
 
 export async function fetchReviewSummary(): Promise<TodayReviewSummary> {
   const data = await apiFetch<ReviewQueueResponse>("/api/review/queue?limit=40");
-  return { ...data.summary, speakAgainCount: data.summary.counts?.SPEAK_AGAIN || 0 };
+  const summary = data?.summary;
+  if (!summary) throw new Error("복습 큐 응답에 요약이 없습니다.");
+  return { ...summary, speakAgainCount: summary.counts?.SPEAK_AGAIN || 0 };
 }
 
 export type CoachHint = {
@@ -87,8 +89,8 @@ export async function fetchCoachHint(): Promise<CoachHint> {
     return {
       personalised: true,
       headline: `다시 말할 문장 ${latest.retry_line_count}개가 남아 있어요.`,
-      body: latest.missing_words.length
-        ? `지난 세션에서 빠뜨린 단어: ${latest.missing_words.slice(0, 4).join(", ")}. 복습 탭에서 그 문장부터 다시 말해보세요.`
+      body: (latest.missing_words?.length || 0) > 0
+        ? `지난 세션에서 빠뜨린 단어: ${(latest.missing_words || []).slice(0, 4).join(", ")}. 복습 탭에서 그 문장부터 다시 말해보세요.`
         : "복습 탭의 ‘다시 말할 문장’부터 처리하면 오늘 루틴이 가벼워져요.",
       focusTags,
     };
