@@ -26,7 +26,7 @@ describe("ReviewView vocabulary", () => {
 
     render(<ReviewView />);
 
-    expect(await screen.findByRole("heading", { name: "내 단어장" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "영상별 단어장" })).toBeInTheDocument();
     expect(screen.getByText("have to")).toBeInTheDocument();
     expect(screen.getByText("I have to leave now.")).toBeInTheDocument();
   });

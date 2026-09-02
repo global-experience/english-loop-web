@@ -108,3 +108,9 @@
   font-size: 9px;
   line-height: 1.45;
 }
+
+.learning-preset-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}

@@ -18,6 +18,7 @@ vi.mock("@/lib/api", () => ({
 
 describe("Home", () => {
   beforeEach(() => {
+    window.history.replaceState({}, "", "/");
     sessionStorage.setItem(SPLASH_SESSION_KEY, "true");
     Object.defineProperty(window, "scrollTo", { configurable: true, value: scrollToMock });
     scrollToMock.mockReset();
@@ -47,12 +48,21 @@ describe("Home", () => {
     fireEvent.click(document.getElementById("tab-learn")!);
     expect(scrollToMock).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: "smooth" });
 
-    fireEvent.click(await screen.findByRole("tab", { name: "점심" }));
-    expect(document.getElementById("learning-panel-lunch")).toHaveClass("mode-scene-forward");
-    fireEvent.click(screen.getByRole("tab", { name: "출근" }));
-    expect(document.getElementById("learning-panel-morning")).toHaveClass("mode-scene-back");
+    expect(await screen.findByText("무엇을 연습할까요?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "콘텐츠 선택" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "점심" })).not.toBeInTheDocument();
 
     fireEvent.click(document.getElementById("tab-today")!);
     expect(document.getElementById("panel-today")).toHaveClass("tab-scene-back");
+  });
+
+  it("opens Today content directly in the learning workspace", async () => {
+    render(<Home/>);
+    await screen.findByText("오늘의 학습 루틴");
+    fireEvent.click(screen.getByRole("button", { name: "출근 리스닝 열기" }));
+    expect(await screen.findByText("프로젝트 소개")).toBeInTheDocument();
+    expect(screen.getByText("오늘 루틴")).toBeInTheDocument();
+    expect(screen.getByText("출근 프리셋")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "The main challenge was keeping it simple." })).toBeInTheDocument();
   });
 });

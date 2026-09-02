@@ -39,7 +39,7 @@ export type YouTubePracticeState = {
   videoId: string;
   transcript: TranscriptResponse | null;
   selectedIndex: number;
-  repeatTarget: 1 | 3 | 5;
+  repeatTarget: number;
   playbackRate: number;
   loading: boolean;
   jobProgress: number;
@@ -49,8 +49,6 @@ export type YouTubePracticeState = {
   activeJobId: string | null;
 };
 
-const DEFAULT_VIDEO_ID = "rGQkLXIey4Y";
-const DEFAULT_VIDEO_URL = `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
 // Bump when transcript timing semantics change so an open PWA session cannot
 // keep replaying stale server data after a deployment.
 const STORAGE_KEY = "loopine_youtube_practice_v3";
@@ -58,8 +56,8 @@ const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 
 const initialState: YouTubePracticeState = {
-  videoInput: DEFAULT_VIDEO_URL,
-  videoId: DEFAULT_VIDEO_ID,
+  videoInput: "",
+  videoId: "",
   transcript: null,
   selectedIndex: 0,
   repeatTarget: 3,
@@ -147,11 +145,24 @@ class YouTubeStore {
   public initDefaultIfNeeded() {
     if (this.initialized) return;
     this.initialized = true;
-    if (!this.state.transcript && !this.state.loading && !this.state.error) {
-      void this.loadTranscript(this.state.videoInput);
-    } else if (this.state.loading && this.state.activeJobId && !this.isPolling) {
+    if (this.state.loading && this.state.activeJobId && !this.isPolling) {
       void this.pollJob(this.state.activeJobId);
     }
+  }
+
+  public prepareVideo(url: string) {
+    this.stopActiveJob();
+    this.setState({
+      ...initialState,
+      videoInput: url.trim(),
+    });
+  }
+
+  public stopActiveJob() {
+    this.stopProgressTicker();
+    this.isPolling = false;
+    this.currentPollJobId = null;
+    if (this.state.loading) this.setState({ loading: false, activeJobId: null, jobProgress: 0 });
   }
 
   public async loadTranscript(url: string) {

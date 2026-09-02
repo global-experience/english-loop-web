@@ -39,7 +39,7 @@ function isNativeApp() {
   return isNativeAppRuntime(capacitor, navigator.userAgent);
 }
 
-export function FeedView({ active = true, openLearning }: { active?: boolean; openLearning: (videoUrl: string) => void }) {
+export function FeedView({ active = true, openLearning }: { active?: boolean; openLearning: (video: FeedVideo, transcriptLineId?: string | null) => void }) {
   const [items, setItems] = useState<FeedVideo[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(() =>
@@ -421,7 +421,7 @@ export function FeedView({ active = true, openLearning }: { active?: boolean; op
                     {savingId === video.id ? <LoaderCircle className="spin" size={17} /> : saved ? <Check size={17} /> : <Bookmark size={17} />}
                     {video.saved_status === "READY" ? "학습 준비됨" : video.saved_status === "PROCESSING" ? "자막 준비 중" : "찜하기"}
                   </button>
-                  <button className="feed-learn" onClick={() => { sendEvent(video, "OPEN_LEARNING"); openLearning(video.youtube_url); }}><Play size={17} fill="currentColor" /> 바로 학습</button>
+                  <button className="feed-learn" onClick={() => { sendEvent(video, "OPEN_LEARNING"); openLearning(video); }}><Play size={17} fill="currentColor" /> 바로 학습</button>
                 </div>
               </div>
             </article>;

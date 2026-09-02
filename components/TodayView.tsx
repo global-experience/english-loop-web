@@ -1,14 +1,13 @@
 "use client";
 
 import { ArrowUpRight, Check, Clipboard, ExternalLink, Headphones, MessageCircle, Mic2, Moon, RefreshCw, RotateCcw, TriangleAlert } from "lucide-react";
-import type { TodayData, User } from "@/lib/types";
-import type { LearningMode } from "./LearningView";
+import type { Activity, TodayData, User } from "@/lib/types";
 
 const activityMeta = {
-  MORNING_COMMUTE: { label: "출근 리스닝", detail: "대본 없이 듣고 입 모양으로 따라 하기", Icon: Headphones, mode: "morning" as LearningMode },
-  LUNCH: { label: "점심 스피킹", detail: "핵심 표현을 준비하고 실제로 말하기", Icon: Mic2, mode: "lunch" as LearningMode },
-  EVENING_COMMUTE: { label: "퇴근 복습", detail: "어려웠던 문장을 대본 없이 다시 듣기", Icon: RotateCcw, mode: "evening" as LearningMode },
-  NIGHT_VOICE: { label: "ChatGPT 음성 대화", detail: "목표 표현을 실제 대화에서 꺼내 쓰기", Icon: Moon, mode: "lunch" as LearningMode },
+  MORNING_COMMUTE: { label: "출근 리스닝", detail: "대본 없이 듣고 입 모양으로 따라 하기", Icon: Headphones },
+  LUNCH: { label: "점심 스피킹", detail: "핵심 표현을 준비하고 실제로 말하기", Icon: Mic2 },
+  EVENING_COMMUTE: { label: "퇴근 복습", detail: "어려웠던 문장을 대본 없이 다시 듣기", Icon: RotateCcw },
+  NIGHT_VOICE: { label: "ChatGPT 음성 대화", detail: "목표 표현을 실제 대화에서 꺼내 쓰기", Icon: Moon },
 };
 
 const sessionCopy = {
@@ -23,7 +22,7 @@ type Props = {
   today: TodayData;
   user: User;
   refresh: () => Promise<void>;
-  openLearning: (mode: LearningMode) => void;
+  openLearning: (activity: Activity) => void;
 };
 
 export function TodayView({ today, user, refresh, openLearning }: Props) {
@@ -93,7 +92,7 @@ export function TodayView({ today, user, refresh, openLearning }: Props) {
               <span className="step-number">0{index + 1}</span>
               <span className="routine-icon">{done ? <Check size={22}/> : <Icon size={22}/>}</span>
               <div><p>{activity.actual_minutes}/{activity.planned_minutes} MIN</p><h3>{meta.label}</h3><span>{meta.detail}</span></div>
-              <button aria-label={`${meta.label} 열기`} onClick={() => activity.slot === "NIGHT_VOICE" ? openCoach() : openLearning(meta.mode)}><ArrowUpRight size={20}/></button>
+              <button aria-label={`${meta.label} 열기`} onClick={() => activity.slot === "NIGHT_VOICE" ? openCoach() : openLearning(activity)}><ArrowUpRight size={20}/></button>
             </article>;
           })}
         </div>
@@ -111,4 +110,3 @@ export function TodayView({ today, user, refresh, openLearning }: Props) {
     </div>
   );
 }
-

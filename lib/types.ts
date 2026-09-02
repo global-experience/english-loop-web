@@ -99,6 +99,7 @@ export type FeedVideo = {
   base_score: number;
   status: string;
   saved_status: "PROCESSING" | "READY" | "FAILED" | null;
+  learning_content_id?: string | null;
 };
 
 export type Report = {

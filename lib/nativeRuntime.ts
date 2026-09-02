@@ -28,3 +28,10 @@ export function shouldStartFeedMuted({
   return !(native || userInteracted || hasBeenActive);
 }
 
+export function isMobileDeviceRuntime(userAgent: string, maxTouchPoints: number = 0, capacitor?: CapacitorRuntime): boolean {
+  if (isNativeAppRuntime(capacitor, userAgent)) return true;
+  const isTouchMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  const isIPadOs = userAgent.includes("Macintosh") && maxTouchPoints > 1;
+  return isTouchMobile || isIPadOs;
+}
+

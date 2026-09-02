@@ -17,7 +17,7 @@ describe("TodayView", () => {
     const open = vi.fn();
     render(<TodayView today={today} user={user} refresh={vi.fn()} openLearning={open}/>);
     fireEvent.click(screen.getByLabelText("출근 리스닝 열기"));
-    expect(open).toHaveBeenCalledWith("morning");
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ slot: "MORNING_COMMUTE" }));
   });
 
   it("shows the save reminder for a stale started session", () => {

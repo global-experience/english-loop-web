@@ -4,6 +4,7 @@ import { effectiveSegmentEnd, findGrammarChunks, YouTubePractice } from "@/compo
 import { apiFetch } from "@/lib/api";
 
 import { youtubeStore } from "@/lib/youtubeStore";
+import { DEFAULT_LEARNING_PRESETS } from "@/lib/learningSession";
 
 vi.mock("@/lib/api", () => ({
   ApiError: class ApiError extends Error { },
@@ -19,6 +20,18 @@ const player = {
   seekTo: vi.fn(),
   setPlaybackRate: vi.fn(),
 };
+
+const entry = {
+  contentId: "rGQkLXIey4Y",
+  entrySource: "direct" as const,
+  youtubeUrl: "https://www.youtube.com/watch?v=rGQkLXIey4Y",
+  title: "Office English",
+};
+
+function renderPractice() {
+  youtubeStore.prepareVideo(entry.youtubeUrl);
+  return render(<YouTubePractice entry={entry} presets={DEFAULT_LEARNING_PRESETS} onChangeContent={vi.fn()} onEndSession={vi.fn()} onSessionEntryChange={vi.fn()} onOpenReview={vi.fn()} onNextRoutine={vi.fn()} />);
+}
 
 describe("YouTubePractice", () => {
   beforeEach(() => {
@@ -56,7 +69,7 @@ describe("YouTubePractice", () => {
   });
 
   it("loads automatic captions and starts a segment loop", async () => {
-    render(<YouTubePractice />);
+    renderPractice();
 
     expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
     expect(apiFetch).toHaveBeenCalledWith("/api/youtube/jobs", expect.objectContaining({ method: "POST" }));
@@ -65,18 +78,30 @@ describe("YouTubePractice", () => {
 
     await waitFor(() => expect(window.YT?.Player).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: /Let's begin the meeting/ }));
-    expect(player.seekTo).toHaveBeenCalledWith(7, true);
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(7, true));
     expect(player.playVideo).toHaveBeenCalled();
     expect(screen.getByText(/구간 반복 중/)).toHaveTextContent("0 / 3");
   });
 
   it("changes the repeat count used by the selected line", async () => {
-    render(<YouTubePractice />);
+    renderPractice();
     expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "5회" }));
     expect(screen.getByRole("button", { name: "5회 반복 시작" })).toBeInTheDocument();
     expect(screen.getByText("누르면 바로 5회 반복")).toBeInTheDocument();
+  });
+
+  it("applies blur effect on subtitle text when hidden and unblurs on click", async () => {
+    renderPractice();
+    const heading = await screen.findByRole("heading", { name: "Welcome to Office English." });
+    expect(heading).not.toHaveClass("blurred-text");
+
+    fireEvent.click(screen.getByRole("button", { name: /자막 숨기기/ }));
+    expect(heading).toHaveClass("blurred-text");
+
+    fireEvent.click(heading);
+    expect(heading).not.toHaveClass("blurred-text");
   });
 
   it("extends an implausibly short caption until the next cue", () => {
@@ -113,7 +138,7 @@ describe("YouTubePractice", () => {
       removeListener: vi.fn(),
       dispatchEvent: vi.fn(),
     }));
-    render(<YouTubePractice />);
+    renderPractice();
     expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
     vi.mocked(apiFetch).mockResolvedValueOnce({
       segment_id: "a".repeat(64),
@@ -157,7 +182,7 @@ describe("YouTubePractice", () => {
     const present = vi.fn();
     const update = vi.fn();
     window.LoopineNativeTranslation = { present, update, notify: vi.fn() };
-    render(<YouTubePractice />);
+    renderPractice();
     expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
     vi.mocked(apiFetch).mockResolvedValueOnce({
       segment_id: "a".repeat(64),
@@ -195,7 +220,7 @@ describe("YouTubePractice", () => {
     const present = vi.fn();
     const update = vi.fn();
     window.LoopineNativeTranslation = { present, update, notify: vi.fn() };
-    render(<YouTubePractice />);
+    renderPractice();
     expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
     vi.mocked(apiFetch).mockResolvedValueOnce({
       segment_id: "a".repeat(64),

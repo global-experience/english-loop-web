@@ -36,7 +36,7 @@ const report = {
 describe("ReportView", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
-    apiFetchMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/api/analytics") ? analytics : { items: [report] }));
+    apiFetchMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/api/analytics") ? analytics : path.startsWith("/api/reports") ? { items: [report] } : { items: [] }));
   });
 
   it("renders the saved report and switches the analytics period", async () => {

@@ -12,6 +12,8 @@ import { AppSplash, useAppSplash } from "@/components/AppSplash";
 import { youtubeStore } from "@/lib/youtubeStore";
 import { triggerHapticSelection } from "@/lib/haptics";
 import { isNativeAppRuntime } from "@/lib/nativeRuntime";
+import type { LearningSessionEntry } from "@/lib/learningSession";
+import type { Activity, FeedVideo } from "@/lib/types";
 import {
   APP_TABS,
   emitTabReselect,
@@ -57,9 +59,19 @@ function getInitialRoute() {
   const hashTab = window.location.hash.replace(/^#\/?/, "").split(/[/?]/)[0];
   const tab = isAppTab(queryTab) ? queryTab : isAppTab(hashTab) ? hashTab : null;
   const mode = params.get("mode");
+  const entrySource = params.get("entrySource");
+  const routineStep = params.get("routineStep");
+  const contentId = params.get("contentId");
+  const transcriptLineId = params.get("transcriptLineId");
   return {
     tab,
     mode: mode === "morning" || mode === "lunch" || mode === "evening" || mode === "library" || mode === "youtube" ? mode : null,
+    learningEntry: contentId && (entrySource === "today" || entrySource === "feed" || entrySource === "library" || entrySource === "direct") ? {
+      contentId,
+      transcriptLineId,
+      entrySource,
+      routineStep: routineStep === "MORNING_COMMUTE" || routineStep === "LUNCH" || routineStep === "EVENING_COMMUTE" || routineStep === "NIGHT_VOICE" ? routineStep : null,
+    } satisfies LearningSessionEntry : null,
   };
 }
 
@@ -80,6 +92,7 @@ export default function Home() {
     Array.from(new Set([initialTab, ...(restoredShell?.visitedTabs || ["today"])]))
   );
   const [learningMode, setLearningMode] = useState<LearningMode>((initialRoute?.mode || restoredShell?.learningMode || "morning") as LearningMode);
+  const [learningEntry, setLearningEntry] = useState<LearningSessionEntry | null>(initialRoute?.learningEntry || null);
   const [today, setToday] = useState<TodayData | null>(restoredBootstrap?.today || null);
   const [user, setUser] = useState<User | null>(restoredBootstrap?.user || null);
   const [error, setError] = useState("");
@@ -231,13 +244,34 @@ export default function Home() {
     });
   };
 
-  const openLearning = (mode: LearningMode) => {
+  const openLearning = (activity: Activity) => {
+    const mode: LearningMode = activity.slot === "MORNING_COMMUTE" ? "morning" : activity.slot === "EVENING_COMMUTE" ? "evening" : "lunch";
     setLearningMode(mode);
+    const content = activity.content;
+    setLearningEntry(content ? {
+      contentId: content.id,
+      transcriptLineId: content.segments[0]?.id || null,
+      entrySource: "today",
+      routineStep: activity.slot,
+      activityId: activity.id,
+      youtubeUrl: content.source_type === "YOUTUBE" ? content.source_url : null,
+      title: content.title,
+      sourceLabel: "오늘 루틴",
+      content,
+    } : null);
     switchTab("learn");
   };
 
-  const openFeedVideo = (videoUrl: string) => {
-    void youtubeStore.loadTranscript(videoUrl);
+  const openFeedVideo = (video: FeedVideo, transcriptLineId?: string | null) => {
+    youtubeStore.prepareVideo(video.youtube_url);
+    setLearningEntry({
+      contentId: video.learning_content_id || video.id,
+      transcriptLineId: transcriptLineId || null,
+      entrySource: "feed",
+      youtubeUrl: video.youtube_url,
+      title: video.title,
+      sourceLabel: `피드 · ${video.channel_title}`,
+    });
     setLearningMode("youtube");
     switchTab("learn");
   };
@@ -302,7 +336,7 @@ export default function Home() {
             >
               {paneTab === "today" && (needsBootstrap ? bootstrapFallback : <TodayView today={today} user={user} refresh={refresh} openLearning={openLearning} />)}
               {paneTab === "feed" && <FeedView active={active} openLearning={openFeedVideo} />}
-              {paneTab === "learn" && (today ? <LearningView today={today} mode={learningMode} setMode={setLearningMode} refresh={refresh} /> : bootstrapFallback)}
+              {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
               {paneTab === "review" && <ReviewView />}
               {paneTab === "report" && <ReportView />}
               {paneTab === "settings" && (user ? <SettingsView user={user} onSaved={refresh} /> : bootstrapFallback)}

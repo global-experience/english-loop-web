@@ -1,13 +1,16 @@
 "use client";
 
 import Script from "next/script";
-import { FormEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from "react";
+import { MouseEvent as ReactMouseEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ExternalLink, Languages, LoaderCircle, Pause, Play, RotateCcw, Sparkles, X, Youtube } from "lucide-react";
+import { Bookmark, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Sparkles, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { isNativeAppRuntime } from "@/lib/nativeRuntime";
+import { isMobileDeviceRuntime, isNativeAppRuntime } from "@/lib/nativeRuntime";
 import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
 import type { TranscriptSegment } from "@/lib/youtubeStore";
+import type { LearningPresetOptions, LearningSessionEntry, SpeechComparison } from "@/lib/learningSession";
+import { LearningSessionHeader } from "./LearningSessionHeader";
+import { SpeechPracticeSheet } from "./SpeechPracticeSheet";
 
 type TranslationResponse = {
   segment_id: string;
@@ -190,10 +193,17 @@ function useMobileTranslationUi() {
   return { mobile, platform };
 }
 
-export function YouTubePractice() {
+export function YouTubePractice({ entry, presets, onChangeContent, onEndSession, onSessionEntryChange, onOpenReview, onNextRoutine }: {
+  entry: LearningSessionEntry;
+  presets: LearningPresetOptions;
+  onChangeContent: () => void;
+  onEndSession: () => void;
+  onSessionEntryChange: (entry: LearningSessionEntry) => void;
+  onOpenReview: () => void;
+  onNextRoutine: () => void;
+}) {
   const [storeState, setStoreState, loadTranscript] = useYouTubeStore();
   const {
-    videoInput,
     videoId,
     transcript,
     selectedIndex,
@@ -210,13 +220,33 @@ export function YouTubePractice() {
   const [apiReady, setApiReady] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [loopPaused, setLoopPaused] = useState(false);
+  const [showTranscriptText, setShowTranscriptText] = useState(true);
+  const [speechOpen, setSpeechOpen] = useState(false);
+  const [nextLineHint, setNextLineHint] = useState(false);
+  const [practicedLines, setPracticedLines] = useState<Set<string>>(new Set());
+  const [savedLines, setSavedLines] = useState<Set<string>>(new Set());
+  const [retryLines, setRetryLines] = useState<Set<string>>(new Set());
+  const [missingWords, setMissingWords] = useState<Set<string>>(new Set());
+  const [sessionMessage, setSessionMessage] = useState("");
   const [portalReady, setPortalReady] = useState(false);
   const [translationPanel, setTranslationPanel] = useState<TranslationPanelState | null>(null);
   const { mobile: mobileTranslationUi, platform: translationPlatform } = useMobileTranslationUi();
   const mobileTranslationSheetOpen = mobileTranslationUi && translationPanel !== null;
 
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && typeof navigator !== "undefined") {
+      const capacitor = (window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+      setIsMobileDevice(isMobileDeviceRuntime(navigator.userAgent, navigator.maxTouchPoints || 0, capacitor));
+    }
+  }, []);
+
   const playerHostRef = useRef<HTMLDivElement>(null);
+  const playerFrameRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
+  const latestVideoIdRef = useRef(videoId);
   const loopTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transitioningRef = useRef(false);
@@ -225,12 +255,35 @@ export function YouTubePractice() {
   const nativeSelectionCacheRef = useRef(new Map<string, string>());
   const nativeSelectionRequestRef = useRef(0);
   const activeTabRef = useRef(true);
+  const touchStartRef = useRef(0);
+  const transcriptListRef = useRef<HTMLOListElement>(null);
 
-  // Initialize default load if store has no transcript or active loading
   useEffect(() => {
-    youtubeStore.initDefaultIfNeeded();
     setPortalReady(true);
   }, []);
+
+  useEffect(() => {
+    latestVideoIdRef.current = videoId;
+  }, [videoId]);
+
+  useEffect(() => {
+    const sourceUrl = entry.youtubeUrl || entry.content?.source_url;
+    if (!sourceUrl) return;
+    const state = youtubeStore.getState();
+    const sameVideo = state.videoId && sourceUrl.includes(state.videoId);
+    if (!sameVideo && !state.loading) void loadTranscript(sourceUrl);
+  }, [entry.content?.source_url, entry.youtubeUrl, loadTranscript]);
+
+  useEffect(() => {
+    if (!transcript?.segments.length || !entry.transcriptLineId) return;
+    const targetIndex = transcript.segments.findIndex((segment) => segment.id === entry.transcriptLineId);
+    if (targetIndex >= 0 && targetIndex !== selectedIndex) setStoreState({ selectedIndex: targetIndex });
+  }, [entry.transcriptLineId, selectedIndex, setStoreState, transcript]);
+
+  useEffect(() => {
+    if (!presets.repeats.includes(repeatTarget)) setStoreState({ repeatTarget: presets.repeats[0] });
+    if (!presets.speeds.includes(playbackRate)) setStoreState({ playbackRate: presets.speeds[1] });
+  }, [playbackRate, presets, repeatTarget, setStoreState]);
 
   useEffect(() => {
     if (!mobileTranslationSheetOpen) return;
@@ -384,6 +437,7 @@ export function YouTubePractice() {
     (returnToStart = false) => {
       clearLoopTimers();
       setIsLooping(false);
+      setLoopPaused(false);
       const player = playerRef.current;
       player?.pauseVideo();
       if (returnToStart && transcript?.segments[selectedIndex]) {
@@ -427,7 +481,7 @@ export function YouTubePractice() {
   useEffect(() => {
     if (!apiReady || !window.YT?.Player || !playerHostRef.current || playerRef.current) return;
     playerRef.current = new window.YT.Player(playerHostRef.current, {
-      videoId,
+      videoId: latestVideoIdRef.current,
       host: "https://www.youtube-nocookie.com",
       // controls: 0: 구간 반복(시작 지점 이동) 시 유튜브 재생 버튼, 자막 버튼, 상단/하단 UI가 자동으로 팝업되는 현상을 완전히 제거
       // cc_load_policy: 0 / iv_load_policy: 3: 플레이어 내부 자막 및 안내 레이어 비활성화 (웹 앱 자체 자막 리스트 사용)
@@ -464,15 +518,21 @@ export function YouTubePractice() {
     }
   }, [playerReady, playbackRate]);
 
-  function startLoop(index = selectedIndex) {
+  function startLoop(index = selectedIndex, revealWorkspace = false) {
     const segment = transcript?.segments[index];
     const player = playerRef.current;
     if (!segment) return;
     setTranslationPanel(null);
     setStoreState({ selectedIndex: index, error: "" });
     setCompletedRepeats(0);
+    setLoopPaused(false);
+    setNextLineHint(false);
     completedRef.current = 0;
     clearLoopTimers();
+
+    if (revealWorkspace) {
+      window.setTimeout(() => playerFrameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    }
 
     if (!player || !playerReady || typeof player.seekTo !== "function" || typeof player.playVideo !== "function") {
       setStoreState({ error: "YouTube 플레이어를 준비하고 있습니다. 잠시 후 다시 눌러주세요." });
@@ -494,8 +554,10 @@ export function YouTubePractice() {
       if (nextCount >= repeatTarget) {
         clearLoopTimers();
         player.pauseVideo();
-        player.seekTo(segment.start, true);
         setIsLooping(false);
+        setLoopPaused(false);
+        setPracticedLines((current) => new Set(current).add(segment.id));
+        setNextLineHint(index < transcript.segments.length - 1);
         return;
       }
 
@@ -506,6 +568,85 @@ export function YouTubePractice() {
         transitioningRef.current = false;
       }, 350);
     }, 100);
+  }
+
+  function pauseResumeLoop() {
+    const player = playerRef.current;
+    if (!player || !isLooping) return;
+    if (loopPaused) {
+      player.playVideo();
+      setLoopPaused(false);
+    } else {
+      player.pauseVideo();
+      setLoopPaused(true);
+    }
+  }
+
+  function selectSegment(index: number, play = true, revealWorkspace = true) {
+    if (!transcript?.segments[index]) return;
+    if (isLooping) stopLoop(false);
+    setStoreState({ selectedIndex: index });
+    setNextLineHint(false);
+    const segment = transcript.segments[index];
+    onSessionEntryChange({ ...entry, transcriptLineId: segment.id });
+    window.requestAnimationFrame(() => {
+      const container = transcriptListRef.current;
+      const selectedRow = container?.querySelector<HTMLElement>(`[data-line-index="${index}"]`);
+      if (selectedRow && container) {
+        const rowTop = selectedRow.offsetTop;
+        const rowHeight = selectedRow.offsetHeight;
+        const containerScrollTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        if (rowTop < containerScrollTop) {
+          container.scrollTo({ top: rowTop, behavior: "smooth" });
+        } else if (rowTop + rowHeight > containerScrollTop + containerHeight) {
+          container.scrollTo({ top: rowTop + rowHeight - containerHeight, behavior: "smooth" });
+        }
+      }
+      if (revealWorkspace) {
+        window.setTimeout(() => playerFrameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      }
+    });
+    if (play) window.setTimeout(() => startLoop(index), 0);
+  }
+
+  function handleSentenceSwipeEnd(event: TouchEvent<HTMLElement>) {
+    const distance = event.changedTouches[0].clientX - touchStartRef.current;
+    if (Math.abs(distance) < 45) return;
+    selectSegment(
+      Math.max(0, Math.min((transcript?.segments.length || 1) - 1, selectedIndex + (distance < 0 ? 1 : -1))),
+      true,
+      true
+    );
+  }
+
+  async function saveSelectedExpression() {
+    const segment = transcript?.segments[selectedIndex];
+    if (!segment) return;
+    let translation = segment.translation || "복습할 문장";
+    if (!segment.translation) {
+      try {
+        const result = await apiFetch<TranslationResponse>(`/api/v1/transcript/segments/${segment.id}/translate`, { method: "POST", body: JSON.stringify({ video_id: videoId }) });
+        translation = result.translation;
+      } catch {
+        // Saving the English sentence must still work when translation is temporarily unavailable.
+      }
+    }
+    await apiFetch("/api/expressions", {
+      method: "POST",
+      body: JSON.stringify({
+        canonical_text: segment.text,
+        korean_meaning: translation,
+        example_sentence: segment.text,
+        category: "YOUTUBE_VOCAB",
+        level: entry.content?.level || "B1",
+        tags: ["youtube", videoId, `content:${entry.contentId || videoId}`, `transcript:${segment.id}`],
+        source_content_id: entry.contentId || videoId,
+        source_transcript_line_id: segment.id,
+      }),
+    });
+    setSavedLines((current) => new Set(current).add(segment.id));
+    setSessionMessage("선택한 문장을 영상과 자막 위치에 연결해 복습 목록에 저장했어요.");
   }
 
   function panelPosition(event?: ReactMouseEvent<HTMLElement>) {
@@ -605,18 +746,36 @@ export function YouTubePractice() {
     }
   }
 
-  const trimmedInput = videoInput.trim();
-  const isNewUrl = trimmedInput.length > 0 && (!videoId || !trimmedInput.includes(videoId));
-  const isSubmitDisabled = !trimmedInput || (loading && !isNewUrl);
-
-  function submitVideo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!trimmedInput || (loading && !isNewUrl)) return;
-    if (isLooping) stopLoop(true);
-    void loadTranscript(trimmedInput);
-  }
-
   const selected = transcript?.segments[selectedIndex];
+  const sessionProgress = transcript?.segments.length ? (practicedLines.size / transcript.segments.length) * 100 : 0;
+  const estimatedDurationSeconds = entry.content?.duration_seconds || (transcript?.segments.length || 0) * 5 || 60;
+  const remainingMinutes = Math.max(1, Math.ceil((estimatedDurationSeconds * (1 - sessionProgress / 100)) / 60));
+  const completionSummary = useMemo(() => ({
+    practiced: practicedLines.size,
+    saved: savedLines.size,
+    retry: retryLines.size,
+  }), [practicedLines.size, retryLines.size, savedLines.size]);
+
+  async function completeWorkspace(next: "review" | "routine") {
+    setSessionMessage("세션 결과를 저장하는 중이에요…");
+    try {
+      await apiFetch("/api/learning/sessions/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          content_id: entry.contentId,
+          activity_id: entry.activityId || null,
+          entry_source: entry.entrySource,
+          practiced_line_count: completionSummary.practiced,
+          saved_expression_count: completionSummary.saved,
+          retry_line_count: completionSummary.retry,
+          missing_words: Array.from(missingWords),
+        }),
+      });
+      if (next === "review") onOpenReview(); else onNextRoutine();
+    } catch (caught) {
+      setSessionMessage(caught instanceof Error ? caught.message : "세션 결과를 저장하지 못했어요.");
+    }
+  }
 
   // SVG Circular progress bar calculations
   const progressVal = Math.max(5, Math.min(100, jobProgress || 5));
@@ -641,10 +800,7 @@ export function YouTubePractice() {
 
   return (
     <>
-      <section
-        className="youtube-practice"
-      // onMouseUp={handleTextSelection}
-      >
+      <section className="youtube-practice">
         <Script
           src="https://www.youtube.com/iframe_api"
           strategy="afterInteractive"
@@ -654,73 +810,28 @@ export function YouTubePractice() {
           onError={() => setStoreState({ error: "YouTube 플레이어를 불러오지 못했습니다." })}
         />
 
-        <header className="youtube-practice-head">
-          <div>
-            <p className="eyebrow">YOUTUBE · TRANSCRIPT LOOP</p>
-            <h2>실제 자막을 골라<br />그 구간만 반복하기</h2>
-            <p>공개 영상의 영어 자막을 불러와 원하는 문장을 바로 듣고 따라 말해 보세요.</p>
-          </div>
-          <span>
-            <Youtube size={18} /> 개인 실습
-          </span>
-        </header>
+        <LearningSessionHeader
+          entry={entry}
+          progress={sessionProgress}
+          remainingMinutes={remainingMinutes}
+          onChangeContent={onChangeContent}
+          onEndSession={onEndSession}
+          summary={completionSummary}
+          missingWords={missingWords}
+          onGoToReview={() => void completeWorkspace("review")}
+          onNextRoutine={() => void completeWorkspace("routine")}
+        />
 
-        <form className="youtube-url-form" onSubmit={submitVideo}>
-          <label className="sr-only" htmlFor="youtube-url">
-            YouTube 영상 주소
-          </label>
-          <input
-            id="youtube-url"
-            type="url"
-            value={videoInput}
-            onChange={(event) => setStoreState({ videoInput: event.target.value })}
-            placeholder="YouTube 영상 주소를 붙여넣으세요"
-            required
-          />
-          <button type="submit" disabled={isSubmitDisabled}>
-            {loading && !isNewUrl ? <LoaderCircle className="spin" size={17} /> : "자막 불러오기"}
-          </button>
-        </form>
-
-        <div className="youtube-frame" aria-label="YouTube 학습 영상">
+        <div className="youtube-frame learning-workspace-scroll-anchor" aria-label="YouTube 학습 영상" ref={playerFrameRef}>
           <div ref={playerHostRef} />
         </div>
-
-        {/* [claim] rollback 부분 */}
-        {/* <div className="youtube-source">
-          <div>
-            <strong>
-              {transcript ? `${transcript.language} · ${transcript.segments.length}개 문장` : "YouTube 학습 영상"}
-            </strong>
-            <small>
-              {transcript?.source === "groq_whisper"
-                ? "YouTube 자막 없음 · Groq Whisper 음성 전사"
-                : transcript?.source === "cloudflare_whisper"
-                  ? "YouTube 자막 없음 · Cloudflare Workers AI 음성 전사"
-                  : transcript?.source === "whisper"
-                    ? "YouTube 자막 없음 · 3090 Whisper 음성 전사"
-                    : transcript?.source === "youtube_caption+whisper"
-                      ? "YouTube 자막 + Whisper 문장 복원"
-                      : transcript?.is_generated
-                        ? "YouTube 자동 생성 자막"
-                        : transcript
-                          ? "게시자가 등록한 자막"
-                          : "영상 정보를 준비하고 있습니다"}
-            </small>
-          </div>
-          <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noreferrer">
-            YouTube 열기 <ExternalLink size={14} />
-          </a>
-        </div> */}
 
         {error && <div className="youtube-error" role="alert">{error}</div>}
 
         <div className="youtube-loop-settings" aria-label="반복 재생 설정">
           <div>
             <span>반복</span>
-            {(
-              [1, 3, 5] as const
-            ).map((count) => (
+            {presets.repeats.map((count) => (
               <button
                 key={count}
                 type="button"
@@ -736,9 +847,7 @@ export function YouTubePractice() {
           </div>
           <div>
             <span>속도</span>
-            {(
-              [0.75, 1, 1.25] as const
-            ).map((rate) => (
+            {presets.speeds.map((rate) => (
               <button
                 key={rate}
                 type="button"
@@ -795,51 +904,46 @@ export function YouTubePractice() {
 
         {!loading && transcript && selected && (
           <>
-            <div className="youtube-shadowing">
-              <p className="eyebrow">SELECTED LINE · {formatTime(selected.start)}</p>
-              <h3 className="selectable-text" data-segment-id={selected.id}>{selected.text}</h3>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-                <p className="video-repeat-title">
-                  {isLooping
-                    ? `구간 반복 중 · ${completedRepeats} / ${repeatTarget}`
-                    : "재생을 누르면 이 자막 구간만 반복합니다."}
-                </p>
-                <button
-                  type="button"
-                  className="youtube-translate-button"
-                  onClick={(event) => void requestSegmentTranslation(selected, event)}
-                  aria-haspopup="dialog"
-                >
-                  <Languages size={16} /> 번역
-                  {/* [refactor]: 불필요한 기능이라 주석 처리 */}
-                  {/* {selected.translation && <span>저장됨</span>} */}
-                </button>
+            <div className={`youtube-shadowing sentence-swipe-stage ${nextLineHint ? "show-next-hint" : ""}`} onTouchStart={(event) => { touchStartRef.current = event.touches[0].clientX; }} onTouchEnd={handleSentenceSwipeEnd}>
+              <div className="selected-line-meta"><p className="eyebrow">LINE {selectedIndex + 1} / {transcript.segments.length} · {formatTime(selected.start)}</p><button className="record-inline-button" onClick={() => setSpeechOpen(true)}><Mic size={16} /> 녹음</button></div>
+              <h3
+                className={`selectable-text ${!showTranscriptText ? "blurred-text" : ""}`}
+                data-segment-id={selected.id}
+                onClick={() => {
+                  if (!showTranscriptText) {
+                    setShowTranscriptText(true);
+                  }
+                }}
+              >
+                {selected.text}
+              </h3>
+              <p className="video-repeat-title">
+                {isLooping
+                  ? `${loopPaused ? "일시정지" : "구간 반복 중"} · ${completedRepeats} / ${repeatTarget}`
+                  : nextLineHint ? "반복 완료 · 옆으로 밀어 다음 문장으로 이동하세요." : "재생을 누르면 이 자막 구간만 반복합니다."}
+              </p>
+              <div className="current-sentence-tools">
+                <button type="button" onClick={(event) => void requestSegmentTranslation(selected, event)} aria-haspopup="dialog"><Languages size={15} /> 번역 보기</button>
+                <button type="button" onClick={() => void saveSelectedExpression()}><Bookmark size={15} /> 문장 저장</button>
+                {/* <button type="button" onClick={() => { setStoreState({ playbackRate: Math.min(playbackRate, 0.75) }); window.setTimeout(() => startLoop(), 0); }}><Volume2 size={15} /> 느리게 듣기</button> */}
+                <button type="button" onClick={() => setShowTranscriptText((value) => !value)}>{showTranscriptText ? <EyeOff size={15} /> : <Eye size={15} />} 자막 {showTranscriptText ? "숨기기" : "보기"}</button>
               </div>
+              {!isMobileDevice && <div className="sentence-swipe-nav"><button onClick={() => selectSegment(selectedIndex - 1, true, true)} disabled={selectedIndex === 0}><ChevronLeft /></button><span>{nextLineHint ? "다음 문장으로 넘겨보세요" : `${selectedIndex + 1} / ${transcript.segments.length}`}</span><button onClick={() => selectSegment(selectedIndex + 1, true, true)} disabled={selectedIndex === transcript.segments.length - 1}><ChevronRight /></button></div>}
               <div className="youtube-shadow-actions">
-                <button type="button" className="primary-button" onClick={() => startLoop()}>
+                <button type="button" className="primary-button" onClick={() => startLoop(selectedIndex, true)}>
                   {isLooping ? <RotateCcw size={17} /> : <Play size={17} />}{" "}
                   {isLooping ? "처음부터 다시" : `${repeatTarget}회 반복 시작`}
                 </button>
                 <button
                   type="button"
                   className="icon-toggle"
-                  aria-label="반복 재생 중지"
+                  aria-label={loopPaused ? "반복 재생 이어서 재생" : "반복 재생 일시정지"}
                   disabled={!isLooping}
-                  onClick={() => stopLoop(true)}
+                  onClick={pauseResumeLoop}
                 >
-                  <Pause size={17} />
+                  {loopPaused ? <Play size={17} /> : <Pause size={17} />}
                 </button>
               </div>
-              {/* [claim]: rollback 할 부분 */}
-              {/* <button
-                type="button"
-                className="youtube-translate-button"
-                onClick={(event) => void requestSegmentTranslation(selected, event)}
-                aria-haspopup="dialog"
-              >
-                <Languages size={16} /> 번역 보기
-                {selected.translation && <span>저장됨</span>}
-              </button> */}
             </div>
 
             <div className="youtube-transcript-list" aria-label="영상 자막 목록">
@@ -850,7 +954,7 @@ export function YouTubePractice() {
                 </div>
                 <small>누르면 바로 {repeatTarget}회 반복</small>
               </div>
-              <ol>
+              <ol className="transcript-list" ref={transcriptListRef}>
                 {transcript.segments.map((segment, index) => (
                   <li key={`${segment.start}-${index}`}>
                     {segment.scene && (index === 0 || transcript.segments[index - 1]?.scene !== segment.scene) && (
@@ -858,8 +962,9 @@ export function YouTubePractice() {
                     )}
                     <button
                       type="button"
+                      data-line-index={index}
                       className={selectedIndex === index ? "active" : ""}
-                      onClick={() => startLoop(index)}
+                      onClick={() => selectSegment(index, true, true)}
                     >
                       <time>{formatTime(segment.start)}</time>
                       <span>{segment.text}</span>
@@ -876,7 +981,25 @@ export function YouTubePractice() {
           개인 학습용 비공식 연동입니다. 영상은 공식 YouTube 플레이어로 재생하며, 내려받은 임시 오디오는 전사 직후 삭제하고
           재처리 방지를 위한 문장 데이터만 서버에 캐시합니다.
         </p>
+        {sessionMessage && <p className="save-message" role="status">{sessionMessage}</p>}
       </section>
+      {selected && <SpeechPracticeSheet
+        open={speechOpen}
+        entry={entry}
+        lineId={selected.id}
+        referenceText={selected.text}
+        onClose={() => setSpeechOpen(false)}
+        onListen={(slow) => {
+          if (slow) setStoreState({ playbackRate: Math.min(playbackRate, 0.75) });
+          window.setTimeout(() => startLoop(), 0);
+        }}
+        onSaved={(comparison: SpeechComparison) => {
+          setPracticedLines((current) => new Set(current).add(selected.id));
+          if (comparison.missingWords.length || comparison.differentWords.length) setRetryLines((current) => new Set(current).add(selected.id));
+          else setRetryLines((current) => { const next = new Set(current); next.delete(selected.id); return next; });
+          setMissingWords((current) => new Set([...current, ...comparison.missingWords]));
+        }}
+      />}
       {portalReady && translationPanel && createPortal(
         <div
           className={`translation-layer ${mobileTranslationUi ? `mobile ${translationPlatform}` : "desktop"}`}
