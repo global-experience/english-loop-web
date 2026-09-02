@@ -193,9 +193,8 @@
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  /* Bleed to the shell padding so a card can sit flush at the edge while scrolling. */
-  margin: 0 -18px;
-  padding: 2px 18px 6px;
+  margin: 0;
+  padding: 2px 0 6px;
   overscroll-behavior-x: contain;
   touch-action: pan-x pan-y;
 }
@@ -290,8 +289,8 @@
   grid-auto-flow: column;
   grid-auto-columns: 78%;
   gap: 12px;
-  margin: 0 -18px;
-  padding: 2px 18px 6px;
+  margin: 0;
+  padding: 2px 0 6px;
   overflow: hidden;
 }
 
