@@ -30,13 +30,13 @@ describe("Home", () => {
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
     render(<Home/>);
     expect(await screen.findByText(/오프라인 — 작성 내용은 이 기기에 보관됩니다/)).toBeInTheDocument();
-    expect(screen.getByText("오늘의 학습 루틴")).toBeInTheDocument();
+    expect(screen.getByText("오늘의 루틴")).toBeInTheDocument();
     Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
   });
 
   it("moves forward and back through the main app tabs", async () => {
     render(<Home/>);
-    await screen.findByText("오늘의 학습 루틴");
+    await screen.findByText("오늘의 루틴");
 
     fireEvent.click(document.getElementById("tab-learn")!);
     expect(scrollToMock).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: "instant" });
@@ -58,8 +58,8 @@ describe("Home", () => {
 
   it("opens Today content directly in the learning workspace", async () => {
     render(<Home/>);
-    await screen.findByText("오늘의 학습 루틴");
-    fireEvent.click(screen.getByRole("button", { name: "출근 리스닝 열기" }));
+    await screen.findByText("오늘의 루틴");
+    fireEvent.click(screen.getByRole("button", { name: "출근 듣기 열기" }));
     expect(await screen.findByText("프로젝트 소개")).toBeInTheDocument();
     expect(screen.getByText("오늘 루틴")).toBeInTheDocument();
     expect(screen.getByText("출근 프리셋")).toBeInTheDocument();

@@ -28,9 +28,15 @@ export type ReviewLearningTarget = {
 export function ReviewView({
   active = true,
   openLearning,
+  openTodaySignal = 0,
 }: {
   active?: boolean;
   openLearning?: (target: ReviewLearningTarget) => void;
+  /**
+   * Incremented by the Today tab's "복습 시작". The review tab keeps its sub-tab
+   * between visits, so this forces it back to today's queue.
+   */
+  openTodaySignal?: number;
 }) {
   const [tab, setTab] = useState<ReviewTabKey>("today");
   const [detailCard, setDetailCard] = useState<ContentProgressCard | null>(null);
@@ -54,6 +60,13 @@ export function ReviewView({
   }, []);
 
   useEffect(() => { void loadQueue(); }, [loadQueue]);
+
+  useEffect(() => {
+    if (!openTodaySignal) return;
+    setTab("today");
+    setDetailCard(null);
+    void loadQueue();
+  }, [openTodaySignal, loadQueue]);
 
   const onGraded = useCallback((itemId: string, response: ReviewGradeResponse) => {
     setItems((current) => current.filter((item) => item.id !== itemId));

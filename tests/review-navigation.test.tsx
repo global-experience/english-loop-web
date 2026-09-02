@@ -54,7 +54,7 @@ describe("Review round trips", () => {
 
   it("keeps the sidebar order 오늘 / 학습 / 피드 / 복습 / 리포트", async () => {
     render(<Home />);
-    await screen.findByText("오늘의 학습 루틴");
+    await screen.findByText("오늘의 루틴");
     const labels = Array.from(document.querySelectorAll(".bottom-nav button span")).map((node) => node.textContent);
     expect(labels).toEqual(["오늘", "학습", "피드", "복습", "리포트"]);
     const desktopLabels = Array.from(document.querySelectorAll(".desktop-side-menu button span")).map((node) => node.textContent);
@@ -63,7 +63,7 @@ describe("Review round trips", () => {
 
   it("goes Today -> Review and shows the queue", async () => {
     render(<Home />);
-    await screen.findByText("오늘의 학습 루틴");
+    await screen.findByText("오늘의 루틴");
 
     fireEvent.click(document.getElementById("tab-review")!);
     expect(document.getElementById("panel-review")).toHaveClass("active");
@@ -73,9 +73,9 @@ describe("Review round trips", () => {
 
   it("goes Learn -> Review after finishing a session", async () => {
     render(<Home />);
-    await screen.findByText("오늘의 학습 루틴");
+    await screen.findByText("오늘의 루틴");
 
-    fireEvent.click(screen.getByRole("button", { name: "출근 리스닝 열기" }));
+    fireEvent.click(screen.getByRole("button", { name: "출근 듣기 열기" }));
     expect(await screen.findByText("프로젝트 소개")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /세션 종료/ }));
@@ -88,7 +88,7 @@ describe("Review round trips", () => {
 
   it("goes Review -> Learn and restores the same content and transcript line", async () => {
     render(<Home />);
-    await screen.findByText("오늘의 학습 루틴");
+    await screen.findByText("오늘의 루틴");
 
     fireEvent.click(document.getElementById("tab-review")!);
     fireEvent.click(await screen.findByRole("button", { name: /복습 시작/ }));
@@ -111,7 +111,7 @@ describe("Review round trips", () => {
       return Promise.resolve({});
     });
     render(<Home />);
-    await screen.findByText("오늘의 학습 루틴");
+    await screen.findByText("오늘의 루틴");
 
     fireEvent.click(document.getElementById("tab-review")!);
     expect(await screen.findByText("예정된 복습을 마쳤어요.")).toBeInTheDocument();

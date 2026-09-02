@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, LoaderCircle, Mic, Pause, Play, RotateCcw, Square, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { compareSpeech, saveRecordingOnDevice, type LearningSessionEntry, type LocalRecording, type SpeechComparison } from "@/lib/learningSession";
+import {
+  compareSpeech,
+  loadRecordingFromDevice,
+  saveRecordingOnDevice,
+  type LearningSessionEntry,
+  type LocalRecording,
+  type SpeechComparison,
+} from "@/lib/learningSession";
 import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 type AttemptResponse = { id: string; created_at: string };
@@ -52,6 +59,69 @@ function base64RecordingToBlob(value: string, mimeType: string): Blob {
   return new Blob([bytes], { type: mimeType });
 }
 
+/**
+ * Decide what to record as this attempt's device audio.
+ *
+ * Prefers the file the native sheet wrote, but only after reading it back. Falls back
+ * to storing the bytes the bridge handed over, and finally to "no device audio" so the
+ * review tab never claims audio it cannot play.
+ */
+async function resolveNativeRecording(
+  nativeId: string | null,
+  blob: Blob,
+  mimeType: string,
+  durationSeconds: number
+): Promise<LocalRecording> {
+  const capacitor = (window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  const onNativePlatform = Boolean(capacitor?.isNativePlatform?.());
+
+  if (nativeId) {
+    // Off a native platform there is no way to check the file, and the native shell is
+    // the authority for what it stored, so keep its id.
+    if (!onNativePlatform) {
+      return { id: nativeId, uri: null, storage: "capacitor-filesystem", mimeType, durationSeconds };
+    }
+    const lookup = await loadRecordingFromDevice(nativeId, "capacitor-filesystem");
+    if (lookup.status === "found") {
+      if (lookup.revoke) URL.revokeObjectURL(lookup.url);
+      return { id: nativeId, uri: null, storage: "capacitor-filesystem", mimeType, durationSeconds };
+    }
+  }
+  try {
+    return await saveRecordingOnDevice(blob, durationSeconds);
+  } catch {
+    return { id: "", uri: null, storage: "memory", mimeType, durationSeconds };
+  }
+}
+
+function storageLabel(storage: LocalRecording["storage"]) {
+  if (storage === "capacitor-filesystem") return "앱 저장소";
+  if (storage === "opfs") return "브라우저 파일 저장소";
+  if (storage === "indexeddb") return "브라우저 DB";
+  return "임시 메모리";
+}
+
+function chunkedSize(chunks: BlobPart[]) {
+  return chunks.reduce((total, part) => total + ((part as Blob).size || 0), 0);
+}
+
+/**
+ * Build the recorded blob once MediaRecorder has finished handing over its chunks.
+ * Chrome delivers the final `dataavailable` before `stop`, but WebKit may deliver it
+ * after, so poll until the collected size settles (or the wait budget runs out).
+ */
+async function collectRecordedBlob(chunksRef: { current: BlobPart[] }, mimeType: string): Promise<Blob> {
+  const deadline = Date.now() + 1200;
+  let previous = -1;
+  while (Date.now() < deadline) {
+    const total = chunkedSize(chunksRef.current);
+    if (total > 0 && total === previous) break;
+    previous = total;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }
+  return new Blob(chunksRef.current, { type: mimeType });
+}
+
 async function transcribeRecording(blob: Blob): Promise<TranscriptionResponse> {
   const extension = blob.type.includes("webm") ? "webm" : blob.type.includes("ogg") ? "ogg" : blob.type.includes("mpeg") ? "mp3" : "m4a";
   const form = new FormData();
@@ -86,6 +156,7 @@ export function SpeechPracticeSheet({
   const [comparison, setComparison] = useState<SpeechComparison | null>(null);
   const [localRecording, setLocalRecording] = useState<LocalRecording | null>(null);
   const [message, setMessage] = useState("");
+  const [storageWarning, setStorageWarning] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const startedAtRef = useRef(0);
@@ -114,6 +185,7 @@ export function SpeechPracticeSheet({
     setComparison(null);
     setLocalRecording(null);
     setMessage("");
+    setStorageWarning("");
     nativeRecordingRef.current = null;
     sttProviderRef.current = "MOCK";
   }, [open, lineId]);
@@ -151,24 +223,17 @@ export function SpeechPracticeSheet({
           const mimeType = detail.mimeType || "audio/mp4";
           const recordingBlob = base64RecordingToBlob(detail.audioBase64, mimeType);
           const durationSeconds = Math.max(1, Math.round(detail.durationSeconds || 1));
-          // Use the id only when the native layer actually wrote the file to disk.
-          // Otherwise store the blob we already have, so the recording really exists
-          // instead of an invented id that can never resolve.
-          if (detail.localRecordingId) {
-            nativeRecordingRef.current = {
-              id: detail.localRecordingId,
-              uri: null,
-              storage: "capacitor-filesystem",
-              mimeType,
-              durationSeconds,
-            };
-          } else {
-            try {
-              nativeRecordingRef.current = await saveRecordingOnDevice(recordingBlob, durationSeconds);
-            } catch {
-              nativeRecordingRef.current = { id: "", uri: null, storage: "memory", mimeType, durationSeconds };
-            }
-          }
+          // Trust the native id only if the file it names is actually readable from
+          // here. The native shell and the web layer must agree on the directory, and
+          // an older shell build writes somewhere the web layer cannot reach. When it
+          // is unreadable, store the bytes we already have instead of recording an id
+          // that resolves to nothing.
+          nativeRecordingRef.current = await resolveNativeRecording(
+            detail.localRecordingId || null,
+            recordingBlob,
+            mimeType,
+            durationSeconds
+          );
           const transcript = await transcribeRecording(recordingBlob);
           sttProviderRef.current = transcript.provider;
           setSttProvider(transcript.provider);
@@ -263,7 +328,13 @@ export function SpeechPracticeSheet({
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
         const durationSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
-        void persistRecording(new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }), durationSeconds);
+        void (async () => {
+          // WebKit can deliver the final `dataavailable` after `onstop`, so snapshotting
+          // the chunk list here would save a truncated or empty recording. Wait for the
+          // collected size to stop growing first.
+          const blob = await collectRecordedBlob(chunksRef, recorder.mimeType || "audio/webm");
+          await persistRecording(blob, durationSeconds);
+        })();
       };
       recorderRef.current = recorder;
       startedAtRef.current = Date.now();
@@ -276,18 +347,41 @@ export function SpeechPracticeSheet({
   }
 
   function stopRecording() {
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    const recorder = recorderRef.current;
+    if (recorder?.state === "recording") {
+      // Flush whatever is buffered before stopping, so the last words are not lost.
+      try {
+        recorder.requestData();
+      } catch {
+        // requestData is optional; the stop below still flushes on every engine.
+      }
+      recorder.stop();
+    }
     setRecording(false);
   }
 
   async function persistRecording(blob: Blob, durationSeconds: number) {
     setProcessing(true);
+    setStorageWarning("");
+    if (!blob.size) {
+      setProcessing(false);
+      setLocalRecording(null);
+      setStorageWarning("녹음된 소리가 없어요. 마이크를 확인하고 다시 녹음해 주세요.");
+      return;
+    }
+
     let saved: LocalRecording | null = null;
     try {
-      saved = await saveRecordingOnDevice(blob, durationSeconds);
+      const result = await saveRecordingOnDevice(blob, durationSeconds);
+      // An empty id means no store on this device could keep the audio. Say so now,
+      // in a line the transcription progress messages below cannot overwrite.
+      saved = result.id ? result : null;
       setLocalRecording(saved);
+      if (!saved) {
+        setStorageWarning("이 브라우저가 녹음 파일을 저장하지 못했어요. STT 비교 기록만 남고 ‘내 녹음 듣기’는 쓸 수 없습니다.");
+      }
     } catch {
-      setMessage("녹음을 기기에 저장하지 못했지만 음성 인식은 계속 시도합니다.");
+      setStorageWarning("녹음을 기기에 저장하지 못했지만 음성 인식은 계속 시도합니다.");
     }
     try {
       setMessage("녹음을 저장했어요. 음성을 텍스트로 변환하는 중입니다…");
@@ -354,12 +448,13 @@ export function SpeechPracticeSheet({
           <button className="speech-record-main" onClick={recording ? stopRecording : () => void startRecording()} disabled={processing}>
             {processing ? <LoaderCircle className="spin" /> : recording ? <Square fill="currentColor" /> : <Mic />}
           </button>
-          <div><strong>{recording ? "녹음 중" : localRecording ? "녹음 저장됨" : "준비되면 눌러 녹음"}</strong><span>{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")} · 기기 저장</span></div>
+          <div><strong>{recording ? "녹음 중" : localRecording ? "녹음 저장됨" : "준비되면 눌러 녹음"}</strong><span>{String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")} · {localRecording ? `${storageLabel(localRecording.storage)}에 저장됨` : "기기 저장"}</span></div>
           {recording && <Pause size={18} />}
         </div>
         <label className="speech-stt-input"><span>STT 인식 문장 <em>{sttProvider === "MOCK" ? "녹음 후 자동 인식" : sttProvider}</em></span><textarea value={spokenText} onChange={(event) => setSpokenText(event.target.value)} placeholder="녹음이 끝나면 인식된 문장이 자동으로 표시됩니다" /></label>
         <button className="primary-button speech-compare-button" onClick={() => void compareAndSave()} disabled={processing || recording}><Check size={17} /> 자막과 비교하기</button>
         {comparison && <div className="speech-comparison"><div><span>일치 단어</span><strong>{comparison.accuracy}%</strong></div><p><b>빠진 단어</b>{comparison.missingWords.length ? comparison.missingWords.map((word, index) => <mark key={`${word}-${index}`}>{word}</mark>) : <em>없음</em>}</p><p><b>다르게 인식된 단어</b>{comparison.differentWords.length ? comparison.differentWords.map((word, index) => <mark className="different" key={`${word}-${index}`}>{word}</mark>) : <em>없음</em>}</p><small>이 값은 자막 단어와 STT 텍스트의 일치도이며, 전문적인 발음·억양 점수가 아닙니다.</small></div>}
+        {storageWarning && <p className="speech-storage-warning" role="alert">{storageWarning}</p>}
         {message && <p className="speech-message" role="status">{message}</p>}
       </section>
     </div>,

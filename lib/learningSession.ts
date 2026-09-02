@@ -54,6 +54,35 @@ const RECORDING_MIME_BY_EXTENSION: Record<string, string> = {
   wav: "audio/wav",
 };
 
+/**
+ * The native Filesystem plugin, reached through the Capacitor bridge at runtime.
+ *
+ * Deliberately not `import("@capacitor/filesystem")`: the native shell loads this web
+ * app from a remote URL (`server.url` in capacitor.config.json) and registers its
+ * native plugins on `window.Capacitor.Plugins`, so the JS wrapper never needs to be in
+ * the web bundle. Importing it would also make the web build fail wherever the package
+ * is not installed — the dev container keeps its own node_modules.
+ */
+type NativeFilesystem = {
+  writeFile(options: { path: string; data: string; directory: string; recursive?: boolean }): Promise<{ uri: string }>;
+  readFile(options: { path: string; directory: string }): Promise<{ data: string | Blob }>;
+  stat(options: { path: string; directory: string }): Promise<{ size: number }>;
+  getUri(options: { path: string; directory: string }): Promise<{ uri: string }>;
+  deleteFile(options: { path: string; directory: string }): Promise<void>;
+};
+
+/** Capacitor's `Directory.Data`: iOS Documents, Android getFilesDir(). */
+const NATIVE_DIRECTORY = "DATA";
+
+function nativeFilesystem(): NativeFilesystem | null {
+  if (typeof window === "undefined") return null;
+  const capacitor = (window as typeof window & {
+    Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> };
+  }).Capacitor;
+  if (!capacitor?.isNativePlatform?.()) return null;
+  return (capacitor.Plugins?.Filesystem as NativeFilesystem | undefined) ?? null;
+}
+
 export function recordingExtension(mimeType: string | null | undefined): string {
   const type = (mimeType || "").toLowerCase();
   if (type.includes("mp4") || type.includes("m4a") || type.includes("aac") || type.includes("x-m4a")) return "m4a";
@@ -160,59 +189,153 @@ async function blobToBase64(blob: Blob) {
   return btoa(binary);
 }
 
-async function saveToIndexedDb(id: string, blob: Blob): Promise<LocalRecording> {
-  if (!("indexedDB" in window)) {
-    return { id, uri: URL.createObjectURL(blob), storage: "memory", mimeType: blob.type, durationSeconds: 0 };
-  }
-  await new Promise<void>((resolve, reject) => {
+type StoredRecording = { buffer: ArrayBuffer; mimeType: string; size: number; createdAt: number };
+
+function openRecordingDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("IndexedDB is unavailable"));
+      return;
+    }
     const request = indexedDB.open("loopine-recordings", 1);
-    request.onupgradeneeded = () => request.result.createObjectStore("recordings");
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const transaction = request.result.transaction("recordings", "readwrite");
-      transaction.objectStore("recordings").put(blob, id);
-      transaction.oncomplete = () => { request.result.close(); resolve(); };
-      transaction.onerror = () => reject(transaction.error);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("recordings")) request.result.createObjectStore("recordings");
     };
+    request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
+    request.onblocked = () => reject(new Error("IndexedDB open blocked"));
+    request.onsuccess = () => resolve(request.result);
   });
-  return { id, uri: null, storage: "indexeddb", mimeType: blob.type, durationSeconds: 0 };
 }
 
-export async function saveRecordingOnDevice(blob: Blob, durationSeconds: number): Promise<LocalRecording> {
-  const id = crypto.randomUUID();
-  const capacitor = (window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  if (capacitor?.isNativePlatform?.()) {
-    try {
-      const { Filesystem, Directory } = await import("@capacitor/filesystem");
-      const path = `recordings/${id}.${recordingExtension(blob.type)}`;
-      await Filesystem.writeFile({ path, data: await blobToBase64(blob), directory: Directory.Data, recursive: true });
-      const uri = await Filesystem.getUri({ path, directory: Directory.Data });
-      return { id, uri: uri.uri, storage: "capacitor-filesystem", mimeType: blob.type, durationSeconds };
-    } catch {
-      // A native build without the Filesystem plugin still keeps the recording in IndexedDB.
+/**
+ * Recordings go into IndexedDB as an ArrayBuffer plus the recorded MIME type.
+ * Storing a Blob directly is unreliable on iOS WebKit: the write reports success and
+ * the value reads back unusable later, which is indistinguishable from "audio gone".
+ */
+async function saveToIndexedDb(id: string, blob: Blob): Promise<void> {
+  const record: StoredRecording = {
+    buffer: await blob.arrayBuffer(),
+    mimeType: blob.type || "audio/webm",
+    size: blob.size,
+    createdAt: Date.now(),
+  };
+  const database = await openRecordingDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction("recordings", "readwrite");
+      transaction.objectStore("recordings").put(record, id);
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error || new Error("IndexedDB write aborted"));
+      transaction.onerror = () => reject(transaction.error || new Error("IndexedDB write failed"));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+/**
+ * Ask the browser to keep this origin's data. Mobile browsers evict best-effort
+ * storage under pressure, which is one way a saved recording disappears.
+ */
+async function requestPersistentStorage() {
+  try {
+    const manager = navigator.storage as StorageManager & { persisted?: () => Promise<boolean>; persist?: () => Promise<boolean> };
+    if (!manager?.persist || !manager.persisted) return;
+    if (await manager.persisted()) return;
+    await manager.persist();
+  } catch {
+    // Persistence is an optimisation, never a requirement.
+  }
+}
+
+async function saveToOpfs(id: string, blob: Blob): Promise<void> {
+  const storageManager = navigator.storage as StorageManager & { getDirectory?: () => Promise<FileSystemDirectoryHandle> };
+  if (!storageManager?.getDirectory) throw new Error("OPFS is unavailable");
+  const root = await storageManager.getDirectory();
+  const directory = await root.getDirectoryHandle("loopine-recordings", { create: true });
+  const file = await directory.getFileHandle(`${id}.${recordingExtension(blob.type)}`, { create: true });
+  // Safari implements getDirectory() but not createWritable(), so this throws there
+  // and the caller falls through to IndexedDB.
+  const writable = await file.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+/**
+ * Confirm the store really holds the recording, byte for byte. A store that accepts a
+ * write and returns nothing (or a truncated file) must not count as saved.
+ */
+async function verifySavedRecording(
+  id: string,
+  storage: LocalRecording["storage"],
+  expectedSize: number
+): Promise<boolean> {
+  if (storage === "capacitor-filesystem") {
+    const filesystem = nativeFilesystem();
+    if (!filesystem) return false;
+    for (const extension of RECORDING_EXTENSIONS) {
+      try {
+        const stat = await filesystem.stat({ path: `recordings/${id}.${extension}`, directory: NATIVE_DIRECTORY });
+        return stat.size === expectedSize;
+      } catch {
+        // Try the next container format.
+      }
     }
+    return false;
   }
 
-  const storageManager = navigator.storage as StorageManager & { getDirectory?: () => Promise<FileSystemDirectoryHandle> };
-  if (storageManager?.getDirectory) {
+  // Check the exact store that was written, not the fallback chain.
+  const stored = storage === "indexeddb" ? await readFromIndexedDb(id) : await readFromOpfs(id);
+  return Boolean(stored && stored.size === expectedSize);
+}
+
+async function saveToNativeFilesystem(id: string, blob: Blob): Promise<string> {
+  const filesystem = nativeFilesystem();
+  if (!filesystem) throw new Error("Native filesystem is unavailable");
+  const path = `recordings/${id}.${recordingExtension(blob.type)}`;
+  await filesystem.writeFile({ path, data: await blobToBase64(blob), directory: NATIVE_DIRECTORY, recursive: true });
+  const uri = await filesystem.getUri({ path, directory: NATIVE_DIRECTORY });
+  return uri.uri;
+}
+
+/**
+ * Store a recording on this device, trying each store in turn and **verifying the
+ * bytes read back** before reporting success. A store that accepts a write and then
+ * cannot return it (iOS WebKit does this with Blobs in IndexedDB) must not be
+ * recorded as a playable recording, or the review tab shows audio that is not there.
+ *
+ * When no store works the returned recording has an empty id, which the caller must
+ * persist as `local_recording_id: null` so the record stays honest.
+ */
+export async function saveRecordingOnDevice(blob: Blob, durationSeconds: number): Promise<LocalRecording> {
+  const mimeType = blob.type || "audio/webm";
+  const failed: LocalRecording = { id: "", uri: null, storage: "memory", mimeType, durationSeconds };
+  // An empty recording is never worth storing: it cannot be played or transcribed.
+  if (!blob.size) return failed;
+
+  await requestPersistentStorage();
+
+  const capacitor = (window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  const attempts: Array<{ storage: LocalRecording["storage"]; write: (id: string) => Promise<string | null> }> = [];
+  if (capacitor?.isNativePlatform?.()) {
+    attempts.push({ storage: "capacitor-filesystem", write: (id) => saveToNativeFilesystem(id, blob) });
+  }
+  attempts.push({ storage: "opfs", write: async (id) => { await saveToOpfs(id, blob); return null; } });
+  attempts.push({ storage: "indexeddb", write: async (id) => { await saveToIndexedDb(id, blob); return null; } });
+
+  for (const attempt of attempts) {
+    const id = crypto.randomUUID();
     try {
-      const root = await storageManager.getDirectory();
-      const directory = await root.getDirectoryHandle("loopine-recordings", { create: true });
-      const file = await directory.getFileHandle(`${id}.${recordingExtension(blob.type)}`, { create: true });
-      const writable = await file.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      // Read the file back: a write that reports success but stores nothing would
-      // otherwise be recorded as a playable recording that can never be found.
-      const written = await file.getFile();
-      if (written.size !== blob.size) throw new Error("OPFS write was truncated");
-      return { id, uri: null, storage: "opfs", mimeType: blob.type, durationSeconds };
+      const uri = await attempt.write(id);
+      if (!(await verifySavedRecording(id, attempt.storage, blob.size))) {
+        throw new Error(`${attempt.storage} did not return the recording it accepted`);
+      }
+      return { id, uri, storage: attempt.storage, mimeType, durationSeconds };
     } catch {
-      // Safari versions without OPFS write support fall through to IndexedDB.
+      // Try the next store. Nothing is reported as saved until it reads back intact.
     }
   }
-  const saved = await saveToIndexedDb(id, blob);
-  return { ...saved, durationSeconds };
+  return failed;
 }
 
 export function routineLabel(step?: RoutineStep | null) {
@@ -238,24 +361,30 @@ export type LocalRecordingLookup =
 
 async function readFromIndexedDb(id: string): Promise<Blob | null> {
   if (typeof indexedDB === "undefined") return null;
-  return new Promise<Blob | null>((resolve) => {
-    const request = indexedDB.open("loopine-recordings", 1);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains("recordings")) request.result.createObjectStore("recordings");
-    };
-    request.onerror = () => resolve(null);
-    request.onsuccess = () => {
-      const database = request.result;
-      if (!database.objectStoreNames.contains("recordings")) {
-        database.close();
-        resolve(null);
-        return;
-      }
+  let database: IDBDatabase;
+  try {
+    database = await openRecordingDb();
+  } catch {
+    return null;
+  }
+  try {
+    if (!database.objectStoreNames.contains("recordings")) return null;
+    const value = await new Promise<unknown>((resolve) => {
       const read = database.transaction("recordings", "readonly").objectStore("recordings").get(id);
-      read.onsuccess = () => { database.close(); resolve((read.result as Blob | undefined) || null); };
-      read.onerror = () => { database.close(); resolve(null); };
-    };
-  });
+      read.onsuccess = () => resolve(read.result);
+      read.onerror = () => resolve(null);
+    });
+    if (!value) return null;
+    // Rows written before the ArrayBuffer change hold a Blob directly.
+    if (value instanceof Blob) return value.size ? value : null;
+    const record = value as Partial<StoredRecording>;
+    if (!record.buffer || !(record.buffer as ArrayBuffer).byteLength) return null;
+    return new Blob([record.buffer], { type: record.mimeType || "audio/webm" });
+  } catch {
+    return null;
+  } finally {
+    database.close();
+  }
 }
 
 async function readFromOpfs(id: string): Promise<Blob | null> {
@@ -282,25 +411,36 @@ async function readFromOpfs(id: string): Promise<Blob | null> {
   return null;
 }
 
-async function readCapacitorUri(id: string): Promise<string | null> {
-  const capacitor = (window as typeof window & {
-    Capacitor?: { isNativePlatform?: () => boolean; convertFileSrc?: (value: string) => string };
-  }).Capacitor;
-  if (!capacitor?.isNativePlatform?.()) return null;
-  try {
-    const { Filesystem, Directory } = await import("@capacitor/filesystem");
-    for (const extension of RECORDING_EXTENSIONS) {
-      try {
-        // stat() first: getUri() builds a path string even when no file is there.
-        await Filesystem.stat({ path: `recordings/${id}.${extension}`, directory: Directory.Data });
-        const uri = await Filesystem.getUri({ path: `recordings/${id}.${extension}`, directory: Directory.Data });
-        return capacitor.convertFileSrc?.(uri.uri) || uri.uri;
-      } catch {
-        // Try the next container format.
-      }
+function base64ToBlob(value: string, mimeType: string): Blob {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: mimeType });
+}
+
+/**
+ * Read a recording stored by the native app through the Filesystem plugin.
+ *
+ * The bytes are returned rather than a file URI on purpose. The native shell loads the
+ * web app from a remote https origin (`server.url` in capacitor.config.json), so the
+ * `capacitor://localhost/_capacitor_file_/…` and `http://localhost/_capacitor_file_/…`
+ * URLs that `convertFileSrc` produces are cross-origin — and on Android also mixed
+ * content — and the WebView refuses to play them. A same-origin blob URL always works.
+ */
+async function readFromNativeFilesystem(id: string): Promise<Blob | null> {
+  const filesystem = nativeFilesystem();
+  if (!filesystem) return null;
+  for (const extension of RECORDING_EXTENSIONS) {
+    const path = `recordings/${id}.${extension}`;
+    try {
+      const file = await filesystem.readFile({ path, directory: NATIVE_DIRECTORY });
+      const data = file.data;
+      if (typeof data !== "string" || !data) continue;
+      const blob = base64ToBlob(data, RECORDING_MIME_BY_EXTENSION[extension] || "audio/mp4");
+      if (blob.size) return blob;
+    } catch {
+      // Try the next container format.
     }
-  } catch {
-    // A native build without the Filesystem plugin has no local copy to resolve.
   }
   return null;
 }
@@ -321,9 +461,19 @@ export async function loadRecordingFromDevice(
   if (storage === "memory") return { status: "missing", reason: "not-on-this-device" };
 
   if (storage === "capacitor-filesystem") {
-    const uri = await readCapacitorUri(localRecordingId);
-    return uri
-      ? { status: "found", url: uri, revoke: false, mimeType: "" }
+    const nativeBlob = await readFromNativeFilesystem(localRecordingId);
+    if (nativeBlob) {
+      return {
+        status: "found",
+        url: URL.createObjectURL(nativeBlob),
+        revoke: true,
+        mimeType: nativeBlob.type || "audio/mp4",
+      };
+    }
+    // The native shell may have fallen back to a web store for this recording.
+    const webBlob = (await readFromOpfs(localRecordingId)) || (await readFromIndexedDb(localRecordingId));
+    return webBlob
+      ? { status: "found", url: URL.createObjectURL(webBlob), revoke: true, mimeType: webBlob.type || "audio/mp4" }
       : { status: "missing", reason: "not-on-this-device" };
   }
 
@@ -377,10 +527,11 @@ export async function deleteRecordingFromDevice(
   if (typeof window === "undefined" || !localRecordingId) return;
   try {
     if (storage === "capacitor-filesystem") {
-      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const filesystem = nativeFilesystem();
+      if (!filesystem) return;
       for (const extension of RECORDING_EXTENSIONS) {
         try {
-          await Filesystem.deleteFile({ path: `recordings/${localRecordingId}.${extension}`, directory: Directory.Data });
+          await filesystem.deleteFile({ path: `recordings/${localRecordingId}.${extension}`, directory: NATIVE_DIRECTORY });
         } catch {
           // The recording used a different container format.
         }

@@ -39,8 +39,18 @@ function isNativeApp() {
   return isNativeAppRuntime(capacitor, navigator.userAgent);
 }
 
-export function FeedView({ active = true, openLearning }: { active?: boolean; openLearning: (video: FeedVideo, transcriptLineId?: string | null) => void }) {
+export function FeedView({
+  active = true,
+  openLearning,
+  focusVideo = null,
+}: {
+  active?: boolean;
+  openLearning: (video: FeedVideo, transcriptLineId?: string | null) => void;
+  /** A video the Today tab asked to open. Selected and played on arrival. */
+  focusVideo?: FeedVideo | null;
+}) {
   const [items, setItems] = useState<FeedVideo[]>([]);
+  const itemsRef = useRef<FeedVideo[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(() =>
     shouldStartFeedMuted({
@@ -241,6 +251,42 @@ export function FeedView({ active = true, openLearning }: { active?: boolean; op
     };
   }, [pausePlayer]);
 
+  // ── Focus a video handed over by the Today tab ──
+  const focusVideoId = focusVideo?.id || "";
+  useEffect(() => {
+    if (!focusVideoId || !focusVideo) return;
+    setItems((current) => {
+      const index = current.findIndex((item) => item.id === focusVideoId);
+      if (index >= 0) {
+        setActiveIndex(index);
+        return current;
+      }
+      // The Today carousel and the feed can be paginated differently, so make sure
+      // the requested video exists here before selecting it.
+      setActiveIndex(0);
+      return [focusVideo, ...current];
+    });
+  }, [focusVideo, focusVideoId]);
+
+  useEffect(() => {
+    if (!focusVideoId || !active) return;
+    const root = streamRef.current;
+    if (!root) return;
+    const scroll = () => {
+      const index = itemsRef.current.findIndex((item) => item.id === focusVideoId);
+      if (index < 0) return;
+      const card = root.querySelector<HTMLElement>(`[data-feed-index="${index}"]`);
+      if (card) {
+        root.style.scrollBehavior = "auto";
+        root.scrollTop = card.offsetTop;
+        window.requestAnimationFrame(() => { root.style.scrollBehavior = ""; });
+      }
+    };
+    scroll();
+    const rafId = window.requestAnimationFrame(scroll);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [active, focusVideoId]);
+
   const scrollToVideo = (index: number, behavior: ScrollBehavior = "smooth") => {
     if (index < 0 || index >= items.length) return;
     const root = streamRef.current;
@@ -255,6 +301,10 @@ export function FeedView({ active = true, openLearning }: { active?: boolean; op
   useEffect(() => {
     activeIndexRef.current = activeIndex;
   }, [activeIndex]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   // Restore scroll position to active video instantly when returning to feed tab
   useEffect(() => {

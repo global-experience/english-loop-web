@@ -1,0 +1,632 @@
+/* Today tab: pick the next action. Cream paper, ink cards, lime accent. */
+
+.today-view {
+  gap: 30px;
+}
+
+/* ── top summary ─────────────────────────────────────────────────────── */
+/* No negative margins or full-bleed: the card shares the app shell's content
+   width with the header above it. */
+.today-summary {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  padding: 22px 22px 20px;
+  border-radius: 28px;
+  color: var(--cream);
+  background: var(--ink);
+  overflow: hidden;
+}
+
+.today-summary::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 172px;
+  height: 172px;
+  right: -86px;
+  bottom: -128px;
+  border: 28px solid var(--coral);
+  border-radius: 50%;
+  opacity: .8;
+  pointer-events: none;
+}
+
+.today-summary-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.today-summary-orbit {
+  position: static;
+  flex: 0 0 auto;
+  width: 58px;
+  height: 58px;
+  z-index: 1;
+}
+
+.today-summary-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.today-summary-copy .eyebrow {
+  color: var(--acid);
+}
+
+.today-summary-copy h2 {
+  margin: 10px 0 10px;
+  font: 600 clamp(28px, 8vw, 44px)/1 var(--font-display);
+  letter-spacing: -.05em;
+}
+
+.today-summary-copy h2 em {
+  color: var(--acid);
+  font-style: normal;
+}
+
+.today-summary-copy > p:last-child {
+  margin: 0;
+  max-width: 32em;
+  color: #b3bbb6;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.today-summary-meta {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 13px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, .14);
+}
+
+.today-summary-meta > div {
+  min-width: 0;
+}
+
+.today-summary-meta dt {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  color: #9aa39e;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.today-summary-meta dd {
+  margin: 5px 0 0;
+  font: 650 18px var(--font-display);
+}
+
+/* The primary action stays at the bottom of the card in every state. The default
+   .primary-button is ink on ink here, so the lime accent carries the CTA instead. */
+.today-start-button {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 54px;
+  color: var(--ink);
+  background: var(--acid);
+  border-color: var(--acid);
+  font-size: 15px;
+}
+
+.today-start-button:disabled {
+  opacity: 1;
+  color: #aeb6b1;
+  background: #39423f;
+  border-color: #39423f;
+}
+
+/* ── shared section rhythm (headings reuse .section-heading) ─────────── */
+.today-section {
+  display: grid;
+  gap: 13px;
+}
+
+.today-empty-line {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.today-inline-error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid #e6bcb2;
+  border-radius: 16px;
+  background: #ffeee9;
+  color: #8d2f20;
+  font-size: 12px;
+}
+
+.today-inline-error .text-button {
+  color: #8d2f20;
+}
+
+/* ── recommended videos carousel ─────────────────────────────────────── */
+.today-carousel-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.today-carousel-nav button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.today-carousel-nav button:disabled {
+  opacity: .38;
+}
+
+.today-carousel {
+  display: grid;
+  grid-auto-flow: column;
+  /* 78% leaves the next card peeking in, which is what signals swipeability. */
+  grid-auto-columns: 78%;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  /* Bleed to the shell padding so a card can sit flush at the edge while scrolling. */
+  margin: 0 -18px;
+  padding: 2px 18px 6px;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+
+.today-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.today-carousel:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 20px;
+}
+
+.today-video-card {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+
+.today-video-card > button {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-video-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 18px;
+  color: #8d948f;
+  background: #e5e1d6;
+}
+
+.today-video-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.today-video-thumb em {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(24, 32, 29, .82);
+  color: white;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.today-video-thumb i {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--ink);
+  background: rgba(216, 239, 103, .94);
+}
+
+.today-video-card strong {
+  font: 600 13px/1.4 var(--font-display);
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.today-video-card small {
+  color: var(--muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.today-carousel-skeleton {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 78%;
+  gap: 12px;
+  margin: 0 -18px;
+  padding: 2px 18px 6px;
+  overflow: hidden;
+}
+
+.today-carousel-skeleton span {
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  background: linear-gradient(100deg, #e8e4d9 30%, #f1eee5 50%, #e8e4d9 70%);
+  background-size: 220% 100%;
+  animation: today-shimmer 1.3s linear infinite;
+}
+
+@keyframes today-shimmer {
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* ── review strip ────────────────────────────────────────────────────── */
+.today-review-strip {
+  display: grid;
+  gap: 14px;
+  padding: 17px 18px;
+  border-radius: 22px;
+  background: #e5e1d6;
+}
+
+.today-review-strip.loading {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.today-review-strip dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.today-review-strip dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-review-strip dd {
+  margin: 5px 0 0;
+  font: 650 24px var(--font-display);
+  letter-spacing: -.03em;
+}
+
+.today-review-strip dd span {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.today-review-button {
+  width: 100%;
+  min-height: 50px;
+}
+
+/* ── routine ─────────────────────────────────────────────────────────── */
+.today-routine {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-routine-row {
+  display: grid;
+  grid-template-columns: 22px 42px 1fr 20px;
+  gap: 11px;
+  align-items: center;
+  width: 100%;
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 253, 247, .6);
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-routine-step {
+  color: var(--muted);
+  font: 700 10px var(--font-display);
+  letter-spacing: .06em;
+}
+
+.today-routine-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: var(--ink);
+  background: #e5e1d6;
+}
+
+.today-routine-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.today-routine-copy em {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.today-routine-copy strong {
+  font: 600 15px/1.3 var(--font-display);
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.today-routine-copy small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.today-routine-go {
+  color: var(--muted);
+}
+
+/* Exactly one row is loud. */
+.today-routine-row.current {
+  border-color: transparent;
+  color: white;
+  background: var(--ink);
+  box-shadow: 0 10px 24px rgba(24, 32, 29, .16);
+}
+
+.today-routine-row.current .today-routine-step,
+.today-routine-row.current .today-routine-copy small,
+.today-routine-row.current .today-routine-go {
+  color: #aeb6b1;
+}
+
+.today-routine-row.current .today-routine-copy em {
+  color: var(--acid);
+}
+
+.today-routine-row.current .today-routine-icon {
+  color: var(--ink);
+  background: var(--acid);
+}
+
+.today-routine-row.done {
+  background: rgba(255, 253, 247, .3);
+}
+
+.today-routine-row.done .today-routine-copy strong {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: rgba(110, 116, 111, .5);
+}
+
+.today-routine-row.done .today-routine-icon {
+  color: #4c5a2c;
+  background: #e3efc0;
+}
+
+/* ── AI coach ────────────────────────────────────────────────────────── */
+.today-coach-card {
+  display: grid;
+  gap: 7px;
+  padding: 17px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, .68);
+}
+
+.today-coach-card strong {
+  font: 600 15px/1.4 var(--font-display);
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.today-coach-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.today-coach-loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.today-coach-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 3px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-coach-tags li {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--acid);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.today-coach-note {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.today-coach-session {
+  display: grid;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 20px;
+  color: white;
+  background: #29322e;
+}
+
+.today-coach-session > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.today-coach-session strong {
+  font-size: 13px;
+}
+
+.today-coach-session span {
+  color: var(--acid);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.today-coach-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.today-coach-actions .secondary-button {
+  min-height: 46px;
+  padding: 0 10px;
+  color: white;
+  border-color: #57625c;
+  font-size: 11px;
+}
+
+/* ── desktop ─────────────────────────────────────────────────────────── */
+@media (min-width: 760px) {
+  .today-summary {
+    padding: 26px 28px 24px;
+  }
+
+  .today-summary-orbit {
+    width: 64px;
+    height: 64px;
+  }
+
+  .today-start-button {
+    width: auto;
+    justify-self: start;
+    min-width: 260px;
+  }
+
+  .today-carousel,
+  .today-carousel-skeleton {
+    grid-auto-columns: 46%;
+  }
+
+  .today-review-strip {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .today-review-button {
+    width: auto;
+    min-width: 180px;
+  }
+
+  .today-coach-session {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .today-coach-actions {
+    grid-template-columns: repeat(2, minmax(150px, auto));
+  }
+}
+
+@media (max-width: 390px) {
+  .today-summary-meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .today-summary-meta dt {
+    font-size: 9px;
+  }
+
+  .today-summary-meta dd {
+    font-size: 16px;
+  }
+
+  .today-carousel,
+  .today-carousel-skeleton {
+    grid-auto-columns: 84%;
+  }
+
+  .today-routine-row {
+    grid-template-columns: 18px 38px 1fr 18px;
+    gap: 9px;
+  }
+
+  .today-coach-actions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,4 +1,4 @@
-const SHELL_CACHE = "loopine-shell-v2";
+const SHELL_CACHE = "loopine-shell-v3";
 const OFFLINE_CACHE = "loopine-offline-content-v1";
 const SHELL = ["/", "/login", "/manifest.webmanifest"];
 
@@ -21,6 +21,9 @@ self.addEventListener("fetch", (event) => {
   // normal CORS and cookie behavior. Only opt-in audio may use cross-origin cache.
   if (url.origin !== self.location.origin && event.request.destination !== "audio") return;
   if (url.pathname.startsWith("/backend/") || url.pathname.startsWith("/api/")) return;
+  // Build assets change with every deploy, and a cache-first hit on them would pin the
+  // app to an old bundle. Always let the network (and the browser's own cache) answer.
+  if (url.pathname.startsWith("/_next/")) return;
   if (event.request.mode === "navigate") {
     event.respondWith(fetch(event.request).catch(() => caches.match("/")));
     return;

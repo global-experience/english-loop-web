@@ -2562,3 +2562,15 @@
   color: white;
   background: var(--ink);
 }
+.speech-storage-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e6bcb2;
+  border-radius: 12px;
+  background: #ffeee9;
+  color: #8d2f20;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}

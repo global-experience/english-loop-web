@@ -94,6 +94,10 @@ export default function Home() {
   );
   const [learningMode, setLearningMode] = useState<LearningMode>((initialRoute?.mode || restoredShell?.learningMode || "morning") as LearningMode);
   const [learningEntry, setLearningEntry] = useState<LearningSessionEntry | null>(initialRoute?.learningEntry || null);
+  // Today -> Feed hands over the selected video; Today -> Review bumps a signal so the
+  // review tab returns to today's queue even if it was left on another sub-tab.
+  const [feedFocusVideo, setFeedFocusVideo] = useState<FeedVideo | null>(null);
+  const [reviewTodaySignal, setReviewTodaySignal] = useState(0);
   const [today, setToday] = useState<TodayData | null>(restoredBootstrap?.today || null);
   const [user, setUser] = useState<User | null>(restoredBootstrap?.user || null);
   const [error, setError] = useState("");
@@ -263,6 +267,16 @@ export default function Home() {
     switchTab("learn");
   };
 
+  const openFeedVideo = (video: FeedVideo) => {
+    setFeedFocusVideo(video);
+    switchTab("feed");
+  };
+
+  const openReviewToday = () => {
+    setReviewTodaySignal((value) => value + 1);
+    switchTab("review");
+  };
+
   // Review -> Learn: restore the same content and, when known, the same transcript line.
   const openLearningFromReview = (target: ReviewLearningTarget) => {
     const youtubeUrl = target.youtubeUrl
@@ -280,7 +294,7 @@ export default function Home() {
     switchTab("learn");
   };
 
-  const openFeedVideo = (video: FeedVideo, transcriptLineId?: string | null) => {
+  const openFeedLearning = (video: FeedVideo, transcriptLineId?: string | null) => {
     youtubeStore.prepareVideo(video.youtube_url);
     setLearningEntry({
       contentId: video.learning_content_id || video.id,
@@ -352,10 +366,10 @@ export default function Home() {
               aria-hidden={!active}
               className={`tab-pane ${active ? "active" : "inactive"} ${active ? `tab-scene tab-scene-${tabDirection}` : ""}`}
             >
-              {paneTab === "today" && (needsBootstrap ? bootstrapFallback : <TodayView today={today} user={user} refresh={refresh} openLearning={openLearning} />)}
-              {paneTab === "feed" && <FeedView active={active} openLearning={openFeedVideo} />}
+              {paneTab === "today" && (needsBootstrap ? bootstrapFallback : <TodayView today={today} user={user} refresh={refresh} openLearning={openLearning} openFeedVideo={openFeedVideo} openReview={openReviewToday} />)}
+              {paneTab === "feed" && <FeedView active={active} openLearning={openFeedLearning} focusVideo={feedFocusVideo} />}
               {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
-              {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} />}
+              {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} openTodaySignal={reviewTodaySignal} />}
               {paneTab === "report" && <ReportView />}
               {paneTab === "settings" && (user ? <SettingsView user={user} onSaved={refresh} /> : bootstrapFallback)}
             </section>
