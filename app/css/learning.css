@@ -999,6 +999,8 @@
   font-weight: 850;
 }
 
+/* ── Common Confirm / Delete Modal & Bottom Sheet ───────────────────────── */
+.confirm-modal-layer,
 .routine-delete-layer {
   position: fixed;
   inset: 0;
@@ -1012,6 +1014,7 @@
   animation: translation-fade-in 0.2s ease both;
 }
 
+.confirm-modal-dialog,
 .routine-delete-dialog {
   width: min(420px, 100%);
   display: grid;
@@ -1025,16 +1028,19 @@
   animation: translation-card-in-desktop 0.2s cubic-bezier(0.22, 0.82, 0.24, 1) both;
 }
 
+.confirm-modal-dialog svg,
 .routine-delete-dialog svg {
   color: #ef4444;
 }
 
+.confirm-modal-dialog h3,
 .routine-delete-dialog h3 {
   margin: 0;
   font: 760 20px var(--font-display);
   color: #ffffff;
 }
 
+.confirm-modal-dialog p,
 .routine-delete-dialog p {
   margin: 0;
   color: rgba(255, 255, 255, 0.7);
@@ -1042,11 +1048,46 @@
   line-height: 1.45;
 }
 
+.confirm-modal-dialog>div,
 .routine-delete-dialog>div {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 8px;
+}
+
+@media (max-width: 767px) {
+  .confirm-modal-layer,
+  .routine-delete-layer {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .confirm-modal-dialog,
+  .routine-delete-dialog {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 28px 28px 0 0;
+    padding: 24px 20px calc(24px + var(--safe-bottom));
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+    animation: translation-sheet-in 0.25s cubic-bezier(0.22, 0.82, 0.24, 1) both;
+  }
+
+  .confirm-modal-dialog>div,
+  .routine-delete-dialog>div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .confirm-modal-dialog>div button,
+  .routine-delete-dialog>div button {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+    font-size: 15px;
+  }
 }
 
 .danger-action {

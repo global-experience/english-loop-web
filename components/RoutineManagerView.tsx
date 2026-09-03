@@ -460,8 +460,8 @@ export function RoutineManagerView({ onBack }: Props) {
       )}
 
       {deleteTarget && portalReady && createPortal(
-        <div className="routine-delete-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setDeleteTarget(null)}>
-          <section className="routine-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="routine-delete-title">
+        <div className="confirm-modal-layer routine-delete-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setDeleteTarget(null)}>
+          <section className="confirm-modal-dialog routine-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="routine-delete-title">
             <TriangleAlert size={24} />
             <h3 id="routine-delete-title">{deleteTarget.name} 루틴을 삭제할까요?</h3>
             <p>오늘 화면과 루틴 관리에서는 사라지지만, 이미 저장된 학습 기록과 리포트의 당시 루틴 스냅샷은 유지됩니다.</p>

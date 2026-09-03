@@ -632,15 +632,41 @@
   font-size: 11px;
 }
 
-.content-record-continue {
+.content-record-actions {
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+.content-record-continue {
   display: grid;
   place-items: center;
   width: 46px;
+  height: 40px;
   border: 0;
   border-radius: 15px;
   color: var(--ink);
   background: var(--acid);
+}
+
+.content-record-delete {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  color: #8d2f20;
+  background: var(--cream);
+  cursor: pointer;
+}
+
+.content-record-delete:disabled {
+  opacity: .5;
+  cursor: not-allowed;
 }
 
 /* ── content detail ──────────────────────────────────────────────────── */
