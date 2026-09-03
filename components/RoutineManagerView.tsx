@@ -6,7 +6,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, Bell, Check, Copy, GripVertical, LoaderC
 import { apiFetch } from "@/lib/api";
 import { triggerHapticImpact } from "@/lib/haptics";
 import type { ContentStrategy, RoutineActivityType, RoutineItem, RoutineItemConfig, RoutinePayload } from "@/lib/types";
-import { ACTIVITY_LABELS, DAY_LABELS, RoutineIcon, daySummary, defaultRoutineItem, fetchRoutines, syncRoutineNotifications } from "@/lib/routines";
+import { ACTIVITY_LABELS, DAY_LABELS, RoutineIcon, daySummary, defaultRoutineItem, fetchRoutines, notifyRoutinesUpdated, syncRoutineNotifications } from "@/lib/routines";
 import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 const activityOptions: RoutineActivityType[] = ["listen", "shadowing", "recall", "record", "review", "ai_conversation", "free_study"];
@@ -37,6 +37,7 @@ const ICON_OPTIONS = [
 
 type Props = {
   onBack: () => void;
+  onRefresh?: () => Promise<void>;
 };
 
 type DragPreview = {
@@ -56,7 +57,7 @@ type DragSession = DragPreview & {
   cardCenters: number[];
 };
 
-export function RoutineManagerView({ onBack }: Props) {
+export function RoutineManagerView({ onBack, onRefresh }: Props) {
   const portalReady = usePortalReady();
   const [routines, setRoutinesState] = useState<RoutinePayload | null>(null);
   const routinesRef = useRef<RoutinePayload | null>(null);
@@ -65,6 +66,12 @@ export function RoutineManagerView({ onBack }: Props) {
   function setRoutines(payload: RoutinePayload | null) {
     routinesRef.current = payload;
     setRoutinesState(payload);
+  }
+
+  function handleBack() {
+    void onRefresh?.();
+    notifyRoutinesUpdated();
+    onBack();
   }
 
   const [message, setMessage] = useState("");
@@ -125,6 +132,8 @@ export function RoutineManagerView({ onBack }: Props) {
       if (notificationState === "denied") setMessage(`${success} 알림 권한이 거부되어 예약은 건너뛰었습니다.`);
       else if (notificationState === "unavailable") setMessage(`${success} 앱 알림 플러그인이 연결되면 같은 설정으로 예약됩니다.`);
       else setMessage(success);
+      void onRefresh?.();
+      notifyRoutinesUpdated();
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "루틴을 저장하지 못했습니다.");
     } finally {
@@ -156,6 +165,8 @@ export function RoutineManagerView({ onBack }: Props) {
       setDeleteTarget(null);
       await syncRoutineNotifications(payload);
       setMessage("루틴 항목을 삭제했어요. 과거 학습 기록은 그대로 남습니다.");
+      void onRefresh?.();
+      notifyRoutinesUpdated();
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "루틴을 삭제하지 못했습니다.");
     } finally {
@@ -221,6 +232,8 @@ export function RoutineManagerView({ onBack }: Props) {
           if (lastPayload) {
             setRoutines(lastPayload);
             await syncRoutineNotifications(lastPayload);
+            void onRefresh?.();
+            notifyRoutinesUpdated();
           }
           setMessage("루틴 순서를 저장했어요.");
         })
@@ -323,7 +336,7 @@ export function RoutineManagerView({ onBack }: Props) {
   return (
     <section className="routine-board" aria-label="학습 루틴 관리">
       <header className="routine-board-hero">
-        <button type="button" className="routine-back-button" onClick={onBack}><ArrowLeft size={18} /> 학습으로</button>
+        <button type="button" className="routine-back-button" onClick={handleBack}><ArrowLeft size={18} /> 학습으로</button>
         <div>
           <p className="eyebrow">ROUTINE BUILDER</p>
           <h2>내 하루에 맞게<br />학습 루프 만들기.</h2>

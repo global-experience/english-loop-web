@@ -134,6 +134,14 @@ export default function Home() {
   }, [refresh]);
 
   useEffect(() => {
+    const handleRoutinesUpdated = () => {
+      void refresh();
+    };
+    window.addEventListener("loopine:routines-updated", handleRoutinesUpdated);
+    return () => window.removeEventListener("loopine:routines-updated", handleRoutinesUpdated);
+  }, [refresh]);
+
+  useEffect(() => {
     setOnline(navigator.onLine);
     const sync = () => setOnline(navigator.onLine);
     window.addEventListener("online", sync);

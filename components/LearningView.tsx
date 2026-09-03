@@ -56,7 +56,15 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
   };
 
   if (routineManagerOpen) {
-    return <RoutineManagerView onBack={() => setRoutineManagerOpen(false)} />;
+    return (
+      <RoutineManagerView
+        onBack={() => {
+          void refresh();
+          setRoutineManagerOpen(false);
+        }}
+        onRefresh={refresh}
+      />
+    );
   }
 
   return (

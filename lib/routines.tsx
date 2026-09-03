@@ -133,3 +133,9 @@ export async function syncRoutineNotifications(payload: RoutinePayload): Promise
 export async function fetchRoutines() {
   return apiFetch<RoutinePayload>("/api/routines");
 }
+
+export function notifyRoutinesUpdated() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("loopine:routines-updated"));
+  }
+}
