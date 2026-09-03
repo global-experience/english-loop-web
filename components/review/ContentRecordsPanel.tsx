@@ -125,11 +125,6 @@ export function ContentRecordsPanel({
     void load(view, query);
   }, [active, load, query, view]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setQuery(search), 260);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
   async function deleteCard(card: ContentProgressCard) {
     setDeletingId(card.content_id);
     setActionError("");
@@ -160,14 +155,48 @@ export function ContentRecordsPanel({
           <input
             type="search"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setSearch(next);
+              if (!next.trim()) setQuery("");
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                setQuery(search.trim());
+                (event.target as HTMLElement).blur();
+              }
+            }}
             placeholder="영상 제목·채널 검색"
             enterKeyHint="search"
           />
-          {search && (
-            <button type="button" onClick={() => setSearch("")} aria-label="검색어 지우기">
-              <X size={15} />
-            </button>
+          {(search || search.trim()) && (
+            <div className="review-search-actions">
+              {search && (
+                <button
+                  type="button"
+                  className="review-search-clear"
+                  onClick={() => {
+                    setSearch("");
+                    setQuery("");
+                  }}
+                  aria-label="검색어 지우기"
+                >
+                  <X size={14} />
+                </button>
+              )}
+              {search.trim() && (
+                <button
+                  type="button"
+                  className="review-search-submit"
+                  onClick={() => setQuery(search.trim())}
+                  aria-label="검색 실행"
+                  title="검색"
+                >
+                  <Search size={14} />
+                </button>
+              )}
+            </div>
           )}
         </label>
         <div className="segmented review-view-switch" role="tablist" aria-label="영상 기록 정렬">

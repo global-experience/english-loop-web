@@ -98,7 +98,11 @@ describe("Today tab navigation", () => {
     await waitFor(() => expect(document.getElementById("panel-feed")).toHaveClass("active"));
 
     const feedPanel = document.getElementById("panel-feed") as HTMLElement;
-    const firstCard = feedPanel.querySelector('[data-feed-index="0"]') as HTMLElement;
+    const firstCard = await waitFor(() => {
+      const node = feedPanel.querySelector('[data-feed-index="0"]');
+      expect(node).not.toBeNull();
+      return node as HTMLElement;
+    });
     fireEvent.click(within(firstCard).getByRole("button", { name: /바로 학습/ }));
 
     await waitFor(() => expect(document.getElementById("panel-learn")).toHaveClass("active"));

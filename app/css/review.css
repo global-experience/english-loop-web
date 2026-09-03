@@ -441,14 +441,44 @@
   outline: none;
 }
 
-.review-search button {
-  display: grid;
+.review-search-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-search-clear {
+  display: flex;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border: 0;
   border-radius: 50%;
   background: #e5e1d6;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.review-search-submit {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--acid);
+  color: #101a16;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(216, 255, 73, 0.4);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.review-search-submit:hover {
+  transform: scale(1.06);
+}
+
+.review-search-submit:active {
+  transform: scale(0.94);
 }
 
 .review-view-switch {
