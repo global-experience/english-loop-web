@@ -342,6 +342,19 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   }, [translationPanel]);
 
   useEffect(() => {
+    const handleTabVisibility = (event: CustomEvent<{ tab: string; active: boolean }>) => {
+      if (!event.detail.active) {
+        setTranslationPanel(null);
+        setSpeechOpen(false);
+      }
+    };
+    window.addEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    return () => {
+      window.removeEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleNativeTranslationAction = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{
         action?: "selection" | "save";

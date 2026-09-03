@@ -110,6 +110,12 @@ input:disabled,
   cursor: not-allowed;
 }
 
+body.modal-open {
+  overflow: hidden !important;
+  touch-action: none !important;
+  overscroll-behavior: none !important;
+}
+
 .app-shell {
   min-height: 100dvh;
   width: min(100%, 760px);

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BookOpen, Pause, Play, RotateCcw, Volume2, X } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import type { ContentDetailResponse } from "@/lib/reviewTypes";
 import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 export type SubtitlePlayerTarget = {
@@ -16,6 +18,8 @@ export type SubtitlePlayerTarget = {
   endMs?: number | null;
   title?: string | null;
 };
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export function SubtitlePlayerSheet({
   open,
@@ -35,9 +39,23 @@ export function SubtitlePlayerSheet({
   const [repeatTarget, setRepeatTarget] = useState(3);
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
+  const [apiReady, setApiReady] = useState(Boolean(typeof window !== "undefined" && (window as any).YT?.Player));
+  const [resolvedTiming, setResolvedTiming] = useState<{ startMs: number; endMs: number } | null>(null);
 
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const playerHostRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<any>(null);
+  const repeatsLeftRef = useRef(3);
+  const repeatTargetRef = useRef(3);
+  const speedRef = useRef(1);
 
+  useEffect(() => {
+    repeatsLeftRef.current = repeatsLeft;
+    repeatTargetRef.current = repeatTarget;
+    speedRef.current = speed;
+  }, [repeatsLeft, repeatTarget, speed]);
+
+  // Extract 11-char YouTube Video ID
   const videoId = useMemo(() => {
     if (!target) return null;
     const candidate = target.youtubeVideoId || target.youtubeUrl || target.contentId;
@@ -47,7 +65,150 @@ export function SubtitlePlayerSheet({
     return match ? match[1] : null;
   }, [target]);
 
-  const startSec = Math.max(0, Math.floor(((target?.startMs || 0) / 1000)));
+  // Ensure YouTube IFrame API script is loaded
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ((window as any).YT?.Player) {
+      setApiReady(true);
+      return;
+    }
+    const prevReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      prevReady?.();
+      setApiReady(true);
+    };
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    }
+  }, []);
+
+  // Resolve start/end timing from target or backend
+  useEffect(() => {
+    if (!open || !target) {
+      setResolvedTiming(null);
+      return;
+    }
+    if (target.startMs != null) {
+      setResolvedTiming({
+        startMs: target.startMs,
+        endMs: target.endMs != null ? target.endMs : target.startMs + 5000,
+      });
+      return;
+    }
+    if (target.contentId) {
+      void apiFetch<ContentDetailResponse>(`/api/review/contents/${encodeURIComponent(target.contentId)}`)
+        .then((res) => {
+          const line = res.transcript_lines?.find((l) => l.id === target.transcriptLineId) || res.transcript_lines?.[0];
+          if (line && line.start_ms != null) {
+            setResolvedTiming({
+              startMs: line.start_ms,
+              endMs: line.end_ms != null ? line.end_ms : line.start_ms + 5000,
+            });
+          }
+        })
+        .catch(() => undefined);
+    }
+  }, [open, target]);
+
+  // Initialize YT Player with controls: 0 (no seek bar, no position editing)
+  useEffect(() => {
+    if (!open || !apiReady || !videoId || !playerHostRef.current) return;
+
+    if (playerRef.current) {
+      try { playerRef.current.destroy(); } catch { /* ignore */ }
+      playerRef.current = null;
+    }
+
+    const host = playerHostRef.current;
+    host.innerHTML = "";
+    const container = document.createElement("div");
+    host.appendChild(container);
+
+    const startSec = (resolvedTiming?.startMs || target?.startMs || 0) / 1000;
+    const YT = (window as any).YT;
+
+    const player = new YT.Player(container, {
+      videoId,
+      host: "https://www.youtube-nocookie.com",
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        disablekb: 1,
+        cc_load_policy: 0,
+        modestbranding: 1,
+        rel: 0,
+        playsinline: 1,
+        iv_load_policy: 3,
+      },
+      events: {
+        onReady: () => {
+          setPlayerReady(true);
+          try {
+            if (typeof player.setPlaybackRate === "function") player.setPlaybackRate(speedRef.current);
+            if (typeof player.seekTo === "function") player.seekTo(startSec, true);
+            if (typeof player.playVideo === "function") player.playVideo();
+            setPlaying(true);
+          } catch { /* ignore */ }
+        },
+        onStateChange: (event: { data: number }) => {
+          if (YT?.PlayerState) {
+            if (event.data === YT.PlayerState.PLAYING) setPlaying(true);
+            else if (event.data === YT.PlayerState.PAUSED) setPlaying(false);
+          }
+        },
+      },
+    });
+
+    playerRef.current = player;
+
+    return () => {
+      setPlayerReady(false);
+      try { player.destroy(); } catch { /* ignore */ }
+      playerRef.current = null;
+    };
+  }, [open, apiReady, videoId, resolvedTiming, target]);
+
+  // Real-time speed updates
+  useEffect(() => {
+    if (playerReady && playerRef.current && typeof playerRef.current.setPlaybackRate === "function") {
+      try {
+        playerRef.current.setPlaybackRate(speed);
+      } catch { /* ignore */ }
+    }
+  }, [speed, playerReady]);
+
+  // Strict Segment Loop Monitor
+  useEffect(() => {
+    if (!open || !playing || !playerReady || !playerRef.current) return;
+
+    const startSec = (resolvedTiming?.startMs || target?.startMs || 0) / 1000;
+    const endSec = (resolvedTiming?.endMs || target?.endMs || (startSec * 1000 + 5000)) / 1000;
+
+    const interval = setInterval(() => {
+      if (!playerRef.current || typeof playerRef.current.getCurrentTime !== "function") return;
+      try {
+        const current = playerRef.current.getCurrentTime();
+        if (current >= endSec || current < startSec - 0.5) {
+          if (repeatTargetRef.current > 0 && repeatsLeftRef.current <= 1) {
+            playerRef.current.pauseVideo();
+            playerRef.current.seekTo(startSec, true);
+            setPlaying(false);
+          } else {
+            if (repeatTargetRef.current > 0) {
+              repeatsLeftRef.current -= 1;
+              setRepeatsLeft(repeatsLeftRef.current);
+            }
+            playerRef.current.seekTo(startSec, true);
+            playerRef.current.playVideo();
+          }
+        }
+      } catch { /* ignore */ }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [open, playing, playerReady, resolvedTiming, target]);
 
   function speakTts() {
     if (!target?.text || typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -58,8 +219,9 @@ export function SubtitlePlayerSheet({
     utterance.onstart = () => setPlaying(true);
     utterance.onend = () => {
       setPlaying(false);
-      if (repeatTarget > 0 && repeatsLeft > 1) {
-        setRepeatsLeft((prev) => prev - 1);
+      if (repeatTargetRef.current > 0 && repeatsLeftRef.current > 1) {
+        repeatsLeftRef.current -= 1;
+        setRepeatsLeft(repeatsLeftRef.current);
         setTimeout(() => speakTts(), 500);
       }
     };
@@ -68,33 +230,79 @@ export function SubtitlePlayerSheet({
   }
 
   function startPlay() {
+    repeatsLeftRef.current = repeatTarget;
     setRepeatsLeft(repeatTarget);
-    setPlaying(true);
-    if (videoId && iframeRef.current) {
-      const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&start=${startSec}&controls=1&enablejsapi=1`;
-      iframeRef.current.src = embedUrl;
+    const startSec = (resolvedTiming?.startMs || target?.startMs || 0) / 1000;
+    if (playerRef.current) {
+      try {
+        if (typeof playerRef.current.setPlaybackRate === "function") playerRef.current.setPlaybackRate(speed);
+        if (typeof playerRef.current.seekTo === "function") playerRef.current.seekTo(startSec, true);
+        if (typeof playerRef.current.playVideo === "function") playerRef.current.playVideo();
+        setPlaying(true);
+      } catch { /* ignore */ }
     } else {
       speakTts();
     }
   }
 
   function togglePlay() {
-    if (playing) {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-      setPlaying(false);
+    const startSec = (resolvedTiming?.startMs || target?.startMs || 0) / 1000;
+    if (playerRef.current) {
+      try {
+        if (playing) {
+          if (typeof playerRef.current.pauseVideo === "function") playerRef.current.pauseVideo();
+          setPlaying(false);
+        } else {
+          if (typeof playerRef.current.setPlaybackRate === "function") playerRef.current.setPlaybackRate(speed);
+          if (typeof playerRef.current.playVideo === "function") playerRef.current.playVideo();
+          setPlaying(true);
+        }
+      } catch { /* ignore */ }
     } else {
-      startPlay();
+      if (playing) {
+        if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+        setPlaying(false);
+      } else {
+        speakTts();
+      }
     }
   }
 
   useEffect(() => {
     if (open && target) {
+      repeatsLeftRef.current = repeatTarget;
       setRepeatsLeft(repeatTarget);
       setPlaying(false);
     } else {
       if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     }
   }, [open, target, repeatTarget]);
+
+  // Lock body scroll while open
+  useEffect(() => {
+    if (!open) return;
+    document.body.classList.add("modal-open");
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.classList.remove("modal-open");
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [open]);
+
+  // Auto close popup when switching tabs
+  useEffect(() => {
+    if (!open) return;
+    const handleTabVisibility = (event: CustomEvent<{ tab: string; active: boolean }>) => {
+      if (!event.detail.active) {
+        onClose();
+      }
+    };
+    window.addEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    return () => {
+      window.removeEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    };
+  }, [open, onClose]);
 
   if (!open || !target || !portalReady) return null;
 
@@ -118,13 +326,7 @@ export function SubtitlePlayerSheet({
         <div className="subtitle-player-media">
           {videoId ? (
             <div className="subtitle-player-video-wrap">
-              <iframe
-                ref={iframeRef}
-                title={target.title || "YouTube Subtitle Segment"}
-                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&start=${startSec}&controls=1&enablejsapi=1`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+              <div ref={playerHostRef} className="subtitle-player-video-host" />
             </div>
           ) : (
             <div className="subtitle-player-audio-fallback">
@@ -147,7 +349,19 @@ export function SubtitlePlayerSheet({
                 key={count}
                 type="button"
                 className={`subtitle-chip ${repeatTarget === count ? "active" : ""}`}
-                onClick={() => setRepeatTarget(count)}
+                onClick={() => {
+                  setRepeatTarget(count);
+                  repeatsLeftRef.current = count;
+                  setRepeatsLeft(count);
+                  if (playerRef.current) {
+                    const startSec = (resolvedTiming?.startMs || target?.startMs || 0) / 1000;
+                    try {
+                      if (typeof playerRef.current.seekTo === "function") playerRef.current.seekTo(startSec, true);
+                      if (typeof playerRef.current.playVideo === "function") playerRef.current.playVideo();
+                      setPlaying(true);
+                    } catch { /* ignore */ }
+                  }
+                }}
               >
                 {count === 0 ? "무한" : `${count}회`}
               </button>
@@ -163,7 +377,11 @@ export function SubtitlePlayerSheet({
                 className={`subtitle-chip ${speed === s ? "active" : ""}`}
                 onClick={() => {
                   setSpeed(s);
-                  if (playing) startPlay();
+                  if (playerRef.current && typeof playerRef.current.setPlaybackRate === "function") {
+                    try {
+                      playerRef.current.setPlaybackRate(s);
+                    } catch { /* ignore */ }
+                  }
                 }}
               >
                 {s}×

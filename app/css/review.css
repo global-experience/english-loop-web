@@ -1623,7 +1623,9 @@
   height: 0;
 }
 
-.subtitle-player-video-wrap iframe {
+.subtitle-player-video-wrap iframe,
+.subtitle-player-video-host,
+.subtitle-player-video-host iframe {
   position: absolute;
   top: 0;
   left: 0;

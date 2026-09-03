@@ -190,6 +190,32 @@ export function SpeechPracticeSheet({
     sttProviderRef.current = "MOCK";
   }, [open, lineId]);
 
+  // Lock body scroll while open
+  useEffect(() => {
+    if (!open) return;
+    document.body.classList.add("modal-open");
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.classList.remove("modal-open");
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [open]);
+
+  // Auto close popup when switching tabs
+  useEffect(() => {
+    if (!open) return;
+    const handleTabVisibility = (event: CustomEvent<{ tab: string; active: boolean }>) => {
+      if (!event.detail.active) {
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    return () => {
+      window.removeEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const nativeBridge = getNativeRecordingBridge();

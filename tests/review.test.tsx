@@ -261,8 +261,9 @@ describe("Per-content study records", () => {
     await screen.findByRole("button", { name: /복습 시작/ });
     fireEvent.click(screen.getByRole("tab", { name: /영상별 기록/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Daily English Conversation 학습 기록 열기/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /keeping it simple 원본 자막으로 이동/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /keeping it simple 자막 듣기/ }));
 
+    fireEvent.click(await screen.findByRole("button", { name: /원본 세션 전체 학습으로 이동/ }));
     expect(openLearning).toHaveBeenCalledWith(expect.objectContaining({
       contentId: "content-1",
       transcriptLineId: "line-3",
@@ -418,13 +419,13 @@ describe("My library", () => {
     render(<ReviewView openLearning={openLearning} />);
     await screen.findByRole("button", { name: /복습 시작/ });
     fireEvent.click(screen.getByRole("tab", { name: /내 보관함/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /keeping it simple 원본 자막으로 이동/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /keeping it simple 자막 듣기/ }));
 
+    fireEvent.click(await screen.findByRole("button", { name: /원본 세션 전체 학습으로 이동/ }));
     expect(openLearning).toHaveBeenCalledWith({
       contentId: "content-1",
       transcriptLineId: "line-3",
       title: "Daily English Conversation",
-      sourceLabel: "보관함",
     });
   });
 });
