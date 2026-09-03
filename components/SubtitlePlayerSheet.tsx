@@ -212,12 +212,52 @@ export function SubtitlePlayerSheet({
     return () => clearInterval(interval);
   }, [open, playing, playerReady, resolvedTiming, target]);
 
+  function pickNaturalEnglishVoice(): SpeechSynthesisVoice | null {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    const preferredNames = [
+      "Google US English",
+      "Google UK English Female",
+      "Google UK English Male",
+      "Samantha",
+      "Karen",
+      "Daniel",
+      "Alex",
+      "Fiona",
+      "Victoria",
+      "Moira",
+    ];
+
+    for (const name of preferredNames) {
+      const match = voices.find((v) => v.name.includes(name) || v.voiceURI.includes(name));
+      if (match) return match;
+    }
+
+    return (
+      voices.find((v) => v.lang === "en-US" && v.localService === false) ||
+      voices.find((v) => v.lang.startsWith("en") && v.localService === false) ||
+      voices.find((v) => v.lang === "en-US") ||
+      voices.find((v) => v.lang.startsWith("en")) ||
+      null
+    );
+  }
+
   function speakTts() {
     if (!target?.text || typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(target.text);
     utterance.lang = "en-US";
-    utterance.rate = speed;
+    utterance.rate = Math.max(0.75, Math.min(1.5, speed));
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    const naturalVoice = pickNaturalEnglishVoice();
+    if (naturalVoice) {
+      utterance.voice = naturalVoice;
+    }
+
     utterance.onstart = () => setPlaying(true);
     utterance.onend = () => {
       setPlaying(false);

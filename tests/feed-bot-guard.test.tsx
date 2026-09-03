@@ -42,7 +42,7 @@ function makeVideo(index: number) {
 type PlayerOptions = {
   videoId: string;
   host?: string;
-  events?: { onError?: (event: { data: number }) => void };
+  events?: { onReady?: () => void; onError?: (event: { data: number }) => void };
 };
 
 function stubYouTubeApi() {
