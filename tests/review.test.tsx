@@ -198,6 +198,7 @@ describe("Per-content study records", () => {
     await waitFor(() => expect(requests.some((path) => path.includes("view=needs_review"))).toBe(true));
 
     fireEvent.change(screen.getByPlaceholderText("영상 제목·채널 검색"), { target: { value: "daily" } });
+    fireEvent.keyDown(screen.getByPlaceholderText("영상 제목·채널 검색"), { key: "Enter" });
     await waitFor(() => expect(requests.some((path) => path.includes("search=daily"))).toBe(true));
   });
 
@@ -398,6 +399,7 @@ describe("My library", () => {
     await screen.findByText("keeping it simple");
 
     fireEvent.change(screen.getByPlaceholderText("단어·문장·영상 검색"), { target: { value: "keep" } });
+    fireEvent.keyDown(screen.getByPlaceholderText("단어·문장·영상 검색"), { key: "Enter" });
     await waitFor(() => expect(requests.some((path) => path.includes("search=keep"))).toBe(true));
 
     fireEvent.change(screen.getByLabelText("출처"), { target: { value: "content-1" } });

@@ -123,6 +123,7 @@ export function LibraryPanel({
             aria-selected={kind === option.key}
             className={kind === option.key ? "active" : ""}
             onClick={() => setKind(option.key)}
+            style={{ cursor: 'pointer' }}
           >
             {option.label}
             {option.key === "words" && data ? <b>{data.counts.words}</b> : null}
@@ -231,18 +232,18 @@ export function LibraryPanel({
       )}
 
       {!error && showsSelectedKind && !!items.length && (kind === "words" || kind === "sentences") && (
-        <div className="saved-item-list">
+        <div key={kind} className="saved-item-list review-panel-scene">
           {(items as SavedItem[]).map((item) => (
             <SavedItemCard
               key={item.expression_progress_id}
               item={item}
               onOpenSource={item.content_id && openLearning
                 ? () => openLearning({
-                    contentId: item.content_id!,
-                    transcriptLineId: item.transcript_line_id,
-                    title: item.content_title,
-                    sourceLabel: "보관함",
-                  })
+                  contentId: item.content_id!,
+                  transcriptLineId: item.transcript_line_id,
+                  title: item.content_title,
+                  sourceLabel: "보관함",
+                })
                 : undefined}
               onEdited={replaceItem}
               onDeleted={(progressId) => dropItem(
@@ -255,11 +256,13 @@ export function LibraryPanel({
       )}
 
       {!error && showsSelectedKind && !!items.length && kind === "videos" && (
-        <div className="library-video-list">
+        <div key={kind} className="library-video-list review-panel-scene">
           {(items as SavedVideoRecord[]).map((video) => (
             <article className="library-video-card" key={video.id}>
               <span className="content-record-thumb">
-                <img src={video.thumbnail_url} alt="" loading="lazy" />
+                {video.thumbnail_url
+                  ? <img src={video.thumbnail_url} alt="" loading="lazy" />
+                  : <Clapperboard size={22} aria-hidden="true" />}
               </span>
               <div>
                 <em>{video.channel_title}</em>
@@ -269,36 +272,39 @@ export function LibraryPanel({
                   {video.status === "READY" ? "학습 준비됨" : video.status === "PROCESSING" ? "자막 준비 중" : "자막 준비 실패"}
                 </small>
                 {video.error_message && <p className="library-video-error">{video.error_message}</p>}
-                <div className="library-video-actions">
-                  <ConfirmDeleteButton
-                    label={`${video.title} 찜 해제`}
-                    confirmLabel="찜을 해제할까요? 학습 기록은 남습니다."
-                    busy={removingVideoId === video.id}
-                    onDelete={() => void unsaveVideo(video)}
-                  />
-                </div>
               </div>
-              {openLearning && (
-                <button
-                  onClick={() => openLearning({
-                    contentId: video.learning_content_id || video.feed_video_id,
-                    title: video.title,
-                    youtubeUrl: video.youtube_url,
-                    sourceLabel: `찜한 영상 · ${video.channel_title}`,
-                  })}
-                  disabled={video.status === "FAILED"}
-                  aria-label={`${video.title} 학습 열기`}
-                >
-                  <Play size={16} fill="currentColor" />
-                </button>
-              )}
+              <div className="content-record-actions">
+                {openLearning && (
+                  <button
+                    type="button"
+                    className="content-record-continue"
+                    onClick={() => openLearning({
+                      contentId: video.learning_content_id || video.feed_video_id,
+                      title: video.title,
+                      youtubeUrl: video.youtube_url,
+                      sourceLabel: `찜한 영상 · ${video.channel_title}`,
+                    })}
+                    disabled={video.status === "FAILED"}
+                    aria-label={`${video.title} 학습 열기`}
+                  >
+                    <Play size={16} fill="currentColor" />
+                  </button>
+                )}
+                <ConfirmDeleteButton
+                  label={`${video.title} 찜 해제`}
+                  confirmLabel="찜을 해제할까요? 학습 기록은 남습니다."
+                  busy={removingVideoId === video.id}
+                  compact
+                  onDelete={() => void unsaveVideo(video)}
+                />
+              </div>
             </article>
           ))}
         </div>
       )}
 
       {!error && showsSelectedKind && !!items.length && kind === "recordings" && (
-        <div className="recording-list">
+        <div key={kind} className="recording-list review-panel-scene">
           {(items as SpeechAttemptRecord[]).map((recording) => (
             <RecordingCard
               key={recording.id}
@@ -306,19 +312,19 @@ export function LibraryPanel({
               showContentTitle
               onPlayOriginal={recording.content_id && openLearning
                 ? () => openLearning({
-                    contentId: recording.content_id!,
-                    transcriptLineId: recording.transcript_line_id,
-                    title: recording.content_title,
-                    sourceLabel: "보관함 · 대표 녹음",
-                  })
+                  contentId: recording.content_id!,
+                  transcriptLineId: recording.transcript_line_id,
+                  title: recording.content_title,
+                  sourceLabel: "보관함 · 대표 녹음",
+                })
                 : undefined}
               onRetry={recording.content_id && openLearning
                 ? () => openLearning({
-                    contentId: recording.content_id!,
-                    transcriptLineId: recording.transcript_line_id,
-                    title: recording.content_title,
-                    sourceLabel: "보관함 · 다시 녹음",
-                  })
+                  contentId: recording.content_id!,
+                  transcriptLineId: recording.transcript_line_id,
+                  title: recording.content_title,
+                  sourceLabel: "보관함 · 다시 녹음",
+                })
                 : undefined}
               onPinChanged={() => void load()}
               onDeleted={(recordingId) => dropItem((row) => (row as SpeechAttemptRecord).id === recordingId)}

@@ -61,11 +61,11 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
 
   return (
     <div className="learning-workspace-shell">
-      <div className="learning-workspace-tools">
+      {/* <div className="learning-workspace-tools">
         <button type="button" className="secondary-button" onClick={() => setRoutineManagerOpen(true)}>
           <CalendarClock size={17} /> 학습 루틴 관리
         </button>
-      </div>
+      </div> */}
       {(!entry || (!entry.content && !entry.youtubeUrl)) && (
         <section className="learning-launchpad">
           <div className="learning-launch-copy">

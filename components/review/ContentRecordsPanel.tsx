@@ -207,6 +207,7 @@ export function ContentRecordsPanel({
               aria-selected={view === option.key}
               className={view === option.key ? "active" : ""}
               onClick={() => setView(option.key)}
+              style={{ cursor: 'pointer' }}
             >
               {option.label}
             </button>
@@ -221,7 +222,7 @@ export function ContentRecordsPanel({
         <PanelEmpty icon={<Clapperboard size={26} />} title={emptyCopy.title} description={emptyCopy.description} />
       )}
       {!error && !!items.length && (
-        <div className={`content-record-list ${loading ? "refreshing" : ""}`}>
+        <div key={view} className={`content-record-list review-panel-scene ${loading ? "refreshing" : ""}`}>
           {items.map((card) => (
             <ContentCard
               key={card.content_id}

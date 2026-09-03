@@ -144,26 +144,41 @@ export function SavedItemCard({
               {item.content_title ? ` · ${item.content_title}` : ""}
               {edited ? " · 내가 수정" : ""}
             </em>
-            <div className="saved-item-actions">
-              <button type="button" onClick={startEditing} aria-label={`${item.canonical_text} 수정`}>
-                <Pencil size={14} /> 수정
-              </button>
-              <ConfirmDeleteButton
-                label={`${item.canonical_text} 삭제`}
-                confirmLabel="이 항목을 삭제할까요?"
-                busy={deleting}
-                onDelete={() => void remove()}
-              />
-            </div>
           </>
         )}
-
         {error && <small className="saved-item-error" role="alert">{error}</small>}
       </div>
-      {onOpenSource && !editing && (
-        <button className="saved-item-open" onClick={onOpenSource} aria-label={`${item.canonical_text} 원본 자막으로 이동`}>
-          <BookOpen size={16} />
-        </button>
+
+      {!editing && (
+        <div className="content-record-actions">
+          {onOpenSource && (
+            <button
+              type="button"
+              className="saved-item-open"
+              onClick={onOpenSource}
+              aria-label={`${item.canonical_text} 원본 자막으로 이동`}
+              title="원본 자막으로 이동"
+            >
+              <BookOpen size={16} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="content-record-continue"
+            onClick={startEditing}
+            aria-label={`${item.canonical_text} 수정`}
+            title="수정"
+          >
+            <Pencil size={16} />
+          </button>
+          <ConfirmDeleteButton
+            label={`${item.canonical_text} 삭제`}
+            confirmLabel="이 항목을 삭제할까요?"
+            busy={deleting}
+            compact
+            onDelete={() => void remove()}
+          />
+        </div>
       )}
     </article>
   );

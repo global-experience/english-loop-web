@@ -39,6 +39,7 @@ export function ReviewView({
   openTodaySignal?: number;
 }) {
   const [tab, setTab] = useState<ReviewTabKey>("today");
+  const [tabDirection, setTabDirection] = useState<"forward" | "back">("forward");
   const [detailCard, setDetailCard] = useState<ContentProgressCard | null>(null);
   const [summary, setSummary] = useState<ReviewQueueSummary | null>(null);
   const [items, setItems] = useState<ReviewItem[]>([]);
@@ -47,7 +48,14 @@ export function ReviewView({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const goToTab = useCallback((nextTab: ReviewTabKey) => {
-    setTab(nextTab);
+    setTab((prev) => {
+      const tabOrder: ReviewTabKey[] = ["today", "contents", "library"];
+      const prevIndex = tabOrder.indexOf(prev);
+      const nextIndex = tabOrder.indexOf(nextTab);
+      if (nextIndex > prevIndex) setTabDirection("forward");
+      else if (nextIndex < prevIndex) setTabDirection("back");
+      return nextTab;
+    });
     if (nextTab !== "contents") {
       setDetailCard(null);
     }
@@ -181,6 +189,7 @@ export function ReviewView({
             aria-controls={`review-subpanel-${option.key}`}
             className={tab === option.key ? "active" : ""}
             onClick={() => goToTab(option.key)}
+            style={{ cursor: 'pointer' }}
           >
             {option.label}
             {option.key === "today" && dueBadge ? <b>{dueBadge}</b> : null}
@@ -193,6 +202,7 @@ export function ReviewView({
         role="tabpanel"
         aria-labelledby="review-subtab-today"
         hidden={tab !== "today"}
+        className={tab === "today" ? `review-scene review-scene-${tabDirection}` : ""}
       >
         {tab === "today" && (
           <ReviewQueuePanel
@@ -212,6 +222,7 @@ export function ReviewView({
         role="tabpanel"
         aria-labelledby="review-subtab-contents"
         hidden={tab !== "contents"}
+        className={tab === "contents" ? `review-scene review-scene-${tabDirection}` : ""}
       >
         {tab === "contents" && (detailCard ? (
           <ContentDetailPanel
@@ -235,6 +246,7 @@ export function ReviewView({
         role="tabpanel"
         aria-labelledby="review-subtab-library"
         hidden={tab !== "library"}
+        className={tab === "library" ? `review-scene review-scene-${tabDirection}` : ""}
       >
         {tab === "library" && (
           <LibraryPanel active={active && tab === "library"} openLearning={openLearning ? jumpToLearning : undefined} />

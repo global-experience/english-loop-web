@@ -147,7 +147,7 @@ export function ReviewQueuePanel({
       {summaryCard}
 
       {!started ? (
-        <div className="review-start-bar">
+        <div className="review-start-bar review-panel-scene">
           <button className="primary-button review-start-button" onClick={() => { setStarted(true); setIndex(0); }}>
             <Play size={18} fill="currentColor" /> 복습 시작
           </button>
@@ -156,12 +156,12 @@ export function ReviewQueuePanel({
           </button>
         </div>
       ) : (
-        <div className="review-mode-row">
+        <div className="review-mode-row review-panel-scene">
           <div className="segmented review-mode-switch" role="tablist" aria-label="복습 카드 표시 방식">
-            <button role="tab" aria-selected={mode === "focus"} className={mode === "focus" ? "active" : ""} onClick={() => setMode("focus")}>
+            <button role="tab" aria-selected={mode === "focus"} className={mode === "focus" ? "active" : ""} onClick={() => setMode("focus")} style={{ cursor: 'pointer' }}>
               <Layers size={15} /> 집중 모드
             </button>
-            <button role="tab" aria-selected={mode === "list"} className={mode === "list" ? "active" : ""} onClick={() => setMode("list")}>
+            <button role="tab" aria-selected={mode === "list"} className={mode === "list" ? "active" : ""} onClick={() => setMode("list")} style={{ cursor: 'pointer' }}>
               <Rows3 size={15} /> 목록 모드
             </button>
           </div>
@@ -175,7 +175,7 @@ export function ReviewQueuePanel({
       {message && <p className="save-message" role="status">{message}</p>}
 
       {started && mode === "focus" && current && (
-        <article className="review-focus-card">
+        <article key={current.id} className="review-focus-card review-panel-scene">
           <div className="review-focus-top">
             <span>{current.kind_label}</span>
             <small>{index + 1} / {total}</small>
@@ -226,7 +226,7 @@ export function ReviewQueuePanel({
       )}
 
       {started && mode === "list" && (
-        <ul className="review-list-mode">
+        <ul key={mode} className="review-list-mode review-panel-scene">
           {items.map((item) => (
             <li key={item.id}>
               <article>

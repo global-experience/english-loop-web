@@ -4,6 +4,57 @@
   gap: 20px;
 }
 
+/* ── sub-tab scene transition ────────────────────────────────────────── */
+.review-scene {
+  will-change: transform, opacity;
+}
+
+.review-scene.review-scene-forward {
+  animation: review-scene-forward-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.review-scene.review-scene-back {
+  animation: review-scene-back-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes review-scene-forward-in {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes review-scene-back-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.review-panel-scene {
+  will-change: transform, opacity;
+  animation: review-panel-scene-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes review-panel-scene-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 /* ── top segmented control ───────────────────────────────────────────── */
 .review-tab-switch {
   position: sticky;
@@ -673,7 +724,7 @@
   flex-direction: column;
   gap: 6px;
   align-items: center;
-  justify-content: center;
+  justify-content: end;
 }
 
 .content-record-continue {
@@ -1230,29 +1281,42 @@
 
 .saved-item-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
+  align-items: center;
   gap: 6px;
   margin-top: 8px;
 }
 
-.saved-item-actions>button,
-.review-delete-button {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
+.saved-item-actions .content-record-continue {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 40px;
+  border: 0;
+  border-radius: 15px;
   color: var(--ink);
-  background: var(--cream);
-  font-size: 11px;
-  font-weight: 700;
+  background: var(--acid);
+  cursor: pointer;
+}
+
+.saved-item-actions .review-delete-button.compact {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 15px;
+  justify-content: center;
 }
 
 .review-delete-button {
   color: #8d2f20;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  width: 46px;
+  height: 40px;
+  border-radius: 15px;
 }
 
 .review-delete-button:disabled {

@@ -122,7 +122,7 @@ export function ContentDetailPanel({
   }
 
   return (
-    <div className="review-panel content-detail">
+    <div className="review-panel content-detail review-panel-scene">
       <button className="text-button content-detail-back" onClick={onBack}>
         <ArrowLeft size={16} /> 영상별 기록으로
       </button>
