@@ -183,7 +183,7 @@ export function ContentDetailPanel({
         <>
           {tab === "expressions" && (
             counts.expressions ? (
-              <div className="saved-item-list">
+              <div key="expressions" className="saved-item-list review-panel-scene">
                 {detail.expressions.map((item) => (
                   <SavedItemCard
                     key={item.expression_progress_id}
@@ -196,17 +196,19 @@ export function ContentDetailPanel({
                 ))}
               </div>
             ) : (
-              <PanelEmpty
-                icon={<Bookmark size={24} />}
-                title="저장한 표현이 없어요."
-                description="학습 탭에서 자막의 단어나 구절을 선택해 저장하면 여기에 모입니다."
-              />
+              <div key="expressions" className="review-panel-scene">
+                <PanelEmpty
+                  icon={<Bookmark size={24} />}
+                  title="저장한 표현이 없어요."
+                  description="학습 탭에서 자막의 단어나 구절을 선택해 저장하면 여기에 모입니다."
+                />
+              </div>
             )
           )}
 
           {tab === "sentences" && (
             counts.sentences ? (
-              <div className="saved-item-list">
+              <div key="sentences" className="saved-item-list review-panel-scene">
                 {detail.sentences.map((item) => (
                   <SavedItemCard
                     key={item.expression_progress_id}
@@ -219,17 +221,19 @@ export function ContentDetailPanel({
                 ))}
               </div>
             ) : (
-              <PanelEmpty
-                icon={<Quote size={24} />}
-                title="저장한 문장이 없어요."
-                description="자막 문장을 저장하면 원본 영상과 자막 위치에 연결되어 남습니다."
-              />
+              <div key="sentences" className="review-panel-scene">
+                <PanelEmpty
+                  icon={<Quote size={24} />}
+                  title="저장한 문장이 없어요."
+                  description="자막 문장을 저장하면 원본 영상과 자막 위치에 연결되어 남습니다."
+                />
+              </div>
             )
           )}
 
           {tab === "recordings" && (
             counts.recordings ? (
-              <div className="recording-line-groups">
+              <div key="recordings" className="recording-line-groups review-panel-scene">
                 {recordingGroups.map((group) => (
                   <section className="recording-line-group" key={group.lineId}>
                     <header>
@@ -258,17 +262,19 @@ export function ContentDetailPanel({
                 ))}
               </div>
             ) : (
-              <PanelEmpty
-                icon={<Mic size={24} />}
-                title="녹음 기록이 없어요."
-                description="문장을 선택하고 말해보기 버튼을 누르면 나의 녹음과 STT 비교 결과가 여기에 기록됩니다."
-              />
+              <div key="recordings" className="review-panel-scene">
+                <PanelEmpty
+                  icon={<Mic size={24} />}
+                  title="녹음 기록이 없어요."
+                  description="문장을 선택하고 말해보기 버튼을 누르면 나의 녹음과 STT 비교 결과가 여기에 기록됩니다."
+                />
+              </div>
             )
           )}
 
           {tab === "corrections" && (
             counts.corrections ? (
-              <div className="correction-list">
+              <div key="corrections" className="correction-list review-panel-scene">
                 {detail.corrections.map((correction) => (
                   <article key={correction.id}>
                     <p><s>{correction.original}</s></p>
@@ -278,11 +284,13 @@ export function ContentDetailPanel({
                 ))}
               </div>
             ) : (
-              <PanelEmpty
-                icon={<MessageSquareQuote size={24} />}
-                title="교정 기록이 없어요."
-                description="ChatGPT 음성 수업 결과가 저장되면 교정 문장이 이곳에 함께 모입니다."
-              />
+              <div key="corrections" className="review-panel-scene">
+                <PanelEmpty
+                  icon={<MessageSquareQuote size={24} />}
+                  title="교정 기록이 없어요."
+                  description="ChatGPT 음성 수업 결과가 저장되면 교정 문장이 이곳에 함께 모입니다."
+                />
+              </div>
             )
           )}
         </>
