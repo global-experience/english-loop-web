@@ -58,7 +58,15 @@ type DragSession = DragPreview & {
 
 export function RoutineManagerView({ onBack }: Props) {
   const portalReady = usePortalReady();
-  const [routines, setRoutines] = useState<RoutinePayload | null>(null);
+  const [routines, setRoutinesState] = useState<RoutinePayload | null>(null);
+  const routinesRef = useRef<RoutinePayload | null>(null);
+  const reorderDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  function setRoutines(payload: RoutinePayload | null) {
+    routinesRef.current = payload;
+    setRoutinesState(payload);
+  }
+
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -75,6 +83,9 @@ export function RoutineManagerView({ onBack }: Props) {
 
   useEffect(() => {
     void load();
+    return () => {
+      if (reorderDebounceRef.current) clearTimeout(reorderDebounceRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -158,8 +169,9 @@ export function RoutineManagerView({ onBack }: Props) {
   }
 
   function reorderItems(sourceIndex: number, destinationIndex: number) {
-    if (!selectedPlanId || !routines) return;
-    const currentPlan = routines.plans.find((p) => p.id === selectedPlanId);
+    const currentRoutines = routinesRef.current;
+    if (!selectedPlanId || !currentRoutines) return;
+    const currentPlan = currentRoutines.plans.find((p) => p.id === selectedPlanId);
     if (!currentPlan) return;
     if (sourceIndex === destinationIndex) return;
     if (sourceIndex < 0 || destinationIndex < 0 || sourceIndex >= currentPlan.items.length || destinationIndex >= currentPlan.items.length) return;
@@ -169,47 +181,58 @@ export function RoutineManagerView({ onBack }: Props) {
     items.splice(destinationIndex, 0, reorderedItem);
 
     const updatedItems = items.map((item, index) => ({ ...item, sort_order: index }));
-    const changedItems = updatedItems.filter((item, index) => currentPlan.items[index]?.id !== item.id || currentPlan.items[index]?.sort_order !== index);
-    const revision = ++reorderRevisionRef.current;
+    const nextRoutines: RoutinePayload = {
+      ...currentRoutines,
+      plans: currentRoutines.plans.map((plan) =>
+        plan.id === selectedPlanId ? { ...plan, items: updatedItems } : plan
+      ),
+    };
 
-    setRoutines((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        plans: prev.plans.map((plan) =>
-          plan.id === selectedPlanId ? { ...plan, items: updatedItems } : plan
-        ),
-      };
-    });
+    setRoutines(nextRoutines);
     setMessage(`${reorderedItem.name}을(를) ${destinationIndex + 1}번째로 옮겼어요. 저장 중…`);
     setOrderSaving(true);
     void triggerHapticImpact("light");
 
-    reorderQueueRef.current = reorderQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        await Promise.all(
-          changedItems.map((item) =>
-            apiFetch(`/api/routines/items/${item.id}`, {
+    if (reorderDebounceRef.current) {
+      clearTimeout(reorderDebounceRef.current);
+    }
+
+    const revision = ++reorderRevisionRef.current;
+
+    reorderDebounceRef.current = setTimeout(() => {
+      reorderQueueRef.current = reorderQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (revision !== reorderRevisionRef.current) return;
+          const latestRoutines = routinesRef.current;
+          if (!latestRoutines) return;
+          const planToSave = latestRoutines.plans.find((p) => p.id === selectedPlanId);
+          if (!planToSave) return;
+
+          let lastPayload: RoutinePayload | null = null;
+          for (const item of planToSave.items) {
+            lastPayload = await apiFetch<RoutinePayload>(`/api/routines/items/${item.id}`, {
               method: "PATCH",
               body: JSON.stringify({ sort_order: item.sort_order }),
-            })
-          )
-        );
-        if (revision !== reorderRevisionRef.current) return;
-        const payload = await fetchRoutines();
-        setRoutines(payload);
-        await syncRoutineNotifications(payload);
-        setMessage("루틴 순서를 저장했어요.");
-      })
-      .catch((caught) => {
-        if (revision !== reorderRevisionRef.current) return;
-        setMessage(caught instanceof Error ? caught.message : "순서를 저장하지 못했습니다.");
-        void load();
-      })
-      .finally(() => {
-        if (revision === reorderRevisionRef.current) setOrderSaving(false);
-      });
+            });
+          }
+
+          if (revision !== reorderRevisionRef.current) return;
+          if (lastPayload) {
+            setRoutines(lastPayload);
+            await syncRoutineNotifications(lastPayload);
+          }
+          setMessage("루틴 순서를 저장했어요.");
+        })
+        .catch((caught) => {
+          if (revision !== reorderRevisionRef.current) return;
+          setMessage(caught instanceof Error ? caught.message : "순서를 저장하지 못했습니다.");
+          void load();
+        })
+        .finally(() => {
+          if (revision === reorderRevisionRef.current) setOrderSaving(false);
+        });
+    }, 400);
   }
 
   function finishPointerDrag(cancelled = false) {
