@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { triggerHapticImpact } from "@/lib/haptics";
 import type { ContentStrategy, RoutineActivityType, RoutineItem, RoutineItemConfig, RoutinePayload } from "@/lib/types";
 import { ACTIVITY_LABELS, DAY_LABELS, RoutineIcon, daySummary, defaultRoutineItem, fetchRoutines, notifyRoutinesUpdated, syncRoutineNotifications } from "@/lib/routines";
-import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 const activityOptions: RoutineActivityType[] = ["listen", "shadowing", "recall", "record", "review", "ai_conversation", "free_study"];
 const strategyOptions: ContentStrategy[] = ["recommended", "continue_recent", "fixed", "saved", "manual", "none"];
@@ -79,6 +79,8 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoutineItem | null>(null);
+
+  useBodyScrollLock(editingItemId !== null || deleteTarget !== null);
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);

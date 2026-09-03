@@ -12,7 +12,7 @@ import {
   type LocalRecording,
   type SpeechComparison,
 } from "@/lib/learningSession";
-import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 type AttemptResponse = { id: string; created_at: string };
 type SttProvider = "MOCK" | "GROQ" | "WHISPER" | "CLOUDFLARE";
@@ -190,17 +190,7 @@ export function SpeechPracticeSheet({
     sttProviderRef.current = "MOCK";
   }, [open, lineId]);
 
-  // Lock body scroll while open
-  useEffect(() => {
-    if (!open) return;
-    document.body.classList.add("modal-open");
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.classList.remove("modal-open");
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   // Auto close popup when switching tabs
   useEffect(() => {

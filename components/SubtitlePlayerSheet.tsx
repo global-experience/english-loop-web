@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { BookOpen, Pause, Play, RotateCcw, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { ContentDetailResponse } from "@/lib/reviewTypes";
-import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 export type SubtitlePlayerTarget = {
   text: string;
@@ -278,17 +278,7 @@ export function SubtitlePlayerSheet({
     }
   }, [open, target, repeatTarget]);
 
-  // Lock body scroll while open
-  useEffect(() => {
-    if (!open) return;
-    document.body.classList.add("modal-open");
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.classList.remove("modal-open");
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   // Auto close popup when switching tabs
   useEffect(() => {
