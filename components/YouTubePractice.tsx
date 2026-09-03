@@ -9,6 +9,7 @@ import { isMobileDeviceRuntime, isNativeAppRuntime } from "@/lib/nativeRuntime";
 import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
 import type { TranscriptSegment } from "@/lib/youtubeStore";
 import type { LearningPresetOptions, LearningSessionEntry, SpeechComparison } from "@/lib/learningSession";
+import { useBodyScrollLock, useMobileUi } from "@/lib/useMobileUi";
 import { LearningSessionHeader } from "./LearningSessionHeader";
 import { SpeechPracticeSheet } from "./SpeechPracticeSheet";
 
@@ -235,6 +236,8 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   const { mobile: mobileTranslationUi, platform: translationPlatform } = useMobileTranslationUi();
   const mobileTranslationSheetOpen = mobileTranslationUi && translationPanel !== null;
 
+  useBodyScrollLock(mobileTranslationSheetOpen);
+
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   useEffect(() => {
@@ -285,51 +288,6 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     if (!presets.repeats.includes(repeatTarget)) setStoreState({ repeatTarget: presets.repeats[0] });
     if (!presets.speeds.includes(playbackRate)) setStoreState({ playbackRate: presets.speeds[1] });
   }, [playbackRate, presets, repeatTarget, setStoreState]);
-
-  useEffect(() => {
-    if (!mobileTranslationSheetOpen) return;
-
-    const scrollY = window.scrollY;
-    const body = document.body;
-    const root = document.documentElement;
-    const previousBodyStyle = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow,
-      overscrollBehavior: body.style.overscrollBehavior,
-    };
-    const previousRootStyle = {
-      overflow: root.style.overflow,
-      overscrollBehavior: root.style.overscrollBehavior,
-      scrollBehavior: root.style.scrollBehavior,
-    };
-
-    root.classList.add("translation-sheet-open");
-    root.style.overflow = "hidden";
-    root.style.overscrollBehavior = "none";
-    root.style.scrollBehavior = "auto";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    body.style.overflow = "hidden";
-    body.style.overscrollBehavior = "none";
-
-    return () => {
-      root.classList.remove("translation-sheet-open");
-      Object.assign(body.style, previousBodyStyle);
-      root.style.overflow = previousRootStyle.overflow;
-      root.style.overscrollBehavior = previousRootStyle.overscrollBehavior;
-      if (window.scrollY !== scrollY) {
-        window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
-      }
-      root.style.scrollBehavior = previousRootStyle.scrollBehavior;
-    };
-  }, [mobileTranslationSheetOpen]);
 
   useEffect(() => {
     if (!translationPanel) return;

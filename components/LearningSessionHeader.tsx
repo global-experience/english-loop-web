@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, Clock3, FolderOpen, LogOut, Route, Save, X } from "lucide-react";
 import { routineLabel, type LearningSessionEntry } from "@/lib/learningSession";
-import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 
 export function SessionResultModal({
   open,
@@ -26,49 +26,7 @@ export function SessionResultModal({
   const { mobile } = useMobileUi();
   const portalReady = usePortalReady();
 
-  useEffect(() => {
-    if (!open) return;
-    const scrollY = window.scrollY;
-    const body = document.body;
-    const root = document.documentElement;
-    const previousBodyStyle = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow,
-      overscrollBehavior: body.style.overscrollBehavior,
-    };
-    const previousRootStyle = {
-      overflow: root.style.overflow,
-      overscrollBehavior: root.style.overscrollBehavior,
-      scrollBehavior: root.style.scrollBehavior,
-    };
-
-    root.classList.add("translation-sheet-open");
-    root.style.overflow = "hidden";
-    root.style.overscrollBehavior = "none";
-    root.style.scrollBehavior = "auto";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    body.style.overflow = "hidden";
-    body.style.overscrollBehavior = "none";
-
-    return () => {
-      root.classList.remove("translation-sheet-open");
-      Object.assign(body.style, previousBodyStyle);
-      root.style.overflow = previousRootStyle.overflow;
-      root.style.overscrollBehavior = previousRootStyle.overscrollBehavior;
-      if (window.scrollY !== scrollY) {
-        window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
-      }
-      root.style.scrollBehavior = previousRootStyle.scrollBehavior;
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   if (!open || !portalReady) return null;
 

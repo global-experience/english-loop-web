@@ -48,59 +48,61 @@ export function usePortalReady() {
   return ready;
 }
 
+let globalScrollLockCount = 0;
+let savedScrollY = 0;
+
 export function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (!locked || typeof window === "undefined" || typeof document === "undefined") return;
 
-    const scrollY = window.scrollY || window.pageYOffset || 0;
     const body = document.body;
     const root = document.documentElement;
 
-    const previousBodyStyle = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow,
-      touchAction: body.style.touchAction,
-    };
+    if (globalScrollLockCount === 0) {
+      savedScrollY = typeof window !== "undefined" ? (window.scrollY || window.pageYOffset || 0) : 0;
+      body.classList.add("modal-open");
+      root.classList.add("modal-open", "translation-sheet-open");
+      body.style.position = "fixed";
+      body.style.top = `-${savedScrollY}px`;
+      body.style.left = "0";
+      body.style.right = "0";
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+      body.style.touchAction = "none";
+      root.style.overflow = "hidden";
+      root.style.overscrollBehavior = "none";
+    }
 
-    const previousRootStyle = {
-      overflow: root.style.overflow,
-      overscrollBehavior: root.style.overscrollBehavior,
-    };
-
-    body.classList.add("modal-open");
-    root.classList.add("modal-open");
-
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    body.style.overflow = "hidden";
-    body.style.touchAction = "none";
-    root.style.overflow = "hidden";
-    root.style.overscrollBehavior = "none";
+    globalScrollLockCount++;
 
     return () => {
-      body.classList.remove("modal-open");
-      root.classList.remove("modal-open");
+      globalScrollLockCount = Math.max(0, globalScrollLockCount - 1);
 
-      body.style.position = previousBodyStyle.position;
-      body.style.top = previousBodyStyle.top;
-      body.style.left = previousBodyStyle.left;
-      body.style.right = previousBodyStyle.right;
-      body.style.width = previousBodyStyle.width;
-      body.style.overflow = previousBodyStyle.overflow;
-      body.style.touchAction = previousBodyStyle.touchAction;
+      if (globalScrollLockCount === 0) {
+        body.classList.remove("modal-open");
+        root.classList.remove("modal-open", "translation-sheet-open");
 
-      root.style.overflow = previousRootStyle.overflow;
-      root.style.overscrollBehavior = previousRootStyle.overscrollBehavior;
+        body.style.removeProperty("position");
+        body.style.removeProperty("top");
+        body.style.removeProperty("left");
+        body.style.removeProperty("right");
+        body.style.removeProperty("width");
+        body.style.removeProperty("overflow");
+        body.style.removeProperty("touch-action");
 
-      if (window.scrollY !== scrollY) {
-        window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
+        root.style.removeProperty("overflow");
+        root.style.removeProperty("overscroll-behavior");
+
+        try {
+          if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
+            const previousScrollBehavior = root.style.scrollBehavior;
+            root.style.scrollBehavior = "auto";
+            window.scrollTo({ top: savedScrollY, left: 0, behavior: "instant" as ScrollBehavior });
+            root.style.scrollBehavior = previousScrollBehavior;
+          }
+        } catch {
+          /* ignore jsdom unimplemented warnings */
+        }
       }
     };
   }, [locked]);
