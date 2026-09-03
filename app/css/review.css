@@ -22,6 +22,7 @@
     opacity: 0;
     transform: translate3d(18px, 0, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -33,6 +34,7 @@
     opacity: 0;
     transform: translate3d(-18px, 0, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -49,6 +51,7 @@
     opacity: 0;
     transform: translate3d(0, 14px, 0) scale(0.99);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
@@ -1577,9 +1580,9 @@
   place-items: center;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--line);
   border-radius: 13px;
   background: var(--cream);
+  border: 1px solid var(--line);
 }
 
 .library-video-actions {
@@ -1597,4 +1600,114 @@
   .recording-actions {
     grid-template-columns: repeat(5, 1fr);
   }
+}
+
+/* ── Subtitle Player Popup Sheet ─────────────────────────────────────── */
+.subtitle-player-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.subtitle-player-media {
+  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #0d0f0e;
+}
+
+.subtitle-player-video-wrap {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  height: 0;
+}
+
+.subtitle-player-video-wrap iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.subtitle-player-audio-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  gap: 10px;
+  color: var(--acid);
+}
+
+.subtitle-player-copy {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subtitle-player-english {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #ffffff;
+}
+
+.subtitle-player-korean {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.subtitle-player-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.subtitle-control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.subtitle-control-group span {
+  width: 36px;
+  font-weight: 600;
+}
+
+.subtitle-chip {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.subtitle-chip.active {
+  background: var(--acid);
+  color: var(--ink);
+  border-color: var(--acid);
+}
+
+.subtitle-player-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.subtitle-player-foot {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
 }

@@ -189,7 +189,6 @@ export function ReviewView({
             aria-controls={`review-subpanel-${option.key}`}
             className={tab === option.key ? "active" : ""}
             onClick={() => goToTab(option.key)}
-            style={{ cursor: 'pointer' }}
           >
             {option.label}
             {option.key === "today" && dueBadge ? <b>{dueBadge}</b> : null}

@@ -69,7 +69,13 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
       <section><div className="settings-heading"><span>04</span><div><h3>시간과 녹음 정책</h3><p>학습 녹음 오디오는 기기에 저장하고 서버에는 STT 비교 기록만 저장합니다.</p></div></div><label>하루 기본 학습 시간<input name="daily_minutes" type="number" min="30" max="240" defaultValue={user.daily_minutes} /></label><label>학습 기록 보관일<input name="recording_retention_days" type="number" min="0" max="365" defaultValue={user.recording_retention_days} /></label></section>
       {/* <section><div className="settings-heading"><span>04</span><div><h3>앱 반응 및 햅틱</h3><p>버튼 터치 및 탭 전환 시 진동/햅틱 반응을 제어합니다.</p></div></div><button type="button" className="secondary-button wide" onClick={toggleHaptics} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ display: "flex", alignItems: "center", gap: "8px" }}><Vibrate size={17}/> 터치 햅틱 반응</span><strong>{hapticsOn ? "켜짐 ON" : "꺼짐 OFF"}</strong></button></section> */}
       {message && <p className="save-message" role="status">{message}</p>}<button className="primary-button wide"><Save size={18} /> 설정 저장</button></form>
-    <section className="settings-tools"><div className="section-heading"><div><p className="eyebrow">DATA & OFFLINE</p><h2>내 데이터 관리</h2></div></div><button onClick={() => void downloadExport()}><Download /><span><strong>데이터 내보내기</strong><small>계획·표현 성장·리포트 JSON</small></span></button><button onClick={() => void clearOffline()}><HardDrive /><span><strong>오프라인 콘텐츠 삭제</strong><small>현재 사용량 {usage}</small></span></button><button onClick={() => alert("서버 운영자는 docs/deployment.md의 PostgreSQL 백업 절차를 사용하세요.")}><DatabaseBackup /><span><strong>백업·복구 안내</strong><small>운영 체크리스트 확인</small></span></button><button className="danger" onClick={() => void logout()}><LogOut /><span><strong>로그아웃</strong><small>{user.email}</small></span></button></section>
+    <section className="settings-tools">
+      {/* <div className="section-heading"><div><p className="eyebrow">DATA & OFFLINE</p><h2>내 데이터 관리</h2></div></div> */}
+      {/* <button onClick={() => void downloadExport()}><Download /><span><strong>데이터 내보내기</strong><small>계획·표현 성장·리포트 JSON</small></span></button> */}
+      {/* <button onClick={() => void clearOffline()}><HardDrive /><span><strong>오프라인 콘텐츠 삭제</strong><small>현재 사용량 {usage}</small></span></button> */}
+      {/* <button onClick={() => alert("서버 운영자는 docs/deployment.md의 PostgreSQL 백업 절차를 사용하세요.")}><DatabaseBackup /><span><strong>백업·복구 안내</strong><small>운영 체크리스트 확인</small></span></button> */}
+      <button className="danger" onClick={() => void logout()}><LogOut /><span><strong>로그아웃</strong><small>{user.email}</small></span></button>
+    </section>
   </div>;
 }
 

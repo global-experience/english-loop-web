@@ -12,6 +12,7 @@ import {
   type SpeechAttemptRecord,
   type TranscriptLineRecord,
 } from "@/lib/reviewTypes";
+import { SubtitlePlayerSheet, type SubtitlePlayerTarget } from "@/components/SubtitlePlayerSheet";
 import { RecordingCard } from "./RecordingCard";
 import { SavedItemCard } from "./SavedItemCard";
 import { PanelEmpty, PanelError, PanelLoading } from "./ReviewStates";
@@ -38,6 +39,22 @@ export function ContentDetailPanel({
   const [detail, setDetail] = useState<ContentDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [playerTarget, setPlayerTarget] = useState<SubtitlePlayerTarget | null>(null);
+
+  const openAudioPlayer = (text: string, koreanText?: string | null, lineId?: string | null) => {
+    const line = detail?.transcript_lines.find((l) => l.id === lineId);
+    setPlayerTarget({
+      text,
+      koreanText: koreanText || line?.korean_meaning || null,
+      contentId: card.content_id,
+      transcriptLineId: lineId || null,
+      youtubeUrl: card.source_url,
+      youtubeVideoId: card.youtube_video_id,
+      startMs: line?.start_ms || null,
+      endMs: line?.end_ms || null,
+      title: card.title,
+    });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -171,6 +188,7 @@ export function ContentDetailPanel({
                   <SavedItemCard
                     key={item.expression_progress_id}
                     item={item}
+                    onOpenAudio={() => openAudioPlayer(item.canonical_text, item.korean_meaning, item.transcript_line_id)}
                     onOpenSource={openLearning ? () => jump(item.transcript_line_id) : undefined}
                     onEdited={(next) => replaceSavedItem("expressions", next)}
                     onDeleted={(progressId) => removeSavedItem("expressions", progressId)}
@@ -193,6 +211,7 @@ export function ContentDetailPanel({
                   <SavedItemCard
                     key={item.expression_progress_id}
                     item={item}
+                    onOpenAudio={() => openAudioPlayer(item.canonical_text, item.korean_meaning, item.transcript_line_id)}
                     onOpenSource={openLearning ? () => jump(item.transcript_line_id) : undefined}
                     onEdited={(next) => replaceSavedItem("sentences", next)}
                     onDeleted={(progressId) => removeSavedItem("sentences", progressId)}
@@ -217,8 +236,8 @@ export function ContentDetailPanel({
                       <span>{group.line ? `LINE ${group.line.sequence}` : "자막 위치 미확인"}</span>
                       <strong>{group.line?.english_text || group.attempts[0]?.reference_text}</strong>
                       {group.line?.korean_meaning && <p>{group.line.korean_meaning}</p>}
-                      <button className="text-button" onClick={() => jump(group.lineId)}>
-                        <Volume2 size={14} /> 이 문장으로 이동
+                      <button className="text-button" onClick={() => openAudioPlayer(group.line?.english_text || group.attempts[0]?.reference_text || "", group.line?.korean_meaning, group.lineId)}>
+                        <Volume2 size={14} /> 이 문장 듣기
                       </button>
                     </header>
                     <div className="recording-list">
@@ -229,7 +248,7 @@ export function ContentDetailPanel({
                             ...recording,
                             transcript_line_text: group.line?.english_text || recording.transcript_line_text,
                           }}
-                          onPlayOriginal={() => jump(recording.transcript_line_id)}
+                          onPlayOriginal={() => openAudioPlayer(recording.transcript_line_text || recording.reference_text, null, recording.transcript_line_id)}
                           onRetry={() => jump(recording.transcript_line_id)}
                           onDeleted={removeRecording}
                         />
@@ -242,7 +261,7 @@ export function ContentDetailPanel({
               <PanelEmpty
                 icon={<Mic size={24} />}
                 title="녹음 기록이 없어요."
-                description="학습 탭에서 문장을 따라 말하면 해당 자막 문장 아래에 녹음과 STT 비교가 남습니다."
+                description="문장을 선택하고 말해보기 버튼을 누르면 나의 녹음과 STT 비교 결과가 여기에 기록됩니다."
               />
             )
           )}
@@ -268,6 +287,13 @@ export function ContentDetailPanel({
           )}
         </>
       )}
+
+      <SubtitlePlayerSheet
+        open={Boolean(playerTarget)}
+        target={playerTarget}
+        onClose={() => setPlayerTarget(null)}
+        onOpenFullLearning={openLearning ? () => jump(playerTarget?.transcriptLineId) : undefined}
+      />
     </div>
   );
 }

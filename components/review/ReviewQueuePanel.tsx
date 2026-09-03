@@ -158,10 +158,10 @@ export function ReviewQueuePanel({
       ) : (
         <div className="review-mode-row review-panel-scene">
           <div className="segmented review-mode-switch" role="tablist" aria-label="복습 카드 표시 방식">
-            <button role="tab" aria-selected={mode === "focus"} className={mode === "focus" ? "active" : ""} onClick={() => setMode("focus")} style={{ cursor: 'pointer' }}>
+            <button role="tab" aria-selected={mode === "focus"} className={mode === "focus" ? "active" : ""} onClick={() => setMode("focus")}>
               <Layers size={15} /> 집중 모드
             </button>
-            <button role="tab" aria-selected={mode === "list"} className={mode === "list" ? "active" : ""} onClick={() => setMode("list")} style={{ cursor: 'pointer' }}>
+            <button role="tab" aria-selected={mode === "list"} className={mode === "list" ? "active" : ""} onClick={() => setMode("list")}>
               <Rows3 size={15} /> 목록 모드
             </button>
           </div>

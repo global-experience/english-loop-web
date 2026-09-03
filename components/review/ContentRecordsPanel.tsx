@@ -207,7 +207,6 @@ export function ContentRecordsPanel({
               aria-selected={view === option.key}
               className={view === option.key ? "active" : ""}
               onClick={() => setView(option.key)}
-              style={{ cursor: 'pointer' }}
             >
               {option.label}
             </button>

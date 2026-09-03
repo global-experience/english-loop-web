@@ -11,6 +11,7 @@ import {
   type SavedVideoRecord,
   type SpeechAttemptRecord,
 } from "@/lib/reviewTypes";
+import { SubtitlePlayerSheet, type SubtitlePlayerTarget } from "@/components/SubtitlePlayerSheet";
 import { RecordingCard } from "./RecordingCard";
 import { SavedItemCard } from "./SavedItemCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
@@ -48,6 +49,7 @@ export function LibraryPanel({
   const [actionError, setActionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [playerTarget, setPlayerTarget] = useState<SubtitlePlayerTarget | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,7 +125,6 @@ export function LibraryPanel({
             aria-selected={kind === option.key}
             className={kind === option.key ? "active" : ""}
             onClick={() => setKind(option.key)}
-            style={{ cursor: 'pointer' }}
           >
             {option.label}
             {option.key === "words" && data ? <b>{data.counts.words}</b> : null}
@@ -237,6 +238,13 @@ export function LibraryPanel({
             <SavedItemCard
               key={item.expression_progress_id}
               item={item}
+              onOpenAudio={() => setPlayerTarget({
+                text: item.canonical_text,
+                koreanText: item.korean_meaning,
+                contentId: item.content_id,
+                transcriptLineId: item.transcript_line_id,
+                title: item.content_title,
+              })}
               onOpenSource={item.content_id && openLearning
                 ? () => openLearning({
                   contentId: item.content_id!,
@@ -310,14 +318,12 @@ export function LibraryPanel({
               key={recording.id}
               recording={recording}
               showContentTitle
-              onPlayOriginal={recording.content_id && openLearning
-                ? () => openLearning({
-                  contentId: recording.content_id!,
-                  transcriptLineId: recording.transcript_line_id,
-                  title: recording.content_title,
-                  sourceLabel: "보관함 · 대표 녹음",
-                })
-                : undefined}
+              onPlayOriginal={() => setPlayerTarget({
+                text: recording.transcript_line_text || recording.reference_text,
+                contentId: recording.content_id,
+                transcriptLineId: recording.transcript_line_id,
+                title: recording.content_title,
+              })}
               onRetry={recording.content_id && openLearning
                 ? () => openLearning({
                   contentId: recording.content_id!,
@@ -332,6 +338,13 @@ export function LibraryPanel({
           ))}
         </div>
       )}
+
+      <SubtitlePlayerSheet
+        open={Boolean(playerTarget)}
+        target={playerTarget}
+        onClose={() => setPlayerTarget(null)}
+        onOpenFullLearning={playerTarget?.contentId && openLearning ? () => openLearning({ contentId: playerTarget.contentId!, transcriptLineId: playerTarget.transcriptLineId, title: playerTarget.title }) : undefined}
+      />
     </div>
   );
 }

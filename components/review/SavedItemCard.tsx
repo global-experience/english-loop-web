@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bookmark, BookOpen, Check, Pencil, RotateCcw, StickyNote, X } from "lucide-react";
+import { Bookmark, BookOpen, Check, Pencil, RotateCcw, StickyNote, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { stageLabel, type SavedItem, type SavedItemPatchResponse } from "@/lib/reviewTypes";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
@@ -14,11 +14,13 @@ import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 export function SavedItemCard({
   item,
   onOpenSource,
+  onOpenAudio,
   onEdited,
   onDeleted,
 }: {
   item: SavedItem;
   onOpenSource?: () => void;
+  onOpenAudio?: () => void;
   onEdited?: (item: SavedItem) => void;
   onDeleted?: (progressId: string) => void;
 }) {
@@ -151,15 +153,15 @@ export function SavedItemCard({
 
       {!editing && (
         <div className="content-record-actions">
-          {onOpenSource && (
+          {(onOpenAudio || onOpenSource) && (
             <button
               type="button"
               className="saved-item-open"
-              onClick={onOpenSource}
-              aria-label={`${item.canonical_text} 원본 자막으로 이동`}
-              title="원본 자막으로 이동"
+              onClick={onOpenAudio || onOpenSource}
+              aria-label={`${item.canonical_text} 자막 듣기`}
+              title="자막 듣기"
             >
-              <BookOpen size={16} />
+              <Volume2 size={16} />
             </button>
           )}
           <button

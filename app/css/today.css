@@ -68,7 +68,7 @@
   font-style: normal;
 }
 
-.today-summary-copy > p:last-child {
+.today-summary-copy>p:last-child {
   margin: 0;
   max-width: 32em;
   color: #b3bbb6;
@@ -89,7 +89,7 @@
   border-top: 1px solid rgba(255, 255, 255, .14);
 }
 
-.today-summary-meta > div {
+.today-summary-meta>div {
   min-width: 0;
 }
 
@@ -214,7 +214,7 @@
   min-width: 0;
 }
 
-.today-video-card > button {
+.today-video-card>button {
   display: grid;
   gap: 8px;
   width: 100%;
@@ -528,7 +528,7 @@
   background: #29322e;
 }
 
-.today-coach-session > div:first-child {
+.today-coach-session>div:first-child {
   display: grid;
   gap: 3px;
 }

@@ -102,6 +102,7 @@ export default function Home() {
   // review tab returns to today's queue even if it was left on another sub-tab.
   const [feedFocusVideo, setFeedFocusVideo] = useState<FeedVideo | null>(null);
   const [reviewTodaySignal, setReviewTodaySignal] = useState(0);
+  const [settingsKey, setSettingsKey] = useState(0);
   const [today, setToday] = useState<TodayData | null>(restoredBootstrap?.today || null);
   const [user, setUser] = useState<User | null>(restoredBootstrap?.user || null);
   const [error, setError] = useState("");
@@ -241,7 +242,13 @@ export default function Home() {
 
   const switchTab = (nextTab: AppTab) => {
     void triggerHapticSelection();
-    scrollPositionsRef.current[tabRef.current] = window.scrollY;
+    if (tabRef.current !== "settings") {
+      scrollPositionsRef.current[tabRef.current] = window.scrollY;
+    }
+    if (nextTab === "settings") {
+      scrollPositionsRef.current["settings"] = 0;
+      setSettingsKey((prev) => prev + 1);
+    }
     if (nextTab === tab) {
       emitTabReselect(nextTab);
       scrollToTop("smooth");
@@ -254,7 +261,7 @@ export default function Home() {
     setVisitedTabs((current) => Array.from(new Set([...current, nextTab])));
     setTab(nextTab);
 
-    const targetY = scrollPositionsRef.current[nextTab] || 0;
+    const targetY = nextTab === "settings" ? 0 : (scrollPositionsRef.current[nextTab] || 0);
     window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
     window.requestAnimationFrame(() => {
       window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
@@ -371,7 +378,11 @@ export default function Home() {
       <header className="topbar">
         <div className="brand-mark"><img src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /></div>
         <div><p className="eyebrow">LOOPINE</p><h1>{user?.display_name || "사용자"}님의 학습 루프</h1></div>
-        <button id="settings-avatar" className="avatar" aria-label="설정 열기" onClick={() => switchTab("settings")}><CircleUserRound size={23} /></button>
+        <button id="settings-avatar" className="avatar" aria-label="설정 열기" onClick={() => switchTab("settings")}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <CircleUserRound size={23} />
+          </div>
+        </button>
       </header>
 
       <div className="tab-viewport" aria-label={`${tabLabels[tab]} 화면`}>
@@ -392,7 +403,7 @@ export default function Home() {
               {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
               {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} openTodaySignal={reviewTodaySignal} />}
               {paneTab === "report" && <ReportView />}
-              {paneTab === "settings" && (user ? <SettingsView user={user} onSaved={refresh} /> : bootstrapFallback)}
+              {paneTab === "settings" && (user ? <SettingsView key={settingsKey} user={user} onSaved={refresh} /> : bootstrapFallback)}
             </section>
           );
         })}

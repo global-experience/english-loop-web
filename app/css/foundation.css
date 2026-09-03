@@ -93,8 +93,21 @@ select {
   cursor: pointer;
 }
 
-button {
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+[role="button"],
+.button {
+  cursor: pointer;
   color: inherit;
+}
+
+button:disabled,
+input:disabled,
+[role="button"][aria-disabled="true"],
+.button:disabled {
+  cursor: not-allowed;
 }
 
 .app-shell {
