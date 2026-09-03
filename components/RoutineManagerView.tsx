@@ -373,7 +373,7 @@ export function RoutineManagerView({ onBack }: Props) {
                           }}
                         >
                           <GripVertical size={18} />
-                          {/* <span>이동</span> */}
+                          <span>이동</span>
                         </button>
                         <button type="button" className="routine-card-body-btn" onClick={() => setEditingItemId(item.id)}>
                           <span className="routine-card-icon"><RoutineIcon name={item.icon} size={22} /></span>

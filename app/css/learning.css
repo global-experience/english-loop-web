@@ -511,11 +511,10 @@
   min-height: 70px;
   padding: 0;
   border: 0;
-  /* border-right: 1px solid rgba(24, 32, 29, .08); */
+  border-right: 1px solid rgba(24, 32, 29, .08);
   border-radius: 22px 0 0 22px;
   color: var(--muted);
-  background: none;
-  /* background: rgba(229, 225, 214, .34); */
+  background: rgba(229, 225, 214, .34);
   cursor: grab;
   touch-action: none;
   user-select: none;
