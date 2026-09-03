@@ -158,23 +158,26 @@ export function RoutineManagerView({ onBack }: Props) {
   }
 
   function reorderItems(sourceIndex: number, destinationIndex: number) {
-    if (!selectedPlan || !routines || sourceIndex === destinationIndex) return;
-    if (sourceIndex < 0 || destinationIndex < 0 || sourceIndex >= selectedPlan.items.length || destinationIndex >= selectedPlan.items.length) return;
+    if (!selectedPlanId || !routines) return;
+    const currentPlan = routines.plans.find((p) => p.id === selectedPlanId);
+    if (!currentPlan) return;
+    if (sourceIndex === destinationIndex) return;
+    if (sourceIndex < 0 || destinationIndex < 0 || sourceIndex >= currentPlan.items.length || destinationIndex >= currentPlan.items.length) return;
 
-    const items = Array.from(selectedPlan.items);
+    const items = Array.from(currentPlan.items);
     const [reorderedItem] = items.splice(sourceIndex, 1);
     items.splice(destinationIndex, 0, reorderedItem);
 
     const updatedItems = items.map((item, index) => ({ ...item, sort_order: index }));
-    const changedItems = updatedItems.filter((item, index) => selectedPlan.items[index]?.id !== item.id || selectedPlan.items[index]?.sort_order !== index);
+    const changedItems = updatedItems.filter((item, index) => currentPlan.items[index]?.id !== item.id || currentPlan.items[index]?.sort_order !== index);
     const revision = ++reorderRevisionRef.current;
 
     setRoutines((prev) => {
-      if (!prev || !selectedPlan) return prev;
+      if (!prev) return prev;
       return {
         ...prev,
         plans: prev.plans.map((plan) =>
-          plan.id === selectedPlan.id ? { ...plan, items: updatedItems } : plan
+          plan.id === selectedPlanId ? { ...plan, items: updatedItems } : plan
         ),
       };
     });
@@ -219,7 +222,7 @@ export function RoutineManagerView({ onBack }: Props) {
   }
 
   function startPointerDrag(event: ReactPointerEvent<HTMLButtonElement>, item: RoutineItem, index: number) {
-    if (orderSaving || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
     const card = event.currentTarget.closest<HTMLElement>("[data-routine-card]");
     if (!card || !routineListRef.current) return;
 
@@ -305,7 +308,12 @@ export function RoutineManagerView({ onBack }: Props) {
         </div>
       </header>
 
-      {message && <p className="routine-board-message" role="status">{message}</p>}
+      {message && (
+        <p className="routine-board-message" role="status">
+          {orderSaving && <LoaderCircle size={14} className="spin" style={{ display: "inline-block", marginRight: "6px", verticalAlign: "middle" }} />}
+          {message}
+        </p>
+      )}
 
       {!routines && !message && <p className="routine-board-empty">루틴을 불러오는 중입니다…</p>}
 
@@ -362,7 +370,6 @@ export function RoutineManagerView({ onBack }: Props) {
                           onPointerUp={() => finishPointerDrag()}
                           onPointerCancel={() => finishPointerDrag(true)}
                           onKeyDown={(event) => {
-                            if (orderSaving) return;
                             if (event.key === "ArrowUp") {
                               event.preventDefault();
                               reorderItems(index, index - 1);
@@ -387,10 +394,10 @@ export function RoutineManagerView({ onBack }: Props) {
                           </span>
                         </button>
                         <div className="routine-mobile-order-actions" aria-label={`${item.name} 빠른 순서 변경`}>
-                          <button type="button" aria-label={`${item.name} 위로 이동`} disabled={index === 0 || orderSaving} onClick={() => reorderItems(index, index - 1)}>
+                          <button type="button" aria-label={`${item.name} 위로 이동`} disabled={index === 0} onClick={() => reorderItems(index, index - 1)}>
                             <ArrowUp size={17} />
                           </button>
-                          <button type="button" aria-label={`${item.name} 아래로 이동`} disabled={index === selectedPlan.items.length - 1 || orderSaving} onClick={() => reorderItems(index, index + 1)}>
+                          <button type="button" aria-label={`${item.name} 아래로 이동`} disabled={index === selectedPlan.items.length - 1} onClick={() => reorderItems(index, index + 1)}>
                             <ArrowDown size={17} />
                           </button>
                         </div>
