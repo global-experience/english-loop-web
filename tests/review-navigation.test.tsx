@@ -127,4 +127,29 @@ describe("Review round trips", () => {
     // The library sub-tab the learner left open is still selected.
     expect(screen.getByRole("tab", { name: /내 보관함/ })).toHaveAttribute("aria-selected", "true");
   });
+
+  it("swipes horizontally to switch between 오늘의 복습, 영상별 기록, and 내 보관함", async () => {
+    render(<Home />);
+    await screen.findByText("오늘의 루틴");
+
+    fireEvent.click(document.getElementById("tab-review")!);
+    expect(await screen.findByRole("tab", { name: /오늘의 복습/ })).toHaveAttribute("aria-selected", "true");
+
+    const reviewPanel = document.querySelector(".review-view")!;
+
+    // Swipe Left (Start at X=300, End at X=100) -> Move to 영상별 기록
+    fireEvent.touchStart(reviewPanel, { touches: [{ clientX: 300, clientY: 200 }] });
+    fireEvent.touchEnd(reviewPanel, { changedTouches: [{ clientX: 100, clientY: 200 }] });
+    expect(screen.getByRole("tab", { name: /영상별 기록/ })).toHaveAttribute("aria-selected", "true");
+
+    // Swipe Left (Start at X=300, End at X=100) -> Move to 내 보관함
+    fireEvent.touchStart(reviewPanel, { touches: [{ clientX: 300, clientY: 200 }] });
+    fireEvent.touchEnd(reviewPanel, { changedTouches: [{ clientX: 100, clientY: 200 }] });
+    expect(screen.getByRole("tab", { name: /내 보관함/ })).toHaveAttribute("aria-selected", "true");
+
+    // Swipe Right (Start at X=100, End at X=300) -> Move back to 영상별 기록
+    fireEvent.touchStart(reviewPanel, { touches: [{ clientX: 100, clientY: 200 }] });
+    fireEvent.touchEnd(reviewPanel, { changedTouches: [{ clientX: 300, clientY: 200 }] });
+    expect(screen.getByRole("tab", { name: /영상별 기록/ })).toHaveAttribute("aria-selected", "true");
+  });
 });

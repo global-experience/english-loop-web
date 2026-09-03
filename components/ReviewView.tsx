@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import {
   REVIEW_TABS,
@@ -44,6 +44,52 @@ export function ReviewView({
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const goToTab = useCallback((nextTab: ReviewTabKey) => {
+    setTab(nextTab);
+    if (nextTab !== "contents") {
+      setDetailCard(null);
+    }
+  }, []);
+
+  const handleTouchStart = useCallback((event: React.TouchEvent) => {
+    touchStartRef.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+    };
+  }, []);
+
+  const handleTouchEnd = useCallback((event: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (Math.abs(deltaX) >= 55 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+      const tabKeys = REVIEW_TABS.map((item) => item.key);
+      const currentIndex = tabKeys.indexOf(tab);
+
+      if (deltaX < 0) {
+        // Swipe left -> Move to next sub-tab
+        if (currentIndex >= 0 && currentIndex < tabKeys.length - 1) {
+          goToTab(tabKeys[currentIndex + 1]);
+        }
+      } else {
+        // Swipe right -> Move to previous sub-tab (or exit detail view)
+        if (tab === "contents" && detailCard) {
+          setDetailCard(null);
+        } else if (currentIndex > 0) {
+          goToTab(tabKeys[currentIndex - 1]);
+        }
+      }
+    }
+  }, [detailCard, goToTab, tab]);
 
   const loadQueue = useCallback(async () => {
     setLoading(true);
@@ -110,7 +156,11 @@ export function ReviewView({
   const dueBadge = summary?.total_count || 0;
 
   return (
-    <div className="view-stack review-view">
+    <div
+      className="view-stack review-view"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <header className="view-title">
         <p className="eyebrow">REVIEW</p>
         <h2>기억이 흐려지기 전에<br />한 번 더 꺼내기.</h2>
@@ -130,7 +180,7 @@ export function ReviewView({
             aria-selected={tab === option.key}
             aria-controls={`review-subpanel-${option.key}`}
             className={tab === option.key ? "active" : ""}
-            onClick={() => { setTab(option.key); if (option.key !== "contents") setDetailCard(null); }}
+            onClick={() => goToTab(option.key)}
           >
             {option.label}
             {option.key === "today" && dueBadge ? <b>{dueBadge}</b> : null}
