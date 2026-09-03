@@ -47,6 +47,108 @@ export type Activity = {
   completed_at: string | null;
   user_notes: string | null;
   content: Content | null;
+  routine_item_id?: string | null;
+  routine_snapshot?: RoutineSnapshot | null;
+};
+
+export type RoutineActivityType =
+  | "listen"
+  | "shadowing"
+  | "recall"
+  | "record"
+  | "review"
+  | "ai_conversation"
+  | "free_study";
+
+export type ContentStrategy =
+  | "recommended"
+  | "continue_recent"
+  | "fixed"
+  | "saved"
+  | "manual"
+  | "none";
+
+export type RoutineItemConfig = {
+  repeatOptions: number[];
+  speedOptions: number[];
+  defaultRepeat: number;
+  defaultSpeed: number;
+  subtitleMode: "shown" | "hidden" | "user_choice";
+  showTranslation: boolean;
+  recordingEnabled: boolean;
+  sttEnabled: boolean;
+  targetCount?: number | null;
+  durationMinutes?: number | null;
+  completionCondition?: string;
+};
+
+export type RoutineNotification = {
+  enabled: boolean;
+  offsetMinutes: number;
+  title?: string | null;
+  body?: string | null;
+};
+
+export type RoutineSnapshot = {
+  routine_id: string;
+  routine_item_id: string;
+  name: string;
+  icon: string;
+  start_time: string;
+  end_time: string | null;
+  days_of_week: number[];
+  estimated_minutes: number;
+  activity_type: RoutineActivityType;
+  content_strategy: ContentStrategy;
+  config: RoutineItemConfig;
+  notification: RoutineNotification;
+};
+
+export type RoutineItem = {
+  id: string;
+  routine_id: string;
+  name: string;
+  icon: string;
+  start_time: string;
+  end_time: string | null;
+  days_of_week: number[];
+  is_active: boolean;
+  sort_order: number;
+  estimated_minutes: number;
+  activity_type: RoutineActivityType;
+  content_strategy: ContentStrategy;
+  fixed_content_id: string | null;
+  fixed_content?: Content | null;
+  config: RoutineItemConfig;
+  notification: RoutineNotification;
+  deleted_at?: string | null;
+};
+
+export type TodayRoutineItem = RoutineItem & {
+  state: "done" | "current" | "upcoming" | "skipped" | "today_inactive";
+  status: string;
+  activity_id: string | null;
+  content: Content | null;
+  minutes_until: number | null;
+  routine_snapshot: RoutineSnapshot;
+};
+
+export type RoutinePlan = {
+  id: string;
+  name: string;
+  plan_type: string;
+  days_of_week: number[];
+  sort_order: number;
+  is_active: boolean;
+  items: RoutineItem[];
+};
+
+export type RoutinePayload = {
+  plans: RoutinePlan[];
+  today_items?: TodayRoutineItem[];
+  focus_item_id?: string | null;
+  timezone: string;
+  study_date?: string;
 };
 
 export type TodayData = {
@@ -70,6 +172,7 @@ export type TodayData = {
   };
   review_due_count: number;
   message: string | null;
+  routine?: RoutinePayload | null;
 };
 
 export type User = {

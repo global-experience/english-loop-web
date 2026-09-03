@@ -196,7 +196,7 @@ export function LearningSessionHeader({
         <div className="learning-session-topline">
           <span>{sourceLabel}</span>
           <span>
-            <Route size={13} /> {routineLabel(entry.routineStep)}
+            <Route size={13} /> {entry.routineItemName || routineLabel(entry.routineStep)}
           </span>
           {summary && (
             <span className="compact-session-summary">

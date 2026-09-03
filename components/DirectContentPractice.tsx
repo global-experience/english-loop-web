@@ -2,7 +2,7 @@
 
 import { TouchEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bookmark, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Languages, Mic, Pause, Play, RotateCcw, Save, Volume2 } from "lucide-react";
+import { Bookmark, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Save, Volume2 } from "lucide-react";
 import { apiFetch, mediaUrl } from "@/lib/api";
 import { isMobileDeviceRuntime } from "@/lib/nativeRuntime";
 import type { LearningPresetOptions, LearningSessionEntry } from "@/lib/learningSession";
@@ -35,6 +35,7 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
   const [message, setMessage] = useState("");
   const [practiced, setPracticed] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [retry, setRetry] = useState<Set<string>>(new Set());
   const [missingWords, setMissingWords] = useState<Set<string>>(new Set());
   const [isMobileDevice, setIsMobileDevice] = useState(false);
@@ -120,28 +121,33 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
   }
 
   async function saveExpression() {
-    if (!selected) return;
-    if (saved.has(selected.id)) {
-      try {
-        await apiFetch(`/api/review/saved-items/${selected.id}`, { method: "DELETE" });
-      } catch {
-        // Unsaving locally still updates UI if API fails
+    if (!selected || savingId === selected.id) return;
+    setSavingId(selected.id);
+    try {
+      if (saved.has(selected.id)) {
+        try {
+          await apiFetch(`/api/review/saved-items/${selected.id}`, { method: "DELETE" });
+        } catch {
+          // Unsaving locally still updates UI if API fails
+        }
+        setSaved((current) => {
+          const next = new Set(current);
+          next.delete(selected.id);
+          return next;
+        });
+        setMessage("복습 목록에서 문장 저장을 취소했어요.");
+        return;
       }
-      setSaved((current) => {
-        const next = new Set(current);
-        next.delete(selected.id);
-        return next;
-      });
-      setMessage("복습 목록에서 문장 저장을 취소했어요.");
-      return;
+      await apiFetch("/api/expressions", { method: "POST", body: JSON.stringify({ canonical_text: selected.english_text, korean_meaning: savedMeaning || "복습할 문장", example_sentence: selected.english_text, category: "YOUTUBE_VOCAB", level: content.level || "B1", tags: ["content", `content:${content.id}`, `transcript:${selected.id}`], source_content_id: content.id, source_transcript_line_id: selected.id }) });
+      setSaved((current) => new Set(current).add(selected.id));
+      setMessage("이 문장을 복습 목록에 저장했어요.");
+    } finally {
+      setSavingId(null);
     }
-    await apiFetch("/api/expressions", { method: "POST", body: JSON.stringify({ canonical_text: selected.english_text, korean_meaning: savedMeaning || "복습할 문장", example_sentence: selected.english_text, category: "YOUTUBE_VOCAB", level: content.level || "B1", tags: ["content", `content:${content.id}`, `transcript:${selected.id}`], source_content_id: content.id, source_transcript_line_id: selected.id }) });
-    setSaved((current) => new Set(current).add(selected.id));
-    setMessage("이 문장을 복습 목록에 저장했어요.");
   }
 
   async function completeWorkspace(next: "review" | "routine") {
-    await apiFetch("/api/learning/sessions/complete", { method: "POST", body: JSON.stringify({ content_id: content.id, activity_id: entry.activityId || null, entry_source: entry.entrySource, practiced_line_count: practiced.size, saved_expression_count: saved.size, retry_line_count: retry.size, missing_words: Array.from(missingWords) }) });
+    await apiFetch("/api/learning/sessions/complete", { method: "POST", body: JSON.stringify({ content_id: content.id, activity_id: entry.activityId || null, routine_item_id: entry.routineItemId || null, routine_snapshot: entry.routineSnapshot || null, entry_source: entry.entrySource, practiced_line_count: practiced.size, saved_expression_count: saved.size, retry_line_count: retry.size, missing_words: Array.from(missingWords) }) });
     await onRefresh();
     if (next === "review") onOpenReview(); else onNextRoutine();
   }
@@ -166,7 +172,7 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
         <div className="selected-line-meta"><p className="eyebrow">LINE {index + 1} / {content.segments.length} · {formatTime(selected.start_ms)}</p><button className="record-inline-button" onClick={() => setSpeechOpen(true)}><Mic size={16} /> 녹음</button></div>
         <h3 className="selectable-text">{selected.english_text}</h3>
         {showMeaning && <p className="selected-meaning">{savedMeaning || "등록된 번역이 없습니다."}</p>}
-        <div className="current-sentence-tools"><button onClick={() => setShowMeaning((value) => !value)}><Languages size={15} /> 번역 보기</button><button type="button" className={saved.has(selected.id) ? "saved" : ""} onClick={() => void saveExpression()}><Bookmark size={15} fill={saved.has(selected.id) ? "currentColor" : "none"} /> {saved.has(selected.id) ? "문장 저장됨" : "문장 저장"}</button><button onClick={() => void startLoop(index, true)}><Volume2 size={15} /> 느리게 듣기</button></div>
+        <div className="current-sentence-tools"><button onClick={() => setShowMeaning((value) => !value)}><Languages size={15} /> 번역 보기</button><button type="button" className={saved.has(selected.id) ? "saved" : ""} onClick={() => void saveExpression()} disabled={savingId === selected.id}>{savingId === selected.id ? <LoaderCircle className="spin" size={15} /> : <Bookmark size={15} fill={saved.has(selected.id) ? "currentColor" : "none"} />} {savingId === selected.id ? (saved.has(selected.id) ? "저장 취소 중…" : "저장 중…") : (saved.has(selected.id) ? "문장 저장됨" : "문장 저장")}</button><button onClick={() => void startLoop(index, true)}><Volume2 size={15} /> 느리게 듣기</button></div>
         {!isMobileDevice && <div className="sentence-swipe-nav"><button onClick={() => selectLine(index - 1, true, true)} disabled={index === 0}><ChevronLeft /></button><span>옆으로 넘겨 다음 문장</span><button onClick={() => selectLine(index + 1, true, true)} disabled={index === content.segments.length - 1}><ChevronRight /></button></div>}
         <div className="youtube-shadow-actions"><button className="primary-button" onClick={() => void startLoop()}><RotateCcw size={17} /> {repeatTarget}회 구간 반복</button><button className="icon-toggle" onClick={pauseResume} disabled={!source} aria-label={playing ? "일시정지" : "이어서 재생"}>{playing ? <Pause /> : <Play />}</button></div>
       </div>

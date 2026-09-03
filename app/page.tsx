@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, BookOpen, CalendarDays, CircleUserRound, Clapperboard, LoaderCircle, RefreshCw, WifiOff } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
-import type { TodayData, User } from "@/lib/types";
+import type { TodayData, TodayRoutineItem, User } from "@/lib/types";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import { TodayView } from "@/components/TodayView";
 import { LearningView, type LearningMode } from "@/components/LearningView";
@@ -62,16 +62,20 @@ function getInitialRoute() {
   const mode = params.get("mode");
   const entrySource = params.get("entrySource");
   const routineStep = params.get("routineStep");
+  const routineId = params.get("routineId");
+  const routineItemId = params.get("routineItemId");
   const contentId = params.get("contentId");
   const transcriptLineId = params.get("transcriptLineId");
   return {
     tab,
     mode: mode === "morning" || mode === "lunch" || mode === "evening" || mode === "library" || mode === "youtube" ? mode : null,
-    learningEntry: contentId && (entrySource === "today" || entrySource === "feed" || entrySource === "library" || entrySource === "direct") ? {
+    learningEntry: (contentId || routineItemId) && (entrySource === "today" || entrySource === "feed" || entrySource === "library" || entrySource === "review" || entrySource === "direct") ? {
       contentId,
       transcriptLineId,
       entrySource,
       routineStep: routineStep === "MORNING_COMMUTE" || routineStep === "LUNCH" || routineStep === "EVENING_COMMUTE" || routineStep === "NIGHT_VOICE" ? routineStep : null,
+      routineId,
+      routineItemId,
     } satisfies LearningSessionEntry : null,
   };
 }
@@ -249,21 +253,30 @@ export default function Home() {
     });
   };
 
-  const openLearning = (activity: Activity) => {
-    const mode: LearningMode = activity.slot === "MORNING_COMMUTE" ? "morning" : activity.slot === "EVENING_COMMUTE" ? "evening" : "lunch";
+  const openLearning = (target: Activity | TodayRoutineItem) => {
+    const activity = "slot" in target ? target : null;
+    const routineItem = "slot" in target ? null : target;
+    const mode: LearningMode = activity
+      ? activity.slot === "MORNING_COMMUTE" ? "morning" : activity.slot === "EVENING_COMMUTE" ? "evening" : "lunch"
+      : "youtube";
     setLearningMode(mode);
-    const content = activity.content;
-    setLearningEntry(content ? {
-      contentId: content.id,
-      transcriptLineId: content.segments[0]?.id || null,
+    const content = activity?.content || routineItem?.content || null;
+    setLearningEntry({
+      contentId: content?.id || null,
+      transcriptLineId: content?.segments[0]?.id || null,
       entrySource: "today",
-      routineStep: activity.slot,
-      activityId: activity.id,
-      youtubeUrl: content.source_type === "YOUTUBE" ? content.source_url : null,
-      title: content.title,
-      sourceLabel: "오늘 루틴",
+      routineStep: activity?.slot || null,
+      routineId: routineItem?.routine_id || activity?.routine_snapshot?.routine_id || null,
+      routineItemId: routineItem?.id || activity?.routine_item_id || null,
+      routineItemName: routineItem?.name || activity?.routine_snapshot?.name || null,
+      routineSnapshot: routineItem?.routine_snapshot || activity?.routine_snapshot || null,
+      routineConfig: routineItem?.config || activity?.routine_snapshot?.config || null,
+      activityId: activity?.id || routineItem?.activity_id || null,
+      youtubeUrl: content?.source_type === "YOUTUBE" ? content.source_url : null,
+      title: content?.title || routineItem?.name || "오늘 루틴",
+      sourceLabel: routineItem ? "오늘 루틴" : "오늘 루틴",
       content,
-    } : null);
+    });
     switchTab("learn");
   };
 

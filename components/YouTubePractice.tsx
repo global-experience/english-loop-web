@@ -226,6 +226,7 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   const [nextLineHint, setNextLineHint] = useState(false);
   const [practicedLines, setPracticedLines] = useState<Set<string>>(new Set());
   const [savedLines, setSavedLines] = useState<Set<string>>(new Set());
+  const [savingSegmentId, setSavingSegmentId] = useState<string | null>(null);
   const [retryLines, setRetryLines] = useState<Set<string>>(new Set());
   const [missingWords, setMissingWords] = useState<Set<string>>(new Set());
   const [sessionMessage, setSessionMessage] = useState("");
@@ -618,45 +619,50 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
 
   async function saveSelectedExpression() {
     const segment = transcript?.segments[selectedIndex];
-    if (!segment) return;
-    if (savedLines.has(segment.id)) {
-      try {
-        await apiFetch(`/api/review/saved-items/${segment.id}`, { method: "DELETE" });
-      } catch {
-        // Unsaving locally still updates UI if API fails
+    if (!segment || savingSegmentId === segment.id) return;
+    setSavingSegmentId(segment.id);
+    try {
+      if (savedLines.has(segment.id)) {
+        try {
+          await apiFetch(`/api/review/saved-items/${segment.id}`, { method: "DELETE" });
+        } catch {
+          // Unsaving locally still updates UI if API fails
+        }
+        setSavedLines((current) => {
+          const next = new Set(current);
+          next.delete(segment.id);
+          return next;
+        });
+        setSessionMessage("복습 목록에서 문장 저장을 취소했어요.");
+        return;
       }
-      setSavedLines((current) => {
-        const next = new Set(current);
-        next.delete(segment.id);
-        return next;
+      let translation = segment.translation || "복습할 문장";
+      if (!segment.translation) {
+        try {
+          const result = await apiFetch<TranslationResponse>(`/api/v1/transcript/segments/${segment.id}/translate`, { method: "POST", body: JSON.stringify({ video_id: videoId }) });
+          translation = result.translation;
+        } catch {
+          // Saving the English sentence must still work when translation is temporarily unavailable.
+        }
+      }
+      await apiFetch("/api/expressions", {
+        method: "POST",
+        body: JSON.stringify({
+          canonical_text: segment.text,
+          korean_meaning: translation,
+          example_sentence: segment.text,
+          category: "YOUTUBE_VOCAB",
+          level: entry.content?.level || "B1",
+          tags: ["youtube", videoId, `content:${entry.contentId || videoId}`, `transcript:${segment.id}`],
+          source_content_id: entry.contentId || videoId,
+          source_transcript_line_id: segment.id,
+        }),
       });
-      setSessionMessage("복습 목록에서 문장 저장을 취소했어요.");
-      return;
+      setSavedLines((current) => new Set(current).add(segment.id));
+      setSessionMessage("선택한 문장을 영상과 자막 위치에 연결해 복습 목록에 저장했어요.");
+    } finally {
+      setSavingSegmentId(null);
     }
-    let translation = segment.translation || "복습할 문장";
-    if (!segment.translation) {
-      try {
-        const result = await apiFetch<TranslationResponse>(`/api/v1/transcript/segments/${segment.id}/translate`, { method: "POST", body: JSON.stringify({ video_id: videoId }) });
-        translation = result.translation;
-      } catch {
-        // Saving the English sentence must still work when translation is temporarily unavailable.
-      }
-    }
-    await apiFetch("/api/expressions", {
-      method: "POST",
-      body: JSON.stringify({
-        canonical_text: segment.text,
-        korean_meaning: translation,
-        example_sentence: segment.text,
-        category: "YOUTUBE_VOCAB",
-        level: entry.content?.level || "B1",
-        tags: ["youtube", videoId, `content:${entry.contentId || videoId}`, `transcript:${segment.id}`],
-        source_content_id: entry.contentId || videoId,
-        source_transcript_line_id: segment.id,
-      }),
-    });
-    setSavedLines((current) => new Set(current).add(segment.id));
-    setSessionMessage("선택한 문장을 영상과 자막 위치에 연결해 복습 목록에 저장했어요.");
   }
 
   function panelPosition(event?: ReactMouseEvent<HTMLElement>) {
@@ -774,6 +780,8 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
         body: JSON.stringify({
           content_id: entry.contentId,
           activity_id: entry.activityId || null,
+          routine_item_id: entry.routineItemId || null,
+          routine_snapshot: entry.routineSnapshot || null,
           entry_source: entry.entrySource,
           practiced_line_count: completionSummary.practiced,
           saved_expression_count: completionSummary.saved,
@@ -938,9 +946,16 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
                   type="button"
                   className={savedLines.has(selected.id) ? "saved" : ""}
                   onClick={() => void saveSelectedExpression()}
+                  disabled={savingSegmentId === selected.id}
                 >
-                  <Bookmark size={15} fill={savedLines.has(selected.id) ? "currentColor" : "none"} />{" "}
-                  {savedLines.has(selected.id) ? "문장 저장됨" : "문장 저장"}
+                  {savingSegmentId === selected.id ? (
+                    <LoaderCircle className="spin" size={15} />
+                  ) : (
+                    <Bookmark size={15} fill={savedLines.has(selected.id) ? "currentColor" : "none"} />
+                  )}{" "}
+                  {savingSegmentId === selected.id
+                    ? savedLines.has(selected.id) ? "저장 취소 중…" : "저장 중…"
+                    : savedLines.has(selected.id) ? "문장 저장됨" : "문장 저장"}
                 </button>
                 {/* <button type="button" onClick={() => { setStoreState({ playbackRate: Math.min(playbackRate, 0.75) }); window.setTimeout(() => startLoop(), 0); }}><Volume2 size={15} /> 느리게 듣기</button> */}
                 <button type="button" onClick={() => setShowTranscriptText((value) => !value)}>{showTranscriptText ? <EyeOff size={15} /> : <Eye size={15} />} 자막 {showTranscriptText ? "숨기기" : "보기"}</button>

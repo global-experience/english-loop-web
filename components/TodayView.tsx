@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import type { Activity, FeedVideo, TodayData, User } from "@/lib/types";
+import type { Activity, FeedVideo, TodayData, TodayRoutineItem, User } from "@/lib/types";
 import {
   fetchCoachHint,
   fetchRecommendedVideos,
@@ -34,7 +34,7 @@ type Props = {
   today: TodayData;
   user: User;
   refresh: () => Promise<void>;
-  openLearning: (activity: Activity) => void;
+  openLearning: (target: Activity | TodayRoutineItem) => void;
   /** Jump to the feed tab with this video selected. */
   openFeedVideo?: (video: FeedVideo) => void;
   /** Jump to the review tab's today queue. */
@@ -51,7 +51,8 @@ type Props = {
 export function TodayView({ today, user, refresh, openLearning, openFeedVideo, openReview }: Props) {
   const plan = today.plan;
   const activities = useMemo(() => plan?.activities || [], [plan]);
-  const focus = useMemo(() => resolveTodayFocus(activities), [activities]);
+  const routineItems = useMemo(() => today.routine?.today_items || [], [today.routine?.today_items]);
+  const focus = useMemo(() => resolveTodayFocus(activities, new Date(), routineItems), [activities, routineItems]);
   // An unmapped status would throw while destructuring and take the whole tab down.
   const [sessionLabel, sessionDetail] =
     sessionCopy[today.coach_session?.status as keyof typeof sessionCopy] ?? sessionCopy.NOT_STARTED;
@@ -62,7 +63,7 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
   const [creatingPlan, setCreatingPlan] = useState(false);
   const [planError, setPlanError] = useState("");
 
-  const noPlan = !plan;
+  const noPlan = !plan && routineItems.length === 0;
 
   /**
    * Build today's routine on demand. A plan is otherwise only created when the account
@@ -116,13 +117,17 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
     void loadCoach();
   }, [loadVideos, loadReview, loadCoach]);
 
-  const openRoutine = useCallback((slot: RoutineSlot) => {
-    if (stepOpensCoach(slot)) {
+  const openRoutine = useCallback((target: RoutineSlot | TodayRoutineItem) => {
+    if (stepOpensCoach(target)) {
       openCoach();
       return;
     }
-    const activity = activities.find((item) => item.slot === slot);
-    if (activity) openLearning(activity);
+    if (typeof target === "string") {
+      const activity = activities.find((item) => item.slot === target);
+      if (activity) openLearning(activity);
+      return;
+    }
+    openLearning(target);
   }, [activities, openLearning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCoach() {
@@ -146,7 +151,10 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
       <TodaySummary
         today={today}
         focus={focus}
-        onStart={() => focus.step && openRoutine(focus.step.slot)}
+        onStart={() => {
+          if (focus.routineItem) openRoutine(focus.routineItem);
+          else if (focus.step) openRoutine(focus.step.slot);
+        }}
         noPlan={noPlan}
         creatingPlan={creatingPlan}
         onCreatePlan={() => void createPlan()}
@@ -189,14 +197,14 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
         <section className="today-section" aria-label="오늘의 루틴">
           <div className="section-heading">
             <div><p className="eyebrow">YOUR DAY</p><h2>오늘의 루틴</h2></div>
-            <span>4단계</span>
+            <span>기본 루틴</span>
           </div>
           <p className="muted-copy today-empty-line">
             오늘 루틴을 만들면 출근 듣기 · 점심 말하기 · 퇴근 자막 없이 말하기 · 밤 음성 대화 4단계가 열립니다.
           </p>
         </section>
       ) : (
-        <TodayRoutine activities={activities} states={focus.states} onOpen={openRoutine} />
+        <TodayRoutine activities={activities} routineItems={routineItems} states={focus.states} onOpen={openRoutine} />
       )}
 
       <CoachHint

@@ -1,6 +1,6 @@
-import type { Content } from "@/lib/types";
+import type { Content, RoutineItemConfig, RoutineSnapshot } from "@/lib/types";
 
-export type LearningEntrySource = "today" | "feed" | "library" | "direct";
+export type LearningEntrySource = "today" | "feed" | "library" | "review" | "direct";
 export type RoutineStep = "MORNING_COMMUTE" | "LUNCH" | "EVENING_COMMUTE" | "NIGHT_VOICE";
 
 export type LearningSessionEntry = {
@@ -8,6 +8,11 @@ export type LearningSessionEntry = {
   transcriptLineId?: string | null;
   entrySource: LearningEntrySource;
   routineStep?: RoutineStep | null;
+  routineId?: string | null;
+  routineItemId?: string | null;
+  routineItemName?: string | null;
+  routineSnapshot?: RoutineSnapshot | null;
+  routineConfig?: RoutineItemConfig | null;
   activityId?: string | null;
   youtubeUrl?: string | null;
   title?: string | null;
@@ -344,6 +349,15 @@ export function routineLabel(step?: RoutineStep | null) {
   if (step === "EVENING_COMMUTE") return "퇴근 프리셋";
   if (step === "NIGHT_VOICE") return "밤 대화 프리셋";
   return "자율 학습";
+}
+
+export function learningPresetsFromConfig(config?: RoutineItemConfig | null): LearningPresetOptions {
+  const repeatOptions = config?.repeatOptions?.length ? config.repeatOptions.slice(0, 3) : DEFAULT_LEARNING_PRESETS.repeats;
+  const speedOptions = config?.speedOptions?.length ? config.speedOptions.slice(0, 3) : DEFAULT_LEARNING_PRESETS.speeds;
+  return {
+    repeats: repeatOptions as [number, number, number],
+    speeds: speedOptions as [number, number, number],
+  };
 }
 
 

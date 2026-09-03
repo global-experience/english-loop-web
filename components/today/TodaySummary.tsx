@@ -3,6 +3,7 @@
 import { CalendarPlus, ExternalLink, LoaderCircle, Play, Sparkles, Target, Timer } from "lucide-react";
 import type { TodayData } from "@/lib/types";
 import { dateLabelInSeoul, stepOpensCoach, targetExpressionCount, type TodayFocus } from "@/lib/todayPlan";
+import { ACTIVITY_LABELS } from "@/lib/routines";
 
 /**
  * The one card at the top of the Today tab. It answers "what now?" and nothing else:
@@ -27,8 +28,14 @@ export function TodaySummary({
 }) {
   const dateLabel = dateLabelInSeoul(today.study_date);
   const expressionCount = targetExpressionCount(today);
-  const opensCoach = stepOpensCoach(focus.step?.slot);
+  const activeTarget = focus.routineItem || focus.step;
+  const opensCoach = stepOpensCoach(activeTarget);
   const minutes = Math.max(1, focus.estimatedMinutes || focus.remainingMinutes || 1);
+  const focusLabel = activeTarget ? ("label" in activeTarget ? activeTarget.label : activeTarget.name) : "";
+  const focusGuidance = activeTarget
+    ? ("guidance" in activeTarget ? activeTarget.guidance : `${ACTIVITY_LABELS[activeTarget.activity_type]} 루틴을 지금 시작할 수 있어요.`)
+    : "";
+  const totalCount = focus.routineItems.length || 4;
 
   return (
     <section className="today-summary" aria-label="오늘 요약">
@@ -50,7 +57,7 @@ export function TodaySummary({
           <h2>오늘 루틴이<br /><em>아직 없어요</em></h2>
           <p>4단계 루틴을 만들면 지금 시간대에 맞는 단계부터 바로 시작할 수 있어요. 아래 추천 영상과 복습은 지금도 쓸 수 있습니다.</p>
         </div>
-      ) : focus.allDone || !focus.step ? (
+      ) : focus.allDone || !activeTarget ? (
         <div className="today-summary-copy">
           <p className="eyebrow">TODAY&apos;S ROUTINE</p>
           <h2>오늘 루틴을<br /><em>모두 마쳤어요</em></h2>
@@ -58,9 +65,9 @@ export function TodaySummary({
         </div>
       ) : (
         <div className="today-summary-copy">
-          <p className="eyebrow">NOW · {focus.step.label}</p>
-          <h2>지금은<br /><em>{focus.step.label}</em></h2>
-          <p>{focus.step.guidance}</p>
+          <p className="eyebrow">NOW · {focusLabel}</p>
+          <h2>지금은<br /><em>{focusLabel}</em></h2>
+          <p>{focusGuidance}</p>
         </div>
       )}
 
@@ -75,7 +82,7 @@ export function TodaySummary({
         </div>
         <div>
           <dt><Sparkles size={13} /> 완료 단계</dt>
-          <dd>{noPlan ? "0/4" : `${focus.completedCount}/4`}</dd>
+          <dd>{noPlan ? `0/${totalCount}` : `${focus.completedCount}/${totalCount}`}</dd>
         </div>
       </dl>
 

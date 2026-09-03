@@ -2,11 +2,12 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { BookOpen, Clock3, FolderOpen, Link2, LoaderCircle, Play, Plus, X, Youtube } from "lucide-react";
+import { BookOpen, CalendarClock, Clock3, FolderOpen, Link2, LoaderCircle, Play, Plus, X, Youtube } from "lucide-react";
 import type { Content, TodayData } from "@/lib/types";
 import {
   readLearningPresets,
   readRecentLearningEntry,
+  learningPresetsFromConfig,
   routineLabel,
   saveRecentLearningEntry,
   type LearningSessionEntry,
@@ -16,6 +17,7 @@ import { youtubeStore } from "@/lib/youtubeStore";
 import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 import { YouTubePractice } from "./YouTubePractice";
 import { DirectContentPractice } from "./DirectContentPractice";
+import { RoutineManagerView } from "./RoutineManagerView";
 
 export type LearningMode = "morning" | "lunch" | "evening" | "library" | "youtube";
 
@@ -30,8 +32,9 @@ type Props = {
 
 export function LearningView({ today, entry, setEntry, refresh, openReview, openNextRoutine }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [routineManagerOpen, setRoutineManagerOpen] = useState(false);
   const [recent, setRecent] = useState<LearningSessionEntry | null>(null);
-  const presets = readLearningPresets();
+  const presets = entry?.routineConfig ? learningPresetsFromConfig(entry.routineConfig) : readLearningPresets();
 
   useEffect(() => setRecent(readRecentLearningEntry()), []);
   useEffect(() => {
@@ -52,23 +55,36 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
     setEntry(null);
   };
 
+  if (routineManagerOpen) {
+    return <RoutineManagerView onBack={() => setRoutineManagerOpen(false)} />;
+  }
+
   return (
     <div className="learning-workspace-shell">
-      {!entry && (
+      <div className="learning-workspace-tools">
+        <button type="button" className="secondary-button" onClick={() => setRoutineManagerOpen(true)}>
+          <CalendarClock size={17} /> 학습 루틴 관리
+        </button>
+      </div>
+      {(!entry || (!entry.content && !entry.youtubeUrl)) && (
         <section className="learning-launchpad">
           <div className="learning-launch-copy">
             <span className="learning-launch-icon"><BookOpen /></span>
             <p className="eyebrow">LEARNING WORKSPACE</p>
-            <h2>무엇을 연습할까요?</h2>
+            <h2>{entry?.routineItemName ? `${entry.routineItemName}에 사용할 콘텐츠` : "무엇을 연습할까요?"}</h2>
             <p>콘텐츠를 선택하면 영상과 현재 문장, 말하기 연습, 전체 자막이 하나의 세션으로 열립니다.</p>
           </div>
           <button className="primary-button learning-pick-primary" onClick={() => setPickerOpen(true)}>
             <Plus size={18} /> 콘텐츠 선택
           </button>
+          <button className="routine-entry-card" onClick={() => setRoutineManagerOpen(true)}>
+            <span><CalendarClock size={20} /></span>
+            <div><small>내 시간표 바꾸기</small><strong>학습 루틴 관리</strong><em>평일·주말 루틴, 알림, 반복 설정</em></div>
+          </button>
           {recent && (
             <button className="recent-learning-card" onClick={() => setEntry(recent)}>
               <span><Clock3 size={18} /></span>
-              <div><small>최근 학습 이어하기</small><strong>{recent.title || "이전 콘텐츠"}</strong><em>{routineLabel(recent.routineStep)}</em></div>
+              <div><small>최근 학습 이어하기</small><strong>{recent.title || "이전 콘텐츠"}</strong><em>{recent.routineItemName || routineLabel(recent.routineStep)}</em></div>
               <Play size={18} fill="currentColor" />
             </button>
           )}
@@ -107,7 +123,7 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
           today={today}
           onClose={() => setPickerOpen(false)}
           onSelect={(nextEntry) => {
-            setEntry(nextEntry);
+            setEntry(entry?.routineItemId ? { ...nextEntry, routineId: entry.routineId, routineItemId: entry.routineItemId, routineItemName: entry.routineItemName, routineSnapshot: entry.routineSnapshot, routineConfig: entry.routineConfig, activityId: entry.activityId, entrySource: entry.entrySource } : nextEntry);
             setPickerOpen(false);
           }}
         />
@@ -186,4 +202,3 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
     document.body
   );
 }
-
