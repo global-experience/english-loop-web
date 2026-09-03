@@ -220,6 +220,7 @@ export function ContentRecordsPanel({
               <button
                 type="button"
                 className="secondary-button"
+                style={{ border: "1px solid #ffffffb3" }}
                 onClick={() => setDeleteTarget(null)}
                 disabled={Boolean(deletingId)}
               >

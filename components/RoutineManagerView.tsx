@@ -331,12 +331,12 @@ export function RoutineManagerView({ onBack }: Props) {
         </div>
       </header>
 
-      {message && (
+      {/* {message && (
         <p className="routine-board-message" role="status">
           {orderSaving && <LoaderCircle size={14} className="spin" style={{ display: "inline-block", marginRight: "6px", verticalAlign: "middle" }} />}
           {message}
         </p>
-      )}
+      )} */}
 
       {!routines && !message && <p className="routine-board-empty">루틴을 불러오는 중입니다…</p>}
 

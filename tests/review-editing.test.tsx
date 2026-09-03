@@ -193,9 +193,9 @@ describe("Deleting review content", () => {
     fireEvent.click(within(row).getByRole("button", { name: "keeping it simple 삭제" }));
     // Nothing is deleted until the second, explicit press.
     expect(calls.some((call) => call.method === "DELETE")).toBe(false);
-    expect(within(row).getByText("이 항목을 삭제할까요?")).toBeInTheDocument();
+    expect(screen.getByText("이 항목을 삭제할까요?")).toBeInTheDocument();
 
-    fireEvent.click(within(row).getByRole("button", { name: /^삭제$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^삭제$/ }));
     await waitFor(() => {
       const remove = calls.find((call) => call.method === "DELETE");
       expect(remove!.path).toBe("/api/review/saved-items/progress-1");
@@ -210,7 +210,7 @@ describe("Deleting review content", () => {
     const row = await openLibrary();
 
     fireEvent.click(within(row).getByRole("button", { name: "keeping it simple 삭제" }));
-    fireEvent.click(within(row).getByRole("button", { name: /취소/ }));
+    fireEvent.click(screen.getByRole("button", { name: /취소/ }));
 
     expect(calls.some((call) => call.method === "DELETE")).toBe(false);
     expect(within(row).getByRole("button", { name: "keeping it simple 삭제" })).toBeInTheDocument();
@@ -234,7 +234,7 @@ describe("Deleting review content", () => {
       return node as HTMLElement;
     }));
     fireEvent.click(within(card).getByRole("button", { name: /녹음 삭제/ }));
-    fireEvent.click(within(card).getByRole("button", { name: /^삭제$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^삭제$/ }));
 
     await waitFor(() => {
       const remove = calls.find((call) => call.method === "DELETE");
@@ -261,8 +261,8 @@ describe("Deleting review content", () => {
       return node as HTMLElement;
     }));
     fireEvent.click(within(card).getByRole("button", { name: /찜 해제/ }));
-    expect(within(card).getByText("찜을 해제할까요? 학습 기록은 남습니다.")).toBeInTheDocument();
-    fireEvent.click(within(card).getByRole("button", { name: /^삭제$/ }));
+    expect(screen.getByText("찜을 해제할까요? 학습 기록은 남습니다.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^삭제$/ }));
 
     await waitFor(() => {
       const remove = calls.find((call) => call.method === "DELETE");
@@ -286,7 +286,7 @@ describe("Deleting review content", () => {
     expect(within(row).getByRole("button", { name: "keeping it simple 수정" })).toBeInTheDocument();
 
     fireEvent.click(within(row).getByRole("button", { name: "keeping it simple 삭제" }));
-    fireEvent.click(within(row).getByRole("button", { name: /^삭제$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^삭제$/ }));
 
     await waitFor(() => expect(calls.some((call) => call.method === "DELETE")).toBe(true));
     // The 표현 tab count drops with the row.

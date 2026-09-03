@@ -320,8 +320,13 @@
   font-weight: 600;
 }
 
-.review-grades button:nth-child(1) { border-color: #7d4438; }
-.review-grades button:nth-child(4) { border-color: #5c6f2c; }
+.review-grades button:nth-child(1) {
+  border-color: #7d4438;
+}
+
+.review-grades button:nth-child(4) {
+  border-color: #5c6f2c;
+}
 
 /* ── list mode ───────────────────────────────────────────────────────── */
 .review-list-mode {
@@ -904,9 +909,17 @@
   color: var(--muted);
 }
 
-.recording-score.good { background: #e3efc0; }
-.recording-score.warn { background: #f6e6bd; }
-.recording-score.bad { background: #f6d5cd; }
+.recording-score.good {
+  background: #e3efc0;
+}
+
+.recording-score.warn {
+  background: #f6e6bd;
+}
+
+.recording-score.bad {
+  background: #f6d5cd;
+}
 
 .recording-compare {
   display: grid;
@@ -1116,6 +1129,7 @@
 }
 
 @media (max-width: 390px) {
+
   .review-tab-switch button,
   .content-detail-tabs button {
     font-size: 10px;
