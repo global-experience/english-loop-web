@@ -22,6 +22,8 @@ type FeedPlayer = {
   unMute: () => void;
   isMuted: () => boolean;
   destroy: () => void;
+  getPlayerState?: () => number;
+  getDuration?: () => number;
 };
 
 function durationLabel(seconds: number) {
@@ -30,6 +32,26 @@ function durationLabel(seconds: number) {
 }
 
 const GESTURES = ["touchend", "click", "keydown", "touchstart", "pointerdown"] as const;
+
+/**
+ * 스크롤이 이만큼 멈춘 뒤에만 임베드를 생성한다.
+ * 스와이프로 지나가는 영상까지 플레이어를 만들면 한 IP에서 몇 초 만에 수십 개의 재생
+ * 세션이 열리고, YouTube가 이를 자동화로 판정해 "로그인하여 봇이 아님을 확인하세요"
+ * 화면을 띄운다. 실제로 머무른 영상만 로드해 사람과 같은 요청 패턴을 유지한다.
+ */
+const PLAY_SETTLE_MS = 450;
+
+/** onReady 이후 이 시간 안에 재생도 메타데이터 로드도 확인되지 않으면 차단으로 판정한다. */
+const PLAYBACK_WATCHDOG_MS = 5000;
+
+const YT_STATE_PLAYING = 1;
+const YT_STATE_BUFFERING = 3;
+
+function openOnYouTube(ytVideoId: string) {
+  // 네이티브 앱에서는 유니버설 링크가 YouTube 앱으로 넘겨준다.
+  // 앱에는 이미 로그인되어 있으므로 봇 확인 화면을 만나지 않는다.
+  window.open(`https://www.youtube.com/watch?v=${ytVideoId}`, "_blank", "noopener,noreferrer");
+}
 
 function isNativeApp() {
   if (typeof window === "undefined") return false;
@@ -52,6 +74,10 @@ export function FeedView({
   const [items, setItems] = useState<FeedVideo[]>([]);
   const itemsRef = useRef<FeedVideo[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
+  /** 실제로 임베드를 붙일 인덱스. activeIndex가 PLAY_SETTLE_MS 동안 유지될 때만 승격된다. */
+  const [playIndex, setPlayIndex] = useState(0);
+  /** 봇 확인 화면 등으로 임베드 재생이 불가능하다고 판정된 YouTube 영상 ID. */
+  const [blockedVideoIds, setBlockedVideoIds] = useState<string[]>([]);
   const [isMuted, setIsMuted] = useState(() =>
     shouldStartFeedMuted({
       native: isNativeApp(),
@@ -75,6 +101,7 @@ export function FeedView({
   const playerHostRef = useRef<HTMLDivElement>(null);
   const currentVideoIdRef = useRef<string | null>(null);
   const activeTabRef = useRef(active);
+  const watchdogRef = useRef<number | null>(null);
 
   const pausePlayer = useCallback((hardStop = false) => {
     const player = playerRef.current;
@@ -125,11 +152,40 @@ export function FeedView({
     };
   }, []);
 
-  // ── Create / destroy YT.Player when activeIndex or apiReady changes ──
+  const clearWatchdog = useCallback(() => {
+    if (watchdogRef.current !== null) {
+      window.clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+  }, []);
+
+  /** 임베드로는 볼 수 없는 영상으로 표시하고 플레이어를 정리한다. */
+  const markBlocked = useCallback((ytVideoId: string) => {
+    clearWatchdog();
+    try { playerRef.current?.destroy(); } catch { /* ignore */ }
+    playerRef.current = null;
+    currentVideoIdRef.current = null;
+    setBlockedVideoIds((current) => current.includes(ytVideoId) ? current : [...current, ytVideoId]);
+  }, [clearWatchdog]);
+
+  const retryVideo = useCallback((ytVideoId: string) => {
+    setBlockedVideoIds((current) => current.filter((id) => id !== ytVideoId));
+  }, []);
+
+  // ── Promote activeIndex → playIndex only once scrolling has settled ──
+  // 넘기는 중에는 임베드를 만들지 않는다. 이것이 봇 판정을 유발하는 요청 폭주를 막는 핵심.
+  useEffect(() => {
+    if (playIndex === activeIndex) return;
+    const timer = window.setTimeout(() => setPlayIndex(activeIndex), PLAY_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, playIndex]);
+
+  // ── Create / destroy YT.Player when playIndex or apiReady changes ──
   useEffect(() => {
     activeTabRef.current = active;
-    const video = items[activeIndex];
-    if (!active || !apiReady || !window.YT?.Player || !video) {
+    const video = items[playIndex];
+    const blocked = video ? blockedVideoIds.includes(video.youtube_video_id) : false;
+    if (!active || !apiReady || !window.YT?.Player || !video || blocked) {
       if (!active) pausePlayer(true);
       return;
     }
@@ -141,6 +197,7 @@ export function FeedView({
     if (currentVideoIdRef.current === ytVideoId && playerRef.current) return;
 
     // Destroy previous player
+    clearWatchdog();
     try { playerRef.current?.destroy(); } catch { /* ignore */ }
     playerRef.current = null;
     currentVideoIdRef.current = null;
@@ -160,7 +217,9 @@ export function FeedView({
 
     const player = new window.YT.Player(target, {
       videoId: ytVideoId,
-      host: "https://www.youtube-nocookie.com",
+      // host 미지정 → 기본 www.youtube.com 임베드를 사용한다.
+      // youtube-nocookie.com은 쿠키를 전달하지 않는 도메인이라 로그인 세션이 임베드에
+      // 붙지 않고, 항상 익명 클라이언트로 요청되어 봇 확인 화면에 걸린다.
       playerVars: {
         autoplay: 1,
         mute: shouldMute ? 1 : 0,
@@ -181,17 +240,40 @@ export function FeedView({
             if (activeTabRef.current) player.playVideo();
             else pausePlayer(true);
           } catch { /* ignore */ }
+
+          // 봇 확인 화면이 뜨면 onError가 오지 않는다. 플레이어는 "정상" 로드되고 화면만
+          // 바뀌기 때문에, 재생이 시작되지도 않고 메타데이터(duration)도 없는 상태를 차단으로
+          // 판정한다. 브라우저 자동재생 정책 때문에 멈춘 경우에는 duration이 정상적으로
+          // 잡히므로 두 상황이 구분된다.
+          watchdogRef.current = window.setTimeout(() => {
+            watchdogRef.current = null;
+            let state = -1;
+            let duration = 0;
+            try {
+              state = player.getPlayerState?.() ?? -1;
+              duration = player.getDuration?.() ?? 0;
+            } catch { /* ignore */ }
+            const started = state === YT_STATE_PLAYING || state === YT_STATE_BUFFERING;
+            if (!started && duration <= 0) markBlocked(ytVideoId);
+          }, PLAYBACK_WATCHDOG_MS);
         },
+        onStateChange: (event: { data: number }) => {
+          if (event.data === YT_STATE_PLAYING || event.data === YT_STATE_BUFFERING) clearWatchdog();
+        },
+        // 2: 잘못된 파라미터, 5: HTML5 재생 오류, 100: 삭제/비공개, 101·150: 임베드 차단
+        onError: () => markBlocked(ytVideoId),
       },
     }) as unknown as FeedPlayer;
 
     playerRef.current = player;
 
     return () => {
-      // Cleanup only if this effect re-runs (activeIndex changed)
+      // Cleanup only if this effect re-runs (playIndex changed)
       // The destroy happens at the top of the next effect run
     };
-  }, [active, apiReady, activeIndex, items, pausePlayer]);
+  }, [active, apiReady, playIndex, items, pausePlayer, blockedVideoIds, clearWatchdog, markBlocked]);
+
+  useEffect(() => clearWatchdog, [clearWatchdog]);
 
   // ── Sync mute state to player when user toggles ──
   useEffect(() => {
@@ -436,14 +518,29 @@ export function FeedView({
       <div className="feed-container">
         <div className="feed-stream" ref={streamRef} tabIndex={0} aria-label="영어 영상 피드. 위아래로 스크롤해 영상을 넘기세요.">
           {items.map((video, index) => {
-            const active = index === activeIndex;
             const saved = video.saved_status === "READY" || video.saved_status === "PROCESSING";
+            const blocked = blockedVideoIds.includes(video.youtube_video_id);
+            const showPlayer = index === playIndex && !blocked;
             return <article className="feed-card" key={video.id} data-feed-index={index}>
               <div className="feed-media">
-                {active
+                {showPlayer
                   ? <div className="feed-player-host" ref={playerHostRef} />
                   : <><img src={video.thumbnail_url} alt="" /><span className="feed-play"><Play fill="currentColor" /></span></>
                 }
+                {blocked && index === playIndex && (
+                  <div className="feed-blocked" role="status">
+                    <CircleAlert size={22} />
+                    <p>여기서는 이 영상을 재생할 수 없어요.<br />YouTube에서 열면 바로 볼 수 있습니다.</p>
+                    <div className="feed-blocked-actions">
+                      <button type="button" className="feed-blocked-open" onClick={() => openOnYouTube(video.youtube_video_id)}>
+                        YouTube에서 열기
+                      </button>
+                      <button type="button" className="feed-blocked-retry" onClick={() => retryVideo(video.youtube_video_id)}>
+                        다시 시도
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <button
                   type="button"
                   className="feed-sound-toggle"

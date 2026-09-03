@@ -131,7 +131,9 @@ export function SubtitlePlayerSheet({
 
     const player = new YT.Player(container, {
       videoId,
-      host: "https://www.youtube-nocookie.com",
+      // host 미지정 → 기본 www.youtube.com 임베드를 사용한다.
+      // youtube-nocookie.com은 쿠키를 전달하지 않는 도메인이라 로그인 세션이 임베드에
+      // 붙지 않고, 항상 익명 클라이언트로 요청되어 봇 확인 화면에 걸린다.
       playerVars: {
         autoplay: 1,
         controls: 0,

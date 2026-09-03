@@ -84,7 +84,11 @@ declare global {
           videoId: string;
           host?: string;
           playerVars?: Record<string, number | string>;
-          events?: { onReady?: () => void };
+          events?: {
+            onReady?: () => void;
+            onStateChange?: (event: { data: number }) => void;
+            onError?: (event: { data: number }) => void;
+          };
         },
       ) => YouTubePlayer;
     };
@@ -454,7 +458,9 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     if (!apiReady || !window.YT?.Player || !playerHostRef.current || playerRef.current) return;
     playerRef.current = new window.YT.Player(playerHostRef.current, {
       videoId: latestVideoIdRef.current,
-      host: "https://www.youtube-nocookie.com",
+      // host 미지정 → 기본 www.youtube.com 임베드를 사용한다.
+      // youtube-nocookie.com은 쿠키를 전달하지 않는 도메인이라 로그인 세션이 임베드에
+      // 붙지 않고, 항상 익명 클라이언트로 요청되어 봇 확인 화면에 걸린다.
       // controls: 0: 구간 반복(시작 지점 이동) 시 유튜브 재생 버튼, 자막 버튼, 상단/하단 UI가 자동으로 팝업되는 현상을 완전히 제거
       // cc_load_policy: 0 / iv_load_policy: 3: 플레이어 내부 자막 및 안내 레이어 비활성화 (웹 앱 자체 자막 리스트 사용)
       // modestbranding: 1 / rel: 0: 유튜브 로고 및 추천 영상 노출 최소화
