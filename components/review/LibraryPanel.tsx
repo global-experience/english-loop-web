@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Bookmark, Clapperboard, Filter, Mic, Play, Quote, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bookmark, Clapperboard, Filter, LoaderCircle, Mic, Play, Quote, Search, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import {
   durationLabel,
@@ -11,6 +11,7 @@ import {
   type SavedVideoRecord,
   type SpeechAttemptRecord,
 } from "@/lib/reviewTypes";
+import { useInfiniteLibraryQuery, useInvalidateReviewQueries } from "@/lib/useReviewQuery";
 import { SubtitlePlayerSheet, type SubtitlePlayerTarget } from "@/components/SubtitlePlayerSheet";
 import { RecordingCard } from "./RecordingCard";
 import { SavedItemCard } from "./SavedItemCard";
@@ -31,7 +32,9 @@ const SORTS = [
   { key: "stage", label: "학습 단계" },
 ];
 
-export function LibraryPanel({
+import { SafeQueryClientProvider } from "@/app/providers";
+
+function LibraryPanelInner({
   active,
   openLearning,
 }: {
@@ -44,55 +47,83 @@ export function LibraryPanel({
   const [source, setSource] = useState("");
   const [level, setLevel] = useState("");
   const [sort, setSort] = useState("recent");
-  const [data, setData] = useState<LibraryResponse | null>(null);
   const [removingVideoId, setRemovingVideoId] = useState("");
   const [actionError, setActionError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [playerTarget, setPlayerTarget] = useState<SubtitlePlayerTarget | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({ kind, sort });
-      if (query.trim()) params.set("search", query.trim());
-      if (source) params.set("source", source);
-      if (level) params.set("level", level);
-      setData(await apiFetch<LibraryResponse>(`/api/review/library?${params.toString()}`));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "보관함을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+  } = useInfiniteLibraryQuery({
+    kind,
+    search: query,
+    source,
+    level,
+    sort,
+    active,
+  });
+
+  const { invalidateLibrary } = useInvalidateReviewQueries();
+
+  const rawItems = useMemo(() => {
+    if (!data?.pages) return [] as Array<SavedItem | SavedVideoRecord | SpeechAttemptRecord>;
+    const list: Array<SavedItem | SavedVideoRecord | SpeechAttemptRecord> = [];
+    for (const page of data.pages) {
+      if (Array.isArray(page.items)) {
+        for (const item of page.items) {
+          list.push(item);
+        }
+      }
     }
-  }, [kind, level, query, sort, source]);
+    return list;
+  }, [data]);
+
+  const [items, setItems] = useState<Array<SavedItem | SavedVideoRecord | SpeechAttemptRecord>>([]);
 
   useEffect(() => {
-    if (!active) return;
-    void load();
-  }, [active, load]);
+    setItems(rawItems);
+  }, [rawItems]);
 
-  const replaceItem = useCallback((next: SavedItem) => {
-    setData((current) => current && ({
-      ...current,
-      items: (current.items as SavedItem[]).map((row) =>
-        row.expression_progress_id === next.expression_progress_id ? next : row
-      ),
-    }));
-  }, []);
+  const replaceItem = useCallback(
+    (next: SavedItem) => {
+      setItems((current) =>
+        (current as SavedItem[]).map((row) =>
+          (row as SavedItem).expression_progress_id === next.expression_progress_id ? next : row
+        )
+      );
+    },
+    []
+  );
 
-  const dropItem = useCallback((matches: (row: SavedItem | SavedVideoRecord | SpeechAttemptRecord) => boolean, countKey?: "words" | "sentences") => {
-    setData((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        items: (current.items as Array<SavedItem | SavedVideoRecord | SpeechAttemptRecord>).filter((row) => !matches(row)) as typeof current.items,
-        counts: countKey
-          ? { ...current.counts, [countKey]: Math.max(0, current.counts[countKey] - 1) }
-          : current.counts,
-      };
-    });
-  }, []);
+  const dropItem = useCallback(
+    (matches: (row: SavedItem | SavedVideoRecord | SpeechAttemptRecord) => boolean) => {
+      setItems((current) => current.filter((row) => !matches(row)));
+      invalidateLibrary();
+    },
+    [invalidateLibrary]
+  );
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!sentinelRef.current || !hasNextPage || isFetchingNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   async function unsaveVideo(video: SavedVideoRecord) {
     setRemovingVideoId(video.id);
@@ -107,33 +138,35 @@ export function LibraryPanel({
     }
   }
 
+  const firstPage = data?.pages[0];
   const showWordFilters = kind === "words" || kind === "sentences";
-  // `data` still holds the previous kind's rows while a new kind is loading, and the
-  // four kinds have completely different row shapes. Only render rows that actually
-  // belong to the selected kind, otherwise the cast below reads missing fields.
-  const showsSelectedKind = data?.kind === kind;
-  const items = showsSelectedKind ? data.items : [];
-  const switching = !showsSelectedKind;
+  const showsSelectedKind = !firstPage?.kind || firstPage.kind === kind || isLoading;
 
   return (
-    <div className="review-panel library-panel">
-      <div className="segmented library-kind-switch" role="tablist" aria-label="보관함 분류">
-        {KINDS.map((option) => (
-          <button
-            key={option.key}
-            role="tab"
-            aria-selected={kind === option.key}
-            className={kind === option.key ? "active" : ""}
-            onClick={() => setKind(option.key)}
-          >
-            {option.label}
-            {option.key === "words" && data ? <b>{data.counts.words}</b> : null}
-            {option.key === "sentences" && data ? <b>{data.counts.sentences}</b> : null}
-          </button>
-        ))}
-      </div>
+    <div className="review-panel">
+      <div className="review-filter-bar flex-col align-stretch">
+        <div className="segmented library-kind-switch" role="tablist" aria-label="보관함 분류">
+          {KINDS.map((option) => (
+            <button
+              key={option.key}
+              role="tab"
+              aria-selected={kind === option.key}
+              className={kind === option.key ? "active" : ""}
+              onClick={() => {
+                setKind(option.key);
+                setSearch("");
+                setQuery("");
+                setSource("");
+                setLevel("");
+              }}
+            >
+              {option.label}
+              {option.key === "words" && !!firstPage?.counts?.words && <small>({firstPage.counts.words})</small>}
+              {option.key === "sentences" && !!firstPage?.counts?.sentences && <small>({firstPage.counts.sentences})</small>}
+            </button>
+          ))}
+        </div>
 
-      <div className="review-filter-bar">
         <label className="review-search">
           <Search size={16} aria-hidden="true" />
           <span className="sr-only">보관함 검색</span>
@@ -193,7 +226,7 @@ export function LibraryPanel({
             <span className="sr-only">출처</span>
             <select value={source} onChange={(event) => setSource(event.target.value)}>
               <option value="">전체 출처</option>
-              {(data?.sources || []).map((option) => (
+              {(firstPage?.sources || []).map((option) => (
                 <option key={option.content_id} value={option.content_id}>{option.title}</option>
               ))}
             </select>
@@ -202,7 +235,7 @@ export function LibraryPanel({
             <span className="sr-only">난이도</span>
             <select value={level} onChange={(event) => setLevel(event.target.value)}>
               <option value="">전체 난이도</option>
-              {(data?.levels || []).map((option) => <option key={option} value={option}>{option}</option>)}
+              {(firstPage?.levels || []).map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </label>
           <label>
@@ -214,11 +247,11 @@ export function LibraryPanel({
         </div>
       )}
 
-      {!error && (loading || switching) && <PanelLoading label="보관함을 불러오고 있어요." />}
-      {error && <PanelError message={error} onRetry={() => void load()} />}
+      {isLoading && <PanelLoading label="보관함을 불러오고 있어요." />}
+      {isError && <PanelError message={error instanceof Error ? error.message : "보관함을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
       {actionError && <p className="review-inline-error" role="alert">{actionError}</p>}
 
-      {!error && !loading && showsSelectedKind && !items.length && (
+      {!isError && !isLoading && showsSelectedKind && !items.length && (
         <PanelEmpty
           icon={kind === "videos" ? <Clapperboard size={24} /> : kind === "recordings" ? <Mic size={24} /> : kind === "sentences" ? <Quote size={24} /> : <Bookmark size={24} />}
           title={query || source || level ? "조건에 맞는 항목이 없어요." : "아직 보관된 항목이 없어요."}
@@ -232,11 +265,11 @@ export function LibraryPanel({
         />
       )}
 
-      {!error && showsSelectedKind && !!items.length && (kind === "words" || kind === "sentences") && (
+      {!isError && showsSelectedKind && !!items.length && (kind === "words" || kind === "sentences") && (
         <div key={kind} className="saved-item-list review-panel-scene">
-          {(items as SavedItem[]).map((item) => (
+          {(items as SavedItem[]).map((item, index) => (
             <SavedItemCard
-              key={item.expression_progress_id}
+              key={`${item.expression_progress_id || item.expression_id || 'item'}-${index}`}
               item={item}
               onOpenAudio={() => setPlayerTarget({
                 text: item.canonical_text,
@@ -254,19 +287,22 @@ export function LibraryPanel({
                 })
                 : undefined}
               onEdited={replaceItem}
-              onDeleted={(progressId) => dropItem(
-                (row) => (row as SavedItem).expression_progress_id === progressId,
-                kind === "sentences" ? "sentences" : "words",
-              )}
+              onDeleted={(progressId) => dropItem((row) => (row as SavedItem).expression_progress_id === progressId)}
             />
           ))}
+
+          {hasNextPage && (
+            <div key="sentinel" ref={sentinelRef} className="review-infinite-sentinel" style={{ padding: "16px", textAlign: "center" }}>
+              {isFetchingNextPage && <LoaderCircle size={20} className="spin" aria-label="10개씩 더 불러오는 중" />}
+            </div>
+          )}
         </div>
       )}
 
-      {!error && showsSelectedKind && !!items.length && kind === "videos" && (
+      {!isError && showsSelectedKind && !!items.length && kind === "videos" && (
         <div key={kind} className="library-video-list review-panel-scene">
-          {(items as SavedVideoRecord[]).map((video) => (
-            <article className="library-video-card" key={video.id}>
+          {(items as SavedVideoRecord[]).map((video, index) => (
+            <article className="library-video-card" key={`${video.id || video.content_id || 'video'}-${index}`}>
               <span className="content-record-thumb">
                 {video.thumbnail_url
                   ? <img src={video.thumbnail_url} alt="" loading="lazy" />
@@ -308,14 +344,20 @@ export function LibraryPanel({
               </div>
             </article>
           ))}
+
+          {hasNextPage && (
+            <div key="sentinel" ref={sentinelRef} className="review-infinite-sentinel" style={{ padding: "16px", textAlign: "center" }}>
+              {isFetchingNextPage && <LoaderCircle size={20} className="spin" aria-label="10개씩 더 불러오는 중" />}
+            </div>
+          )}
         </div>
       )}
 
-      {!error && showsSelectedKind && !!items.length && kind === "recordings" && (
+      {!isError && showsSelectedKind && !!items.length && kind === "recordings" && (
         <div key={kind} className="recording-list review-panel-scene">
-          {(items as SpeechAttemptRecord[]).map((recording) => (
+          {(items as SpeechAttemptRecord[]).map((recording, index) => (
             <RecordingCard
-              key={recording.id}
+              key={`${recording.id || 'rec'}-${index}`}
               recording={recording}
               showContentTitle
               onPlayOriginal={() => setPlayerTarget({
@@ -332,10 +374,16 @@ export function LibraryPanel({
                   sourceLabel: "보관함 · 다시 녹음",
                 })
                 : undefined}
-              onPinChanged={() => void load()}
+              onPinChanged={() => invalidateLibrary()}
               onDeleted={(recordingId) => dropItem((row) => (row as SpeechAttemptRecord).id === recordingId)}
             />
           ))}
+
+          {hasNextPage && (
+            <div key="sentinel" ref={sentinelRef} className="review-infinite-sentinel" style={{ padding: "16px", textAlign: "center" }}>
+              {isFetchingNextPage && <LoaderCircle size={20} className="spin" aria-label="10개씩 더 불러오는 중" />}
+            </div>
+          )}
         </div>
       )}
 
@@ -346,5 +394,16 @@ export function LibraryPanel({
         onOpenFullLearning={playerTarget?.contentId && openLearning ? () => openLearning({ contentId: playerTarget.contentId!, transcriptLineId: playerTarget.transcriptLineId, title: playerTarget.title }) : undefined}
       />
     </div>
+  );
+}
+
+export function LibraryPanel(props: {
+  active: boolean;
+  openLearning?: (target: { contentId: string; transcriptLineId?: string | null; title?: string | null; youtubeUrl?: string | null; sourceLabel?: string | null }) => void;
+}) {
+  return (
+    <SafeQueryClientProvider>
+      <LibraryPanelInner {...props} />
+    </SafeQueryClientProvider>
   );
 }

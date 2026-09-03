@@ -402,12 +402,15 @@ describe("My library", () => {
     fireEvent.change(screen.getByPlaceholderText("단어·문장·영상 검색"), { target: { value: "keep" } });
     fireEvent.keyDown(screen.getByPlaceholderText("단어·문장·영상 검색"), { key: "Enter" });
     await waitFor(() => expect(requests.some((path) => path.includes("search=keep"))).toBe(true));
+    await screen.findByRole("option", { name: "Daily English Conversation" });
 
     fireEvent.change(screen.getByLabelText("출처"), { target: { value: "content-1" } });
     await waitFor(() => expect(requests.some((path) => path.includes("source=content-1"))).toBe(true));
+    await screen.findByRole("option", { name: "B1" });
 
     fireEvent.change(screen.getByLabelText("난이도"), { target: { value: "B1" } });
     await waitFor(() => expect(requests.some((path) => path.includes("level=B1"))).toBe(true));
+    await screen.findByRole("option", { name: "오래된 순" });
 
     fireEvent.change(screen.getByLabelText("저장일 정렬"), { target: { value: "oldest" } });
     await waitFor(() => expect(requests.some((path) => path.includes("sort=oldest"))).toBe(true));

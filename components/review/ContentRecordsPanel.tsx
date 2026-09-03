@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clapperboard, LoaderCircle, Play, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -12,6 +12,7 @@ import {
   type ContentListView,
   type ContentProgressCard,
 } from "@/lib/reviewTypes";
+import { useInfiniteContentRecordsQuery, useInvalidateReviewQueries } from "@/lib/useReviewQuery";
 import { PanelEmpty, PanelError, PanelLoading } from "./ReviewStates";
 
 const VIEWS: Array<{ key: ContentListView; label: string }> = [
@@ -83,7 +84,9 @@ export function ContentCard({
   );
 }
 
-export function ContentRecordsPanel({
+import { SafeQueryClientProvider } from "@/app/providers";
+
+function ContentRecordsPanelInner({
   active,
   onOpenDetail,
   onContinueLearning,
@@ -96,41 +99,50 @@ export function ContentRecordsPanel({
   const [view, setView] = useState<ContentListView>("recent");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState<ContentProgressCard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ContentProgressCard | null>(null);
   const [deletingId, setDeletingId] = useState("");
-  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async (nextView: ContentListView, nextQuery: string) => {
-    setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({ view: nextView });
-      if (nextQuery.trim()) params.set("search", nextQuery.trim());
-      const data = await apiFetch<ContentListResponse>(`/api/review/contents?${params.toString()}`);
-      setItems(data.items);
-      setLoaded(true);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "영상별 학습 기록을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+  } = useInfiniteContentRecordsQuery({ view, search: query, active });
+
+  const { invalidateContentRecords } = useInvalidateReviewQueries();
+
+  const items = useMemo(
+    () => data?.pages.flatMap((page) => page.items) || [],
+    [data]
+  );
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!active) return;
-    void load(view, query);
-  }, [active, load, query, view]);
+    if (!sentinelRef.current || !hasNextPage || isFetchingNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   async function deleteCard(card: ContentProgressCard) {
     setDeletingId(card.content_id);
     setActionError("");
     try {
       await apiFetch(`/api/review/contents/${encodeURIComponent(card.content_id)}`, { method: "DELETE" });
-      setItems((prev) => prev.filter((item) => item.content_id !== card.content_id));
+      invalidateContentRecords();
       setDeleteTarget(null);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "학습 기록을 삭제하지 못했습니다.");
@@ -214,17 +226,17 @@ export function ContentRecordsPanel({
         </div>
       </div>
 
-      {loading && !loaded && <PanelLoading label="영상별 학습 기록을 불러오고 있어요." />}
-      {error && <PanelError message={error} onRetry={() => void load(view, query)} />}
+      {isLoading && <PanelLoading label="영상별 학습 기록을 불러오고 있어요." />}
+      {isError && <PanelError message={error instanceof Error ? error.message : "학습 기록을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
       {actionError && <p className="review-inline-error" role="alert">{actionError}</p>}
-      {!error && loaded && !items.length && (
+      {!isError && !isLoading && !items.length && (
         <PanelEmpty icon={<Clapperboard size={26} />} title={emptyCopy.title} description={emptyCopy.description} />
       )}
-      {!error && !!items.length && (
-        <div key={view} className={`content-record-list review-panel-scene ${loading ? "refreshing" : ""}`}>
-          {items.map((card) => (
+      {!isError && !!items.length && (
+        <div key={view} className="content-record-list review-panel-scene">
+          {items.map((card, index) => (
             <ContentCard
-              key={card.content_id}
+              key={card.content_id || index}
               card={card}
               onOpen={() => onOpenDetail(card)}
               onContinue={onContinueLearning ? () => onContinueLearning(card) : undefined}
@@ -232,6 +244,12 @@ export function ContentRecordsPanel({
               deleting={deletingId === card.content_id}
             />
           ))}
+
+          {hasNextPage && (
+            <div key="sentinel" ref={sentinelRef} className="review-infinite-sentinel" style={{ padding: "16px", textAlign: "center" }}>
+              {isFetchingNextPage && <LoaderCircle size={20} className="spin" aria-label="10개씩 더 불러오는 중" />}
+            </div>
+          )}
         </div>
       )}
 
@@ -269,5 +287,17 @@ export function ContentRecordsPanel({
         document.body
       )}
     </div>
+  );
+}
+
+export function ContentRecordsPanel(props: {
+  active: boolean;
+  onOpenDetail: (card: ContentProgressCard) => void;
+  onContinueLearning?: (card: ContentProgressCard) => void;
+}) {
+  return (
+    <SafeQueryClientProvider>
+      <ContentRecordsPanelInner {...props} />
+    </SafeQueryClientProvider>
   );
 }

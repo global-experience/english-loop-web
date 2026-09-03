@@ -42,10 +42,14 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+import { ReactQueryProvider } from "./providers";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <ReactQueryProvider>{children}</ReactQueryProvider>
+      </body>
     </html>
   );
 }

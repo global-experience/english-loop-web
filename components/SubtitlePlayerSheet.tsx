@@ -315,18 +315,29 @@ export function SubtitlePlayerSheet({
       repeatsLeftRef.current = repeatTarget;
       setRepeatsLeft(repeatTarget);
       setPlaying(false);
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (!videoId) {
+        speakTts();
+      }
     } else {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
     }
-  }, [open, target, repeatTarget]);
+  }, [open, target, repeatTarget, videoId]);
 
-  useBodyScrollLock(open);
+  useBodyScrollLock(mobile ? open : false);
 
   // Auto close popup when switching tabs
   useEffect(() => {
     if (!open) return;
     const handleTabVisibility = (event: CustomEvent<{ tab: string; active: boolean }>) => {
       if (!event.detail.active) {
+        if (typeof window !== "undefined" && "speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+        }
         onClose();
       }
     };

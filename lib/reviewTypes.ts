@@ -87,6 +87,9 @@ export type ContentListView = "recent" | "needs_review" | "most_saved";
 export type ContentListResponse = {
   items: ContentProgressCard[];
   total: number;
+  page?: number;
+  limit?: number;
+  has_more?: boolean;
   view: ContentListView;
   as_of: string;
 };
@@ -196,6 +199,10 @@ export type LibraryKind = "words" | "sentences" | "videos" | "recordings";
 export type LibraryResponse = {
   kind: LibraryKind;
   items: SavedItem[] | SavedVideoRecord[] | SpeechAttemptRecord[];
+  total?: number;
+  page?: number;
+  limit?: number;
+  has_more?: boolean;
   counts: { words: number; sentences: number };
   sources: Array<{ content_id: string; title: string }>;
   levels: string[];
@@ -217,8 +224,9 @@ export const REVIEW_TABS: Array<{ key: ReviewTabKey; label: string }> = [
   { key: "library", label: "내 보관함" },
 ];
 
-export function stageLabel(stage: string) {
-  return stage.replaceAll("_", " ");
+export function stageLabel(stage: string | null | undefined) {
+  if (!stage) return "";
+  return String(stage).replaceAll("_", " ");
 }
 
 export function relativeDayLabel(value: string | null) {
