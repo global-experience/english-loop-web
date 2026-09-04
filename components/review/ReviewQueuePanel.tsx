@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, BookOpen, Layers, LoaderCircle, Play, Rows3, Sparkles, Square } from "lucide-react";
+import { ArrowRight, BookOpen, Layers, LoaderCircle, Play, Rows3, Sparkles, Square, Volume2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import {
   REVIEW_GRADES,
@@ -12,6 +12,7 @@ import {
   type ReviewItemKind,
   type ReviewQueueSummary,
 } from "@/lib/reviewTypes";
+import { SubtitlePlayerSheet, type SubtitlePlayerTarget } from "@/components/SubtitlePlayerSheet";
 import { PanelEmpty, PanelError, PanelLoading } from "./ReviewStates";
 
 const KIND_ORDER: ReviewItemKind[] = ["SAVED_EXPRESSION", "SPEAK_AGAIN", "CORRECTION", "NOT_USED"];
@@ -56,6 +57,17 @@ export function ReviewQueuePanel({
   const [grading, setGrading] = useState("");
   const [message, setMessage] = useState("");
   const [gradeError, setGradeError] = useState("");
+  const [playerTarget, setPlayerTarget] = useState<SubtitlePlayerTarget | null>(null);
+
+  function openAudio(item: ReviewItem) {
+    setPlayerTarget({
+      text: item.answer_text,
+      koreanText: item.prompt_ko,
+      contentId: item.content_id,
+      transcriptLineId: item.transcript_line_id,
+      title: item.content_title,
+    });
+  }
 
   const counts = summary?.counts;
   const total = items.length;
@@ -181,9 +193,22 @@ export function ReviewQueuePanel({
             <small>{index + 1} / {total}</small>
           </div>
           <p className="review-focus-prompt">{current.prompt_ko}</p>
-          <h3 className="review-focus-question">
-            {current.kind === "SPEAK_AGAIN" || current.kind === "CORRECTION" ? current.answer_text : current.prompt_ko}
-          </h3>
+          <div className="review-focus-question-row">
+            <h3 className="review-focus-question">
+              {current.kind === "SPEAK_AGAIN" || current.kind === "CORRECTION" ? current.answer_text : current.prompt_ko}
+            </h3>
+            {/* {(current.kind === "SPEAK_AGAIN" || current.kind === "CORRECTION") && (
+              <button
+                type="button"
+                className="review-focus-question-audio"
+                onClick={() => openAudio(current)}
+                aria-label={`${current.answer_text} 발음 듣기`}
+                title="발음 듣기"
+              >
+                <Volume2 size={18} />
+              </button>
+            )} */}
+          </div>
           {current.kind === "CORRECTION" && current.example_sentence && (
             <p className="review-focus-original"><s>{current.example_sentence}</s></p>
           )}
@@ -191,7 +216,19 @@ export function ReviewQueuePanel({
 
           {revealed.has(current.id) ? (
             <div className="review-focus-answer">
-              <strong>{current.answer_text}</strong>
+              <div className="review-focus-answer-headline">
+                <strong>{current.answer_text}</strong>
+                <button
+                  type="button"
+                  className="review-focus-audio-btn"
+                  onClick={() => openAudio(current)}
+                  aria-label={`${current.answer_text} 발음 듣기`}
+                  title="발음 듣기"
+                >
+                  <Volume2 size={15} />
+                  <span>발음 듣기</span>
+                </button>
+              </div>
               {current.example_sentence && current.example_sentence !== current.answer_text && (
                 <p>{current.example_sentence}</p>
               )}
@@ -204,11 +241,20 @@ export function ReviewQueuePanel({
           )}
 
           <div className="review-focus-foot">
-            {current.content_id && openLearning && (
-              <button className="text-button review-jump-button" onClick={() => openLearning(current)}>
-                <BookOpen size={15} /> {current.content_title || "원본 영상"}에서 이어 학습
-              </button>
-            )}
+            <div className="review-focus-foot-links">
+              {/* <button
+                type="button"
+                className="text-button review-audio-link"
+                onClick={() => openAudio(current)}
+              >
+                <Volume2 size={15} /> 발음 듣기
+              </button> */}
+              {current.content_id && openLearning && (
+                <button className="text-button review-jump-button" onClick={() => openLearning(current)}>
+                  <BookOpen size={15} /> {current.content_title || "원본 영상"}에서 이어 학습
+                </button>
+              )}
+            </div>
             <div className="review-grades" role="group" aria-label="복습 결과 평가">
               {REVIEW_GRADES.map((option) => (
                 <button
@@ -237,7 +283,18 @@ export function ReviewQueuePanel({
                 <p className="review-list-prompt">{item.prompt_ko}</p>
                 {revealed.has(item.id) ? (
                   <div className="review-list-answer">
-                    <strong>{item.answer_text}</strong>
+                    <div className="review-list-answer-headline">
+                      <strong>{item.answer_text}</strong>
+                      <button
+                        type="button"
+                        className="review-list-audio-btn"
+                        onClick={() => openAudio(item)}
+                        aria-label={`${item.answer_text} 발음 듣기`}
+                        title="발음 듣기"
+                      >
+                        <Volume2 size={15} />
+                      </button>
+                    </div>
                     {item.example_sentence && item.example_sentence !== item.answer_text && <p>{item.example_sentence}</p>}
                   </div>
                 ) : (
@@ -254,16 +311,39 @@ export function ReviewQueuePanel({
                     </button>
                   ))}
                 </div>
-                {item.content_id && openLearning && (
-                  <button className="text-button review-jump-button" onClick={() => openLearning(item)}>
-                    <BookOpen size={14} /> 원본 자막으로 이동
-                  </button>
-                )}
+                <div className="review-list-actions">
+                  {/* <button
+                    type="button"
+                    className="text-button review-audio-link"
+                    onClick={() => openAudio(item)}
+                  >
+                    <Volume2 size={13} /> 발음 듣기
+                  </button> */}
+                  {item.content_id && openLearning && (
+                    <button className="text-button review-jump-button" onClick={() => openLearning(item)}>
+                      <BookOpen size={14} /> 원본 자막으로 이동
+                    </button>
+                  )}
+                </div>
               </article>
             </li>
           ))}
         </ul>
       )}
+
+      <SubtitlePlayerSheet
+        open={Boolean(playerTarget)}
+        target={playerTarget}
+        onClose={() => setPlayerTarget(null)}
+        onOpenFullLearning={
+          playerTarget?.contentId && openLearning
+            ? () => {
+              const found = items.find((it) => it.content_id === playerTarget.contentId) || current;
+              if (found) openLearning(found);
+            }
+            : undefined
+        }
+      />
     </div>
   );
 }
