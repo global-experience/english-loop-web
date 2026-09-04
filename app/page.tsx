@@ -100,7 +100,7 @@ export default function Home() {
   const [learningEntry, setLearningEntry] = useState<LearningSessionEntry | null>(initialRoute?.learningEntry || null);
   // Today -> Feed hands over the selected video; Today -> Review bumps a signal so the
   // review tab returns to today's queue even if it was left on another sub-tab.
-  const [feedFocusVideo, setFeedFocusVideo] = useState<FeedVideo | null>(null);
+  const [feedFocusTarget, setFeedFocusTarget] = useState<{ video: FeedVideo; key: number } | null>(null);
   const [reviewTodaySignal, setReviewTodaySignal] = useState(0);
   const [settingsKey, setSettingsKey] = useState(0);
   const [today, setToday] = useState<TodayData | null>(restoredBootstrap?.today || null);
@@ -296,7 +296,7 @@ export default function Home() {
   };
 
   const openFeedVideo = (video: FeedVideo) => {
-    setFeedFocusVideo(video);
+    setFeedFocusTarget({ video, key: Date.now() });
     switchTab("feed");
   };
 
@@ -399,7 +399,15 @@ export default function Home() {
               className={`tab-pane ${active ? "active" : "inactive"} ${active ? `tab-scene tab-scene-${tabDirection}` : ""}`}
             >
               {paneTab === "today" && (needsBootstrap ? bootstrapFallback : <TodayView today={today} user={user} refresh={refresh} openLearning={openLearning} openFeedVideo={openFeedVideo} openReview={openReviewToday} />)}
-              {paneTab === "feed" && <FeedView active={active} openLearning={openFeedLearning} focusVideo={feedFocusVideo} />}
+              {paneTab === "feed" && (
+                <FeedView
+                  active={active}
+                  openLearning={openFeedLearning}
+                  focusVideo={feedFocusTarget?.video ?? null}
+                  focusKey={feedFocusTarget?.key ?? 0}
+                  onFocusConsumed={() => setFeedFocusTarget(null)}
+                />
+              )}
               {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
               {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} openTodaySignal={reviewTodaySignal} />}
               {paneTab === "report" && <ReportView />}

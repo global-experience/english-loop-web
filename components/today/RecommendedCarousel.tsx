@@ -70,7 +70,6 @@ export function RecommendedCarousel({
     const track = trackRef.current;
     if (!track) return;
     dragRef.current = { active: true, startX: event.clientX, startScroll: track.scrollLeft, moved: 0 };
-    track.setPointerCapture(event.pointerId);
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
@@ -79,12 +78,25 @@ export function RecommendedCarousel({
     if (!drag.active || !track) return;
     const delta = event.clientX - drag.startX;
     drag.moved = Math.max(drag.moved, Math.abs(delta));
-    track.scrollLeft = drag.startScroll - delta;
+    if (drag.moved > 4) {
+      if (typeof track.setPointerCapture === "function") {
+        const hasCapture = typeof track.hasPointerCapture === "function" && track.hasPointerCapture(event.pointerId);
+        if (!hasCapture) {
+          try { track.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+        }
+      }
+      track.scrollLeft = drag.startScroll - delta;
+    }
   }
 
   function endDrag(event: React.PointerEvent<HTMLDivElement>) {
     const track = trackRef.current;
-    if (track?.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
+    if (typeof track?.releasePointerCapture === "function") {
+      const hasCapture = typeof track.hasPointerCapture === "function" ? track.hasPointerCapture(event.pointerId) : true;
+      if (hasCapture) {
+        try { track.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
+      }
+    }
     dragRef.current.active = false;
   }
 
