@@ -9,9 +9,9 @@ vi.mock("@/lib/api", () => ({ apiFetch: apiFetchMock }));
 const analytics = {
   period: { days: 7, from: "2026-08-19", to: "2026-08-25" },
   total_study_minutes: 90,
-  routine: { MORNING_COMMUTE: { completed: 1, planned: 1, completion_rate: 100 } },
-  listening: { first_average: 2, final_average: 4, average_improvement: 2, shadowed_sentences: 3 },
-  lunch_speaking_attempts: 1,
+  routine: { listen: { completed: 1, planned: 1, completion_rate: 100 }, ai_conversation: { completed: 1, planned: 2, completion_rate: 50 } },
+  speech: { attempts: 4, average_match: 82, average_improvement: 6, practiced_lines: 12, retry_lines: 3 },
+  reviews_completed: 5,
   voice_sessions_completed: 1,
   target_expression_usage: { tracked: 3, spontaneous: 1, spontaneous_rate: 33.3 },
   newly_mastered: 0,

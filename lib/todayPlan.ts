@@ -103,7 +103,7 @@ export function resolveTodayFocus(activities: Activity[], now: Date = new Date()
   return {
     step: null,
     routineItem: focusItem,
-    activity: focusItem?.activity_id ? activities.find((activity) => activity.id === focusItem.activity_id) ?? null : null,
+    activity: null,
     timeSlot: "MORNING_COMMUTE",
     states,
     estimatedMinutes: focusItem?.estimated_minutes ?? 0,

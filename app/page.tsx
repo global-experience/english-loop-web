@@ -286,7 +286,7 @@ export default function Home() {
       routineItemName: routineItem?.name || activity?.routine_snapshot?.name || null,
       routineSnapshot: routineItem?.routine_snapshot || activity?.routine_snapshot || null,
       routineConfig: routineItem?.config || activity?.routine_snapshot?.config || null,
-      activityId: activity?.id || routineItem?.activity_id || null,
+      activityId: activity?.id || null,
       youtubeUrl: content?.source_type === "YOUTUBE" ? content.source_url : null,
       title: content?.title || routineItem?.name || "오늘 루틴",
       sourceLabel: routineItem ? "오늘 루틴" : "오늘 루틴",

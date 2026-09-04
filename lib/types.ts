@@ -127,7 +127,6 @@ export type RoutineItem = {
 export type TodayRoutineItem = RoutineItem & {
   state: "done" | "current" | "upcoming" | "skipped" | "today_inactive";
   status: string;
-  activity_id: string | null;
   content: Content | null;
   minutes_until: number | null;
   routine_snapshot: RoutineSnapshot;
@@ -224,8 +223,8 @@ export type Analytics = {
   period: { days: number; from: string; to: string };
   total_study_minutes: number;
   routine: Record<string, { completed: number; planned: number; completion_rate: number }>;
-  listening: { first_average: number | null; final_average: number | null; average_improvement: number | null; shadowed_sentences: number };
-  lunch_speaking_attempts: number;
+  speech: { attempts: number; average_match: number | null; average_improvement: number | null; practiced_lines: number; retry_lines: number };
+  reviews_completed: number;
   voice_sessions_completed: number;
   target_expression_usage: { tracked: number; spontaneous: number; spontaneous_rate: number };
   newly_mastered: number;
