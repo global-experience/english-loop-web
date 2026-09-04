@@ -147,7 +147,7 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
   }
 
   async function completeWorkspace(next: "review" | "routine") {
-    await apiFetch("/api/learning/sessions/complete", { method: "POST", body: JSON.stringify({ content_id: content.id, activity_id: entry.activityId || null, routine_item_id: entry.routineItemId || null, routine_snapshot: entry.routineSnapshot || null, entry_source: entry.entrySource, practiced_line_count: practiced.size, saved_expression_count: saved.size, retry_line_count: retry.size, missing_words: Array.from(missingWords) }) });
+    await apiFetch("/api/learning/sessions/complete", { method: "POST", body: JSON.stringify({ content_id: content.id, activity_id: entry.activityId || null, routine_item_id: entry.routineItemId || null, routine_snapshot: entry.routineSnapshot || {}, entry_source: entry.entrySource, practiced_line_count: practiced.size, saved_expression_count: saved.size, retry_line_count: retry.size, missing_words: Array.from(missingWords) }) });
     await onRefresh();
     if (next === "review") onOpenReview(); else onNextRoutine();
   }
