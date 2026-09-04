@@ -117,6 +117,19 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
     void loadCoach();
   }, [loadVideos, loadReview, loadCoach]);
 
+  useEffect(() => {
+    const handlePull = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab: string; done?: () => void }>;
+      if (customEvent.detail?.tab === "today") {
+        void Promise.allSettled([loadVideos(), loadReview(), loadCoach()]).finally(() => {
+          customEvent.detail?.done?.();
+        });
+      }
+    };
+    window.addEventListener("loopine:pull-refresh", handlePull);
+    return () => window.removeEventListener("loopine:pull-refresh", handlePull);
+  }, [loadVideos, loadReview, loadCoach]);
+
   const openRoutine = useCallback((target: RoutineSlot | TodayRoutineItem) => {
     if (stepOpensCoach(target)) {
       openCoach();

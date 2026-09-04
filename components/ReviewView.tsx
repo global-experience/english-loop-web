@@ -116,6 +116,19 @@ export function ReviewView({
   useEffect(() => { void loadQueue(); }, [loadQueue]);
 
   useEffect(() => {
+    const handlePull = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab: string; done?: () => void }>;
+      if (customEvent.detail?.tab === "review") {
+        void loadQueue().finally(() => {
+          customEvent.detail?.done?.();
+        });
+      }
+    };
+    window.addEventListener("loopine:pull-refresh", handlePull);
+    return () => window.removeEventListener("loopine:pull-refresh", handlePull);
+  }, [loadQueue]);
+
+  useEffect(() => {
     if (!openTodaySignal) return;
     setTab("today");
     setDetailCard(null);

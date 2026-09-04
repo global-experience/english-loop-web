@@ -9,6 +9,7 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { TodayView } from "@/components/TodayView";
 import { LearningView, type LearningMode } from "@/components/LearningView";
 import { AppSplash, useAppSplash } from "@/components/AppSplash";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { youtubeStore } from "@/lib/youtubeStore";
 import { triggerHapticSelection } from "@/lib/haptics";
 import { isNativeAppRuntime } from "@/lib/nativeRuntime";
@@ -129,6 +130,22 @@ export default function Home() {
       setLoading(false);
     }
   }, []);
+
+  const handlePullRefresh = useCallback(async () => {
+    const bootstrapPromise = refresh();
+    const tabPromise = new Promise<void>((resolve) => {
+      let resolved = false;
+      const done = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+      window.dispatchEvent(new CustomEvent("loopine:pull-refresh", { detail: { tab, done } }));
+      setTimeout(done, 2500);
+    });
+    await Promise.allSettled([bootstrapPromise, tabPromise]);
+  }, [refresh, tab]);
 
   useEffect(() => {
     void refresh();
@@ -349,8 +366,9 @@ export default function Home() {
   );
 
   return (
-    <main className="app-shell" data-tab={tab}>
-      <ServiceWorker />
+    <PullToRefresh onRefresh={handlePullRefresh} activeTab={tab}>
+      <main className="app-shell" data-tab={tab}>
+        <ServiceWorker />
       {!online && <div className="offline-banner" role="status"><WifiOff size={15} /> 오프라인 — 작성 내용은 이 기기에 보관됩니다.</div>}
       {error && <div className="error-banner" role="alert">{error}</div>}
       <nav className="desktop-side-nav" aria-label="데스크탑 주요 메뉴">
@@ -425,5 +443,6 @@ export default function Home() {
         ))}
       </nav>
     </main>
+  </PullToRefresh>
   );
 }

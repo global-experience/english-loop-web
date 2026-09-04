@@ -488,7 +488,43 @@ export function FeedView({
     }
   }, [cursor, seed]);
 
+  const reloadFeed = useCallback(async () => {
+    loadingRef.current = true;
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ limit: "20", cursor: "0" });
+      const data = await apiFetch<FeedResponse>(`/api/feed?${params}`);
+      setSeed(data.seed);
+      setCursor(data.next_cursor);
+      setItems(data.items);
+      setActiveIndex(0);
+      setPlayIndex(0);
+      if (streamRef.current) {
+        streamRef.current.scrollTo({ top: 0, behavior: "instant" });
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "피드를 불러오지 못했습니다.");
+    } finally {
+      loadingRef.current = false;
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => { void loadMore(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handlePull = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab: string; done?: () => void }>;
+      if (customEvent.detail?.tab === "feed") {
+        void reloadFeed().finally(() => {
+          customEvent.detail?.done?.();
+        });
+      }
+    };
+    window.addEventListener("loopine:pull-refresh", handlePull);
+    return () => window.removeEventListener("loopine:pull-refresh", handlePull);
+  }, [reloadFeed]);
 
   const sendEvent = useCallback((video: FeedVideo, eventType: "VIEW" | "SKIP" | "OPEN_LEARNING", watchSeconds?: number) => {
     void apiFetch(`/api/feed/${video.id}/events`, {
