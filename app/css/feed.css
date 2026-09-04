@@ -3,7 +3,8 @@ body:has([data-tab="feed"]) {
   overflow-x: hidden;
   /* overflow-y: scroll; */
   height: 100dvh;
-  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: auto;
   touch-action: pan-y;
 }
 
@@ -70,7 +71,8 @@ body:has([data-tab="feed"]) {
   grid-auto-rows: 100%;
   gap: 14px;
   scroll-snap-type: y mandatory;
-  overscroll-behavior: contain;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   scroll-behavior: auto;
   scrollbar-width: none;

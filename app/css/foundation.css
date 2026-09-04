@@ -25,6 +25,8 @@ html {
   scroll-behavior: smooth;
   overflow-x: hidden;
   overscroll-behavior-x: none;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
 }
 
@@ -36,6 +38,7 @@ body {
   background: var(--paper);
   overflow-x: hidden;
   overscroll-behavior-x: none;
+  overscroll-behavior-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   -webkit-user-select: none;
