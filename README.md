@@ -1,4 +1,4 @@
-# Loopine Web
+# Loopine Web 프로제그
 
 Loopine의 Next.js PWA 프런트엔드입니다. FastAPI 백엔드는 별도 저장소인 `global-experience/loopine-server-api`에서 관리합니다.
 
