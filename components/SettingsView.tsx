@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { DatabaseBackup, Download, HardDrive, KeyRound, LogOut, RefreshCw, Save, ShieldCheck, Vibrate } from "lucide-react";
+import { DatabaseBackup, Download, HardDrive, KeyRound, LoaderCircle, LogOut, RefreshCw, Save, ShieldCheck, Vibrate } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { isHapticsEnabled, setHapticsEnabled, triggerHapticImpact } from "@/lib/haptics";
@@ -12,6 +12,7 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
   const [message, setMessage] = useState("");
   const [actionKey, setActionKey] = useState("");
   const [hapticsOn, setHapticsOn] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [learningPresets, setLearningPresetState] = useState<LearningPresetOptions>(DEFAULT_LEARNING_PRESETS);
 
   useEffect(() => {
@@ -48,7 +49,17 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
     const href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
     const anchor = document.createElement("a"); anchor.href = href; anchor.download = `loopine-export-${new Date().toISOString().slice(0, 10)}.json`; anchor.click(); URL.revokeObjectURL(href);
   }
-  async function logout() { await apiFetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; }
+  async function logout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Logout failed:", err);
+    } finally {
+      window.location.href = "/login";
+    }
+  }
   async function revealActionKey() {
     let revealed = false;
     try {
@@ -86,8 +97,30 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
       {/* <button onClick={() => void downloadExport()}><Download /><span><strong>데이터 내보내기</strong><small>계획·표현 성장·리포트 JSON</small></span></button> */}
       {/* <button onClick={() => void clearOffline()}><HardDrive /><span><strong>오프라인 콘텐츠 삭제</strong><small>현재 사용량 {usage}</small></span></button> */}
       {/* <button onClick={() => alert("서버 운영자는 docs/deployment.md의 PostgreSQL 백업 절차를 사용하세요.")}><DatabaseBackup /><span><strong>백업·복구 안내</strong><small>운영 체크리스트 확인</small></span></button> */}
-      <button className="danger" onClick={() => void logout()}><LogOut /><span><strong>로그아웃</strong><small>{user.email}</small></span></button>
+      <button
+        className="danger settings-logout-button"
+        onClick={() => void logout()}
+        disabled={loggingOut}
+        aria-busy={loggingOut}
+      >
+        {loggingOut ? <LoaderCircle className="spin" /> : <LogOut />}
+        <span>
+          <strong>{loggingOut ? "로그아웃하는 중…" : "로그아웃"}</strong>
+          <small>{user.email}</small>
+        </span>
+      </button>
     </section>
+    {loggingOut && (
+      <div className="logout-overlay" role="status" aria-live="polite">
+        <div className="logout-content">
+          <div className="logout-spinner">
+            <LoaderCircle className="spin" size={36} />
+          </div>
+          <h3>로그아웃하고 있어요</h3>
+          <p>잠시 후 로그인 화면으로 이동합니다.</p>
+        </div>
+      </div>
+    )}
   </div>;
 }
 

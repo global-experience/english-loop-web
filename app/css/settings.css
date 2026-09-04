@@ -114,3 +114,85 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
+
+/* ── Logout Loading & Smooth Overlay ──────────────────────────────── */
+.settings-tools>button.danger:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.settings-logout-button[aria-busy="true"] svg {
+  background: rgba(158, 63, 48, 0.15);
+  color: #9e3f30;
+}
+
+.logout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(18, 22, 20, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: logoutFadeIn 0.28s ease-out forwards;
+}
+
+.logout-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  max-width: 320px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  animation: logoutContentFadeIn 0.32s ease-out forwards;
+}
+
+.logout-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--acid);
+  margin-bottom: 2px;
+}
+
+.logout-content h3 {
+  margin: 0;
+  font: 700 18px/1.35 var(--font-display);
+  color: #f7f9f7;
+  letter-spacing: -0.02em;
+}
+
+.logout-content p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9aa59e;
+  word-break: keep-all;
+}
+
+@keyframes logoutFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes logoutContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
