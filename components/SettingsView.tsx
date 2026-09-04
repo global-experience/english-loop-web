@@ -1,13 +1,16 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { DatabaseBackup, Download, HardDrive, KeyRound, LoaderCircle, LogOut, RefreshCw, Save, ShieldCheck, Vibrate } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { isHapticsEnabled, setHapticsEnabled, triggerHapticImpact } from "@/lib/haptics";
 import { DEFAULT_LEARNING_PRESETS, readLearningPresets, saveLearningPresets, type LearningPresetOptions } from "@/lib/learningSession";
+import { usePortalReady } from "@/lib/useMobileUi";
 
 export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Promise<void> }) {
+  const portalReady = usePortalReady();
   const [usage, setUsage] = useState("확인 중");
   const [message, setMessage] = useState("");
   const [actionKey, setActionKey] = useState("");
@@ -110,7 +113,7 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
         </span>
       </button>
     </section>
-    {loggingOut && (
+    {loggingOut && portalReady && createPortal(
       <div className="logout-overlay" role="status" aria-live="polite">
         <div className="logout-content">
           <div className="logout-spinner">
@@ -119,7 +122,8 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
           <h3>로그아웃하고 있어요</h3>
           <p>잠시 후 로그인 화면으로 이동합니다.</p>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
   </div>;
 }
