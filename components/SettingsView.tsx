@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { DatabaseBackup, Download, HardDrive, KeyRound, LogOut, Save, ShieldCheck, Vibrate } from "lucide-react";
+import { DatabaseBackup, Download, HardDrive, KeyRound, LogOut, RefreshCw, Save, ShieldCheck, Vibrate } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { isHapticsEnabled, setHapticsEnabled, triggerHapticImpact } from "@/lib/haptics";
@@ -60,11 +60,23 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
       setMessage("내 계정의 Custom GPT Action 키를 복사했어요.");
     } catch { setMessage(revealed ? "Action 키를 표시했어요. 길게 눌러 복사하세요." : "Action 키를 불러오지 못했습니다. 다시 시도해 주세요."); }
   }
+  async function rotateActionKey() {
+    if (!confirm("키를 재발급하면 기존 키는 즉시 무효가 됩니다. GPT Builder의 Bearer 값도 새 키로 바꿔야 해요. 계속할까요?")) return;
+    let rotated = false;
+    try {
+      const data = await apiFetch<{ api_key: string; version: number }>("/api/me/action-key/rotate", { method: "POST" });
+      setActionKey(data.api_key);
+      rotated = true;
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(data.api_key);
+      setMessage("새 Action 키를 발급하고 복사했어요. GPT Builder의 Bearer 값을 이 키로 바꿔주세요.");
+    } catch { setMessage(rotated ? "새 키를 표시했어요. 길게 눌러 복사한 뒤 GPT Builder에 저장하세요." : "Action 키 재발급에 실패했습니다. 잠시 후 다시 시도해 주세요."); }
+  }
   async function clearOffline() { if (!confirm("이 기기에 오프라인 저장한 콘텐츠를 모두 삭제할까요?")) return; navigator.serviceWorker.controller?.postMessage({ type: "CLEAR_OFFLINE_CONTENT" }); Object.keys(localStorage).filter((key) => key.startsWith("loopine:offline:")).forEach((key) => localStorage.removeItem(key)); setMessage("오프라인 콘텐츠를 삭제했어요."); }
 
   return <div className="view-stack"><header className="view-title"><p className="eyebrow">SETTINGS</p><h2>계정과 데이터를<br />가볍게 정리하기.</h2></header>
     <form className="settings-form" onSubmit={save}><section><div className="settings-heading"><span>01</span><div><h3>프로필과 목표</h3><p>학습 계획과 Custom GPT 컨텍스트에 사용됩니다.</p></div></div><label>이름<input name="display_name" defaultValue={user.display_name} required /></label><label>영어 수준<select name="english_level" defaultValue={user.english_level}>{["A1", "A2", "B1", "B2", "C1"].map((level) => <option key={level}>{level}</option>)}</select></label><label>학습 목표 (쉼표로 구분)<textarea name="goals" defaultValue={user.goals.join(", ")} /></label></section>
-      <section><div className="settings-heading"><span>02</span><div><h3>ChatGPT 영어 코치</h3><p>일반 HTTPS Custom GPT 공유 링크를 등록하세요.</p></div></div><label>Custom GPT URL<input name="custom_gpt_url" type="url" defaultValue={user.custom_gpt_url || ""} placeholder="https://chatgpt.com/g/g-..." /></label><button type="button" className="secondary-button wide" onClick={() => void revealActionKey()}><KeyRound size={17} /> 내 Action 키 표시·복사</button>{actionKey && <div className="action-key-panel"><code className="selectable-text">{actionKey}</code><small>이 키는 본인 GPT Builder의 Bearer 인증에만 사용하고 공유하지 마세요.</small></div>}<div className="security-note"><ShieldCheck /><p>음성 모드 중 Action 호출은 전제로 하지 않습니다. 텍스트 “오늘 수업 시작”과 “오늘 수업 저장”에서만 서버가 연결됩니다.</p></div></section>
+      <section><div className="settings-heading"><span>02</span><div><h3>ChatGPT 영어 코치</h3><p>일반 HTTPS Custom GPT 공유 링크를 등록하세요.</p></div></div><label>Custom GPT URL<input name="custom_gpt_url" type="url" defaultValue={user.custom_gpt_url || ""} placeholder="https://chatgpt.com/g/g-..." /></label><button type="button" className="secondary-button wide" onClick={() => void revealActionKey()}><KeyRound size={17} /> 내 Action 키 표시·복사</button><button type="button" className="secondary-button wide" onClick={() => void rotateActionKey()}><RefreshCw size={17} /> Action 키 재발급</button>{actionKey && <div className="action-key-panel"><code className="selectable-text">{actionKey}</code><small>이 키는 본인 GPT Builder의 Bearer 인증에만 사용하고 공유하지 마세요. 재발급하면 이전 키는 즉시 무효가 되니 Builder의 인증 값도 함께 바꿔주세요.</small></div>}<div className="security-note"><ShieldCheck /><p>음성 모드 중 Action 호출은 전제로 하지 않습니다. 텍스트 “오늘 수업 시작”과 “오늘 수업 저장”에서만 서버가 연결됩니다.</p></div></section>
       <section><div className="settings-heading"><span>03</span><div><h3>학습 재생 프리셋</h3><p>학습 워크스페이스에 표시할 값은 각각 3개로 고정됩니다.</p></div></div><label>반복 횟수 3개<div className="learning-preset-inputs">{learningPresets.repeats.map((value, index) => <input key={`repeat-${index}-${value}`} name={`repeat_${index}`} type="number" min="1" max="20" defaultValue={value} aria-label={`반복 횟수 ${index + 1}`} />)}</div></label><label>재생 배속 3개<div className="learning-preset-inputs">{learningPresets.speeds.map((value, index) => <input key={`speed-${index}-${value}`} name={`speed_${index}`} type="number" min="0.5" max="2" step="0.05" defaultValue={value} aria-label={`재생 배속 ${index + 1}`} />)}</div></label></section>
       <section><div className="settings-heading"><span>04</span><div><h3>시간과 녹음 정책</h3><p>학습 녹음 오디오는 기기에 저장하고 서버에는 STT 비교 기록만 저장합니다.</p></div></div><label>하루 기본 학습 시간<input name="daily_minutes" type="number" min="30" max="240" defaultValue={user.daily_minutes} /></label><label>학습 기록 보관일<input name="recording_retention_days" type="number" min="0" max="365" defaultValue={user.recording_retention_days} /></label></section>
       {/* <section><div className="settings-heading"><span>04</span><div><h3>앱 반응 및 햅틱</h3><p>버튼 터치 및 탭 전환 시 진동/햅틱 반응을 제어합니다.</p></div></div><button type="button" className="secondary-button wide" onClick={toggleHaptics} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ display: "flex", alignItems: "center", gap: "8px" }}><Vibrate size={17}/> 터치 햅틱 반응</span><strong>{hapticsOn ? "켜짐 ON" : "꺼짐 OFF"}</strong></button></section> */}
