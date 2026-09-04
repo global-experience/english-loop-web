@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight, LockKeyhole, UserPlus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { User } from "@/lib/types";
@@ -9,8 +10,10 @@ import { AppSplash, useAppSplash } from "@/components/AppSplash";
 type AuthMode = "login" | "register";
 
 export default function LoginPage() {
+  const router = useRouter();
   const splash = useAppSplash();
   const [mode, setMode] = useState<AuthMode>("login");
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,14 +23,14 @@ export default function LoginPage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (!splash.ready || splash.visible) return;
     let cancelled = false;
     apiFetch<User>("/api/me")
       .then((me) => {
         if (!cancelled && me?.id) {
-          window.location.href = "/";
+          router.replace("/");
         } else if (!cancelled) {
           setCheckingAuth(false);
         }
@@ -40,10 +43,11 @@ export default function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [splash.ready, splash.visible]);
+  }, [router]);
 
   function switchMode(nextMode: AuthMode) {
     if (nextMode === mode) return;
+    setDirection(nextMode === "register" ? "forward" : "back");
     setMode(nextMode);
     setError("");
     setNotice("");
@@ -53,6 +57,35 @@ export default function LoginPage() {
       setPassword("");
     }
   }
+
+  const handleTouchStart = (event: React.TouchEvent) => {
+    if (event.touches.length !== 1) return;
+    touchStartRef.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+    };
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    // 화면 어디서든 가로로 40px 이상 스와이프 시 전환
+    if (Math.abs(deltaX) >= 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
+      if (deltaX < 0 && mode === "login") {
+        switchMode("register");
+      } else if (deltaX > 0 && mode === "register") {
+        switchMode("login");
+      }
+    }
+  };
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -70,13 +103,13 @@ export default function LoginPage() {
         : { display_name: displayName, email, password, english_level: englishLevel };
       await apiFetch(path, { method: "POST", body: JSON.stringify(payload) });
       if (mode === "register") {
-        setMode("login");
+        switchMode("login");
         setPassword("");
         setPasswordConfirm("");
         setNotice("가입 요청이 접수됐습니다. 관리자가 승인하면 로그인할 수 있어요.");
         return;
       }
-      window.location.href = "/";
+      router.replace("/");
     } catch (caught) {
       if (typeof caught === "object" && caught !== null && "code" in caught && caught.code === "ACCOUNT_PENDING_APPROVAL") {
         setError("아직 관리자 승인 대기 중입니다. 승인 후 다시 로그인해 주세요.");
@@ -86,19 +119,37 @@ export default function LoginPage() {
     } finally { setBusy(false); }
   }
 
-  if (!splash.ready || splash.visible || checkingAuth) return <AppSplash />;
+  if (!splash.ready || splash.visible) return <AppSplash fadingOut={splash.fadingOut} />;
 
   const AuthIcon = mode === "login" ? LockKeyhole : UserPlus;
   return (
-    <main className="login-page">
-      <section className="login-brand"><div className="brand-mark inverse"><img src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /></div><p className="eyebrow">CLOSED LEARNING LOOP</p><h1>들은 영어를<br /><em>내 말로.</em></h1><p>출근길에 만난 표현을 점심에 말하고, 밤의 실제 대화까지 연결하세요.</p></section>
-      <form className="login-card" onSubmit={submit}>
+    <main
+      className="login-page"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <section className="login-brand">
+        <div className="brand-mark inverse"><img src="/icons/loopine-logo.svg" alt="" aria-hidden="true" /></div>
+        <p className="eyebrow">CLOSED LEARNING LOOP</p>
+        <h1>들은 영어를<br /><em>내 말로.</em></h1>
+        <p>출근길에 만난 표현을 점심에 말하고, 밤의 실제 대화까지 연결하세요.</p>
+      </section>
+      <form
+        className="login-card"
+        onSubmit={submit}
+      >
         <div className="auth-switch" role="tablist" aria-label="계정 접근 방식">
           <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => switchMode("login")}>로그인</button>
           <button type="button" role="tab" aria-selected={mode === "register"} className={mode === "register" ? "active" : ""} onClick={() => switchMode("register")}>회원가입</button>
         </div>
-        <AuthIcon size={26} /><div><p className="eyebrow">{mode === "login" ? "PRIVATE ACCESS" : "START YOUR LOOP"}</p><h2>{mode === "login" ? "나의 루프에 로그인" : "새 학습 루프 만들기"}</h2></div>
-        <div className={`auth-fields auth-fields-${mode}`} key={mode}>
+        <div className={`auth-title-stack auth-scene-${direction}`} key={`title-${mode}`}>
+          <AuthIcon size={24} className="auth-mode-icon" />
+          <div>
+            <p className="eyebrow">{mode === "login" ? "PRIVATE ACCESS" : "START YOUR LOOP"}</p>
+            <h2>{mode === "login" ? "나의 루프에 로그인" : "새 학습 루프 만들기"}</h2>
+          </div>
+        </div>
+        <div className={`auth-fields auth-fields-${mode} auth-scene-${direction}`} key={`fields-${mode}`}>
           {mode === "register" && <label>이름<input type="text" autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={80} placeholder="이름" /></label>}
           <label>이메일<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="이메일" /></label>
           {mode === "register" && <label>영어 수준<select value={englishLevel} onChange={(event) => setEnglishLevel(event.target.value)}>{["A1", "A2", "B1", "B2", "C1"].map((level) => <option key={level}>{level}</option>)}</select></label>}

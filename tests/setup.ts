@@ -42,3 +42,20 @@ if (typeof URL.createObjectURL !== "function") {
 if (typeof URL.revokeObjectURL !== "function") {
   Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
 }
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn((url: string) => {
+      window.location.href = url;
+    }),
+    replace: vi.fn((url: string) => {
+      window.location.href = url;
+    }),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+  usePathname: () => window.location.pathname || "/",
+  useSearchParams: () => new URLSearchParams(window.location.search || ""),
+}));

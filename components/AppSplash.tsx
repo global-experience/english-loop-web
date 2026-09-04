@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { getApiBase } from "@/lib/api";
 
 export const SPLASH_SESSION_KEY = "loopine:splash:shown";
-const SPLASH_DURATION_MS = 1500;
+const SPLASH_DURATION_MS = 1250;
+const FADE_DURATION_MS = 250;
 
 export function useAppSplash() {
-  const [state, setState] = useState({ ready: false, visible: true });
+  const [state, setState] = useState({ ready: false, visible: true, fadingOut: false });
 
   useEffect(() => {
     const apiBase = getApiBase();
@@ -17,7 +18,7 @@ export function useAppSplash() {
     }
     try {
       if (sessionStorage.getItem(SPLASH_SESSION_KEY) === "true") {
-        setState({ ready: true, visible: false });
+        setState({ ready: true, visible: false, fadingOut: false });
         return;
       }
       sessionStorage.setItem(SPLASH_SESSION_KEY, "true");
@@ -25,15 +26,28 @@ export function useAppSplash() {
       // The splash can still run when session storage is unavailable.
     }
 
-    setState({ ready: true, visible: true });
-    const timer = window.setTimeout(() => setState({ ready: true, visible: false }), SPLASH_DURATION_MS);
-    return () => window.clearTimeout(timer);
+    setState({ ready: true, visible: true, fadingOut: false });
+
+    // 1단계: 페이드아웃 시작
+    const fadeTimer = window.setTimeout(() => {
+      setState((prev) => ({ ...prev, fadingOut: true }));
+    }, SPLASH_DURATION_MS);
+
+    // 2단계: DOM 완전 언마운트
+    const hideTimer = window.setTimeout(() => {
+      setState({ ready: true, visible: false, fadingOut: false });
+    }, SPLASH_DURATION_MS + FADE_DURATION_MS);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(hideTimer);
+    };
   }, []);
 
   return state;
 }
 
-export function AppSplash() {
+export function AppSplash({ fadingOut = false }: { fadingOut?: boolean }) {
   useEffect(() => {
     document.documentElement.classList.add("splash-active");
     document.body.classList.add("splash-active");
@@ -44,7 +58,7 @@ export function AppSplash() {
   }, []);
 
   return (
-    <main className="splash-page" role="status" aria-label="Loopine 시작 화면">
+    <main className={`splash-page ${fadingOut ? "fading-out" : ""}`} role="status" aria-label="Loopine 시작 화면">
       <div className="splash-orbit splash-orbit-outer" aria-hidden="true" />
       <div className="splash-orbit splash-orbit-inner" aria-hidden="true" />
       <div className="splash-center">

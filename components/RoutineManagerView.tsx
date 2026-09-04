@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDown, ArrowLeft, ArrowUp, Bell, Check, Copy, GripVertical, LoaderCircle, Pencil, Plus, RotateCcw, Save, Trash2, TriangleAlert, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -68,11 +68,11 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
     setRoutinesState(payload);
   }
 
-  function handleBack() {
+  const handleBack = useCallback(() => {
     void onRefresh?.();
     notifyRoutinesUpdated();
     onBack();
-  }
+  }, [onBack, onRefresh]);
 
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
@@ -89,6 +89,34 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
   const dragSessionRef = useRef<DragSession | null>(null);
   const reorderRevisionRef = useRef(0);
   const reorderQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = useCallback((event: React.TouchEvent) => {
+    if (editingItemId !== null || deleteTarget !== null || draggingItemId !== null) return;
+    if (event.touches.length !== 1) return;
+    touchStartRef.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+    };
+  }, [editingItemId, deleteTarget, draggingItemId]);
+
+  const handleTouchEnd = useCallback((event: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (editingItemId !== null || deleteTarget !== null || draggingItemId !== null) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    // 오른쪽으로 스와이프 시 학습탭으로 복귀 (ReviewView와 동일한 판정 기준)
+    if (deltaX >= 55 && deltaX > Math.abs(deltaY) * 1.4) {
+      handleBack();
+    }
+  }, [editingItemId, deleteTarget, draggingItemId, handleBack]);
 
   useEffect(() => {
     void load();
@@ -336,7 +364,12 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
   const completedSetup = Boolean(routines?.plans.length);
 
   return (
-    <section className="routine-board" aria-label="학습 루틴 관리">
+    <section
+      className="routine-board"
+      aria-label="학습 루틴 관리"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <header className="routine-board-hero">
         <button type="button" className="routine-back-button" onClick={handleBack}><ArrowLeft size={18} /> 학습으로</button>
         <div>

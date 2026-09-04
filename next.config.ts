@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["192.168.0.130", "192.168.0.130:3000", "192.168.0.34", "192.168.0.34:3000", "localhost:3000", "127.0.0.1:3000"],
+  allowedDevOrigins: ["192.168.0.130", "192.168.0.130:3000", "192.168.0.34", "192.168.0.34:3000", "192.168.0.131", "192.168.0.131:3000", "localhost:3000", "127.0.0.1:3000"],
   output: process.env.CAPACITOR_BUILD ? "export" : process.env.VERCEL ? undefined : "standalone",
   trailingSlash: true,
   skipTrailingSlashRedirect: true,

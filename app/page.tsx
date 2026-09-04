@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, BookOpen, CalendarDays, CircleUserRound, Clapperboard, LoaderCircle, RefreshCw, WifiOff } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -109,6 +110,8 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(!restoredBootstrap);
   const [online, setOnline] = useState(true);
+  const router = useRouter();
+  const [isUnauthorized, setIsUnauthorized] = useState(false);
   const [tabDirection, setTabDirection] = useState<TabDirection>("forward");
   const tabRef = useRef<AppTab>(initialTab);
   const scrollPositionsRef = useRef<Partial<Record<AppTab, number>>>(restoredShell?.scrollPositions || {});
@@ -122,14 +125,15 @@ export default function Home() {
       saveBootstrapSnapshot(me, data);
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
-        window.location.href = "/login";
+        setIsUnauthorized(true);
+        router.replace("/login");
         return;
       }
       setError(caught instanceof Error ? caught.message : "데이터를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   const handlePullRefresh = useCallback(async () => {
     const bootstrapPromise = refresh();
@@ -353,7 +357,9 @@ export default function Home() {
     switchTab("learn");
   };
 
-  if (!splash.ready || splash.visible) return <AppSplash />;
+  if (!splash.ready || splash.visible || isUnauthorized || (loading && !restoredBootstrap && !user)) {
+    return <AppSplash fadingOut={splash.fadingOut && !isUnauthorized && (!loading || !!user)} />;
+  }
 
   const needsBootstrap = !user || !today;
   const bootstrapFallback = (

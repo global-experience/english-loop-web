@@ -37,9 +37,44 @@ export function PullToRefresh({ children, onRefresh, activeTab, disabled = false
     setIsNative(isNativeAppRuntime(capacitor, ua));
   }, []);
 
+  // 팝업, 모달, 바텀시트 등이 열려있는지 또는 터치 타겟이 팝업 내부인지 확인
+  const isModalOrPopupActive = useCallback((e?: TouchEvent): boolean => {
+    if (typeof document === "undefined") return false;
+
+    // 1. body/html 모달 클래스 검사
+    if (
+      document.body.classList.contains("modal-open") ||
+      document.documentElement.classList.contains("modal-open") ||
+      document.documentElement.classList.contains("translation-sheet-open")
+    ) {
+      return true;
+    }
+
+    const popupSelectors =
+      "[role='dialog'], [aria-modal='true'], .speech-sheet, .subtitle-player-sheet, .confirm-modal-dialog, .routine-modal-card, .content-picker, .modal-backdrop, .sheet-backdrop, .modal, .bottom-sheet, .translation-sheet";
+
+    // 2. 터치한 타겟이 팝업 내부인지 검사
+    if (e?.target) {
+      const targetEl = e.target as Element;
+      if (targetEl.closest?.(popupSelectors)) {
+        return true;
+      }
+    }
+
+    // 3. 현재 DOM에 활성화된 팝업/시트가 존재하는지 검사
+    if (document.querySelector(popupSelectors)) {
+      return true;
+    }
+
+    return false;
+  }, []);
+
   // 최상단 스크롤 상태 검사
   const isAtTop = useCallback(() => {
     if (typeof window === "undefined") return false;
+
+    // 팝업이 열려있으면 메인 화면 pull-to-refresh는 절대 동작하지 않음
+    if (isModalOrPopupActive()) return false;
 
     // 피드 탭일 경우 내부의 .feed-stream 스크롤 상태 확인
     if (activeTab === "feed") {
@@ -51,7 +86,7 @@ export function PullToRefresh({ children, onRefresh, activeTab, disabled = false
 
     // 일반 탭일 경우 윈도우 스크롤 상태 확인
     return window.scrollY <= 1 && document.documentElement.scrollTop <= 1;
-  }, [activeTab]);
+  }, [activeTab, isModalOrPopupActive]);
 
   useEffect(() => {
     // 오로지 Capacitor 네이티브 앱 환경에서만 이벤트 리스너를 등록
@@ -60,6 +95,7 @@ export function PullToRefresh({ children, onRefresh, activeTab, disabled = false
     const handleTouchStart = (e: TouchEvent) => {
       if (isRefreshingRef.current) return;
       if (e.touches.length !== 1) return;
+      if (isModalOrPopupActive(e)) return;
 
       if (isAtTop()) {
         startYRef.current = e.touches[0].clientY;
@@ -76,6 +112,15 @@ export function PullToRefresh({ children, onRefresh, activeTab, disabled = false
       if (isRefreshingRef.current) return;
       if (startYRef.current === 0) return;
       if (e.touches.length !== 1) return;
+      if (isModalOrPopupActive(e)) {
+        startYRef.current = 0;
+        if (isPullingRef.current) {
+          isPullingRef.current = false;
+          setPullDistance(0);
+          setWillRefresh(false);
+        }
+        return;
+      }
 
       const currentY = e.touches[0].clientY;
       const currentX = e.touches[0].clientX;

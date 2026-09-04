@@ -44,4 +44,36 @@ describe("PullToRefresh Component", () => {
     expect(screen.getByTestId("child-content")).toBeDefined();
     expect(container.querySelector(".ptr-indicator-pill")).toBeDefined();
   });
+
+  it("does not trigger refresh when modal is open", () => {
+    (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor = {
+      isNativePlatform: () => true,
+    };
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+
+    // 모달 활성화 시뮬레이션
+    document.body.classList.add("modal-open");
+
+    render(
+      <PullToRefresh onRefresh={onRefresh} activeTab="today">
+        <div data-testid="child-content">Content</div>
+      </PullToRefresh>
+    );
+
+    // 터치 이벤트 발생
+    window.dispatchEvent(
+      new TouchEvent("touchstart", {
+        touches: [{ clientX: 100, clientY: 100 } as Touch],
+      })
+    );
+    window.dispatchEvent(
+      new TouchEvent("touchmove", {
+        touches: [{ clientX: 100, clientY: 250 } as Touch],
+      })
+    );
+    window.dispatchEvent(new TouchEvent("touchend"));
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    document.body.classList.remove("modal-open");
+  });
 });

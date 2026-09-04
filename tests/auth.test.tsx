@@ -45,6 +45,31 @@ describe("LoginPage authentication redirect", () => {
     render(<LoginPage />);
     expect(await screen.findByRole("heading", { name: "나의 루프에 로그인" })).toBeInTheDocument();
   });
+
+  it("swipes left to switch to register and swipes right to switch back to login", async () => {
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path === "/api/me") {
+        return Promise.reject({ status: 401 });
+      }
+      return Promise.resolve({});
+    });
+
+    const { container } = render(<LoginPage />);
+    const page = container.querySelector("main.login-page")!;
+    expect(await screen.findByRole("heading", { name: "나의 루프에 로그인" })).toBeInTheDocument();
+
+    // 왼쪽으로 스와이프 -> 회원가입
+    fireEvent.touchStart(page, { touches: [{ clientX: 200, clientY: 100 }] });
+    fireEvent.touchEnd(page, { changedTouches: [{ clientX: 120, clientY: 105 }] });
+
+    expect(await screen.findByRole("heading", { name: "새 학습 루프 만들기" })).toBeInTheDocument();
+
+    // 오른쪽으로 스와이프 -> 로그인
+    fireEvent.touchStart(page, { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchEnd(page, { changedTouches: [{ clientX: 180, clientY: 105 }] });
+
+    expect(await screen.findByRole("heading", { name: "나의 루프에 로그인" })).toBeInTheDocument();
+  });
 });
 
 describe("LoginPage registration", () => {

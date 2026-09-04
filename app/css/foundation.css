@@ -448,7 +448,7 @@ body.keyboard-open .bottom-nav {
 
 .tab-viewport {
   position: relative;
-  min-height: calc(100dvh - 190px);
+  min-height: calc(100dvh - 300px);
   -webkit-overflow-scrolling: touch;
 }
 
@@ -672,4 +672,3 @@ body.keyboard-open .bottom-nav {
   color: var(--acid);
   border-color: rgba(216, 239, 103, 0.4);
 }
-
