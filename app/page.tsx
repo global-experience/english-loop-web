@@ -55,12 +55,24 @@ const tabLabels: Record<AppTab, string> = {
   settings: "설정",
 };
 
+export function getTabUrl(targetTab: AppTab): string {
+  if (targetTab === "today") return "/";
+  return `/${targetTab}/`;
+}
+
 function getInitialRoute() {
   if (typeof window === "undefined") return null;
+  const pathSegment = window.location.pathname.replace(/^\/|\/$/g, "").split("/")[0];
   const params = new URLSearchParams(window.location.search);
   const queryTab = params.get("tab");
   const hashTab = window.location.hash.replace(/^#\/?/, "").split(/[/?]/)[0];
-  const tab = isAppTab(queryTab) ? queryTab : isAppTab(hashTab) ? hashTab : null;
+  const tab = isAppTab(pathSegment)
+    ? pathSegment
+    : isAppTab(queryTab)
+      ? queryTab
+      : isAppTab(hashTab)
+        ? hashTab
+        : null;
   const mode = params.get("mode");
   const entrySource = params.get("entrySource");
   const routineStep = params.get("routineStep");
@@ -242,26 +254,11 @@ export default function Home() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isNativeRuntime()) return;
-    window.history.replaceState({ loopine: true, tab }, "", window.location.href);
-    const onPopState = () => {
-      if (tabRef.current !== "today") {
-        setTabDirection("back");
-        setTab("today");
-        setVisitedTabs((current) => Array.from(new Set([...current, "today"])));
-        window.history.pushState({ loopine: true, tab: "today" }, "", window.location.href);
-      }
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, [tab]);
-
   const scrollToTop = (behavior: ScrollBehavior = "smooth") => {
     window.scrollTo({ top: 0, left: 0, behavior });
   };
 
-  const switchTab = (nextTab: AppTab) => {
+  const switchTab = useCallback((nextTab: AppTab, options?: { updateHistory?: boolean }) => {
     void triggerHapticSelection();
     if (tabRef.current !== "settings") {
       scrollPositionsRef.current[tabRef.current] = window.scrollY;
@@ -270,13 +267,21 @@ export default function Home() {
       scrollPositionsRef.current["settings"] = 0;
       setSettingsKey((prev) => prev + 1);
     }
-    if (nextTab === tab) {
+    if (nextTab === tabRef.current) {
       emitTabReselect(nextTab);
       scrollToTop("smooth");
       scrollPositionsRef.current[nextTab] = 0;
       return;
     }
-    const direction: TabDirection = APP_TABS.indexOf(nextTab) > APP_TABS.indexOf(tab) ? "forward" : "back";
+
+    if (options?.updateHistory !== false && typeof window !== "undefined") {
+      const targetUrl = getTabUrl(nextTab);
+      if (window.location.pathname !== targetUrl) {
+        window.history.pushState({ loopine: true, tab: nextTab }, "", targetUrl);
+      }
+    }
+
+    const direction: TabDirection = APP_TABS.indexOf(nextTab) > APP_TABS.indexOf(tabRef.current) ? "forward" : "back";
     emitTabVisibility(tabRef.current, false);
     setTabDirection(direction);
     setVisitedTabs((current) => Array.from(new Set([...current, nextTab])));
@@ -287,7 +292,30 @@ export default function Home() {
     window.requestAnimationFrame(() => {
       window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const initialUrl = getTabUrl(tabRef.current);
+    window.history.replaceState({ loopine: true, tab: tabRef.current }, "", initialUrl);
+
+    const onPopState = (event: PopStateEvent) => {
+      const stateTab = event.state?.tab;
+      const pathSegment = window.location.pathname.replace(/^\/|\/$/g, "").split("/")[0];
+      const targetTab: AppTab = isAppTab(stateTab)
+        ? stateTab
+        : isAppTab(pathSegment)
+          ? pathSegment
+          : "today";
+
+      if (targetTab !== tabRef.current) {
+        switchTab(targetTab, { updateHistory: false });
+      }
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [switchTab]);
 
   const openLearning = (target: Activity | TodayRoutineItem) => {
     const activity = "slot" in target ? target : null;

@@ -30,7 +30,21 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     const apiOrigin = (process.env.API_PROXY_ORIGIN || "http://host.docker.internal:8000").replace(/\/$/, "");
-    return [{ source: "/backend/:path*", destination: `${apiOrigin}/:path*` }];
+    return [
+      { source: "/backend/:path*", destination: `${apiOrigin}/:path*` },
+      { source: "/today", destination: "/" },
+      { source: "/today/", destination: "/" },
+      { source: "/learn", destination: "/" },
+      { source: "/learn/", destination: "/" },
+      { source: "/feed", destination: "/" },
+      { source: "/feed/", destination: "/" },
+      { source: "/review", destination: "/" },
+      { source: "/review/", destination: "/" },
+      { source: "/settings", destination: "/" },
+      { source: "/settings/", destination: "/" },
+      { source: "/report", destination: "/" },
+      { source: "/report/", destination: "/" },
+    ];
   },
 };
 
