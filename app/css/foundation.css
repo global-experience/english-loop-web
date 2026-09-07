@@ -56,6 +56,24 @@ textarea {
   cursor: text;
 }
 
+/* Hide native search clear/cancel button in WebKit and Edge */
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+input[type="search"]::-ms-clear,
+input[type="search"]::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+
 html.translation-sheet-open,
 html.translation-sheet-open body {
   overscroll-behavior: none;

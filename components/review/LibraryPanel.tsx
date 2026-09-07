@@ -144,7 +144,7 @@ function LibraryPanelInner({
 
   return (
     <div className="review-panel">
-      <div className="review-filter-bar flex-col align-stretch">
+      <div className="review-filter-bar library-filter-bar">
         <div className="segmented library-kind-switch" role="tablist" aria-label="보관함 분류">
           {KINDS.map((option) => (
             <button
@@ -167,7 +167,7 @@ function LibraryPanelInner({
           ))}
         </div>
 
-        <label className="review-search">
+        <label className={`review-search ${search ? "has-value" : ""}`}>
           <Search size={16} aria-hidden="true" />
           <span className="sr-only">보관함 검색</span>
           <input
