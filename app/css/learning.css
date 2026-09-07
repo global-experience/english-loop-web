@@ -409,12 +409,34 @@
   color: var(--muted);
   background: transparent;
   text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.routine-plan-switcher button:active {
+  transform: scale(0.97);
 }
 
 .routine-plan-switcher button.active {
   color: var(--ink);
   background: white;
   box-shadow: 0 8px 18px rgba(24, 32, 29, .08);
+  animation: routine-tab-pop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes routine-tab-pop {
+  0% {
+    transform: scale(0.96);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .routine-plan-switcher strong {
@@ -429,6 +451,43 @@
 .routine-plan-workspace {
   display: grid;
   gap: 12px;
+}
+
+/* ── Routine Plan Scene Transition ─────────────────────────────────── */
+.routine-plan-scene {
+  will-change: transform, opacity;
+}
+
+.routine-plan-scene.routine-plan-scene-forward {
+  animation: routine-plan-forward-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.routine-plan-scene.routine-plan-scene-back {
+  animation: routine-plan-back-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes routine-plan-forward-in {
+  from {
+    opacity: 0;
+    transform: translate3d(24px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes routine-plan-back-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-24px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .routine-plan-toolbar {
@@ -586,6 +645,7 @@
   border-radius: 15px;
   background: var(--acid);
   flex-shrink: 0;
+  margin-left: 10px;
 }
 
 .routine-card-copy {
@@ -2040,8 +2100,8 @@
   gap: 18px;
 }
 
-.content-picker header > div,
-.speech-sheet header > div {
+.content-picker header>div,
+.speech-sheet header>div {
   min-width: 0;
   flex: 1;
 }
@@ -2056,8 +2116,8 @@
   white-space: nowrap;
 }
 
-.content-picker header > button,
-.speech-sheet header > button {
+.content-picker header>button,
+.speech-sheet header>button {
   width: 44px;
   height: 44px;
   min-width: 44px;

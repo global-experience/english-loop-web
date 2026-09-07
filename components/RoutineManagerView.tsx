@@ -77,8 +77,25 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [planDirection, setPlanDirection] = useState<"forward" | "back">("forward");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoutineItem | null>(null);
+
+  const selectPlan = useCallback((planId: string) => {
+    if (planId === selectedPlanId) return;
+    void triggerHapticImpact("light");
+    if (routinesRef.current?.plans) {
+      const plans = routinesRef.current.plans;
+      const currentIndex = plans.findIndex((p) => p.id === selectedPlanId);
+      const nextIndex = plans.findIndex((p) => p.id === planId);
+      if (nextIndex > currentIndex) {
+        setPlanDirection("forward");
+      } else {
+        setPlanDirection("back");
+      }
+    }
+    setSelectedPlanId(planId);
+  }, [selectedPlanId]);
 
   useBodyScrollLock(editingItemId !== null || deleteTarget !== null);
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
@@ -398,7 +415,7 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
                 role="tab"
                 aria-selected={selectedPlan?.id === plan.id}
                 className={selectedPlan?.id === plan.id ? "active" : ""}
-                onClick={() => setSelectedPlanId(plan.id)}
+                onClick={() => selectPlan(plan.id)}
               >
                 <strong>{plan.name}</strong>
                 <small>{daySummary(plan.days_of_week)} · {plan.items.length}개</small>
@@ -407,7 +424,10 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
           </div>
 
           {selectedPlan && (
-            <div className="routine-plan-workspace">
+            <div
+              key={selectedPlan.id}
+              className={`routine-plan-workspace routine-plan-scene routine-plan-scene-${planDirection}`}
+            >
               <div className="routine-plan-toolbar">
                 <div>
                   <strong>{selectedPlan.name}</strong>
