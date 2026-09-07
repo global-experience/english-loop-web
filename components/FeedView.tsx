@@ -18,6 +18,7 @@ type FeedPlayer = {
   playVideo: () => void;
   pauseVideo: () => void;
   stopVideo?: () => void;
+  seekTo?: (seconds: number, allowSeekAhead?: boolean) => void;
   mute: () => void;
   unMute: () => void;
   isMuted: () => boolean;
@@ -506,7 +507,7 @@ export function FeedView({
       }
       try {
         if (playerRef.current) {
-          playerRef.current.seekTo(0, true);
+          playerRef.current.seekTo?.(0, true);
           playerRef.current.playVideo();
         }
       } catch { /* ignore */ }
