@@ -410,33 +410,18 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .routine-plan-switcher button:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .routine-plan-switcher button.active {
   color: var(--ink);
   background: white;
-  box-shadow: 0 8px 18px rgba(24, 32, 29, .08);
-  animation: routine-tab-pop 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-@keyframes routine-tab-pop {
-  0% {
-    transform: scale(0.96);
-  }
-
-  50% {
-    transform: scale(1.02);
-  }
-
-  100% {
-    transform: scale(1);
-  }
+  box-shadow: 0 4px 14px rgba(24, 32, 29, .08);
 }
 
 .routine-plan-switcher strong {
@@ -455,36 +440,39 @@
 
 /* ── Routine Plan Scene Transition ─────────────────────────────────── */
 .routine-plan-scene {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
   will-change: transform, opacity;
 }
 
 .routine-plan-scene.routine-plan-scene-forward {
-  animation: routine-plan-forward-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: routine-plan-forward-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .routine-plan-scene.routine-plan-scene-back {
-  animation: routine-plan-back-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: routine-plan-back-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes routine-plan-forward-in {
-  from {
-    opacity: 0;
-    transform: translate3d(24px, 0, 0);
+  0% {
+    opacity: 0.35;
+    transform: translate3d(14px, 0, 0);
   }
 
-  to {
+  100% {
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes routine-plan-back-in {
-  from {
-    opacity: 0;
-    transform: translate3d(-24px, 0, 0);
+  0% {
+    opacity: 0.35;
+    transform: translate3d(-14px, 0, 0);
   }
 
-  to {
+  100% {
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
@@ -533,7 +521,7 @@
 .routine-card-list {
   display: grid;
   gap: 10px;
-  min-height: 1px;
+  min-height: 120px;
   isolation: isolate;
 }
 

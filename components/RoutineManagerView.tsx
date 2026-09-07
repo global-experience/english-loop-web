@@ -83,7 +83,6 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
 
   const selectPlan = useCallback((planId: string) => {
     if (planId === selectedPlanId) return;
-    void triggerHapticImpact("light");
     if (routinesRef.current?.plans) {
       const plans = routinesRef.current.plans;
       const currentIndex = plans.findIndex((p) => p.id === selectedPlanId);
@@ -424,10 +423,7 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
           </div>
 
           {selectedPlan && (
-            <div
-              key={selectedPlan.id}
-              className={`routine-plan-workspace routine-plan-scene routine-plan-scene-${planDirection}`}
-            >
+            <div className="routine-plan-workspace">
               <div className="routine-plan-toolbar">
                 <div>
                   <strong>{selectedPlan.name}</strong>
@@ -439,7 +435,11 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
                 </button>
               </div>
 
-              <div className="routine-card-list" ref={routineListRef}>
+              <div
+                key={selectedPlan.id}
+                ref={routineListRef}
+                className={`routine-card-list routine-plan-scene routine-plan-scene-${planDirection}`}
+              >
                 {selectedPlan.items.map((item, index) => {
                   const shift = cardShift(index);
                   const isDragged = draggingItemId === item.id;
