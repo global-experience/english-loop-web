@@ -706,7 +706,7 @@
   padding: 0;
   overflow: hidden;
   touch-action: none;
-  background: rgba(8, 12, 10, .58);
+  background: rgba(8, 12, 10, calc(.58 * var(--sheet-drag-fade, 1)));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: translation-fade-in .2s ease both;
@@ -1485,7 +1485,7 @@
   padding: 0;
   overflow: hidden;
   touch-action: none;
-  background: rgba(8, 12, 10, .56);
+  background: rgba(8, 12, 10, calc(.56 * var(--sheet-drag-fade, 1)));
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   animation: translation-fade-in .2s ease both;
@@ -2023,7 +2023,7 @@
   padding: 0;
   overflow: hidden;
   touch-action: none;
-  background: rgba(8, 12, 10, .58);
+  background: rgba(8, 12, 10, calc(.58 * var(--sheet-drag-fade, 1)));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: translation-fade-in .2s ease both;
@@ -2078,6 +2078,65 @@
   margin: 0 auto 14px;
   border-radius: 99px;
   background: rgba(255, 255, 255, .36);
+}
+
+/* 손잡이는 보이는 막대보다 넓게 잡혀야 한다(터치 영역). */
+.content-picker-grabber,
+.speech-sheet-grabber,
+.translation-sheet-grabber,
+.routine-modal-grabber {
+  display: block;
+  width: 100%;
+  margin: -8px 0 0;
+  padding: 8px 0 2px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.content-picker-grabber:active,
+.speech-sheet-grabber:active,
+.translation-sheet-grabber:active,
+.routine-modal-grabber:active {
+  cursor: grabbing;
+}
+
+/*
+ * 시트 등장 애니메이션이 `both` 로 transform 을 계속 점유하므로,
+ * 드래그 중에는 애니메이션을 끊어야 인라인 transform 이 먹는다.
+ */
+.content-picker-layer.mobile .content-picker.sheet-dragging,
+.content-picker-layer.mobile .content-picker.sheet-releasing,
+.speech-sheet-layer.mobile .speech-sheet.sheet-dragging,
+.speech-sheet-layer.mobile .speech-sheet.sheet-releasing,
+.translation-layer.mobile .translation-panel.sheet-dragging,
+.translation-layer.mobile .translation-panel.sheet-releasing,
+.routine-modal-layer.mobile .routine-modal-card.sheet-dragging,
+.routine-modal-layer.mobile .routine-modal-card.sheet-releasing {
+  animation: none;
+  will-change: transform;
+}
+
+.content-picker-layer.mobile .content-picker.sheet-dragging,
+.speech-sheet-layer.mobile .speech-sheet.sheet-dragging,
+.translation-layer.mobile .translation-panel.sheet-dragging,
+.routine-modal-layer.mobile .routine-modal-card.sheet-dragging {
+  transition: none;
+}
+
+.content-picker-layer.mobile .content-picker.sheet-releasing,
+.speech-sheet-layer.mobile .speech-sheet.sheet-releasing,
+.translation-layer.mobile .translation-panel.sheet-releasing,
+.routine-modal-layer.mobile .routine-modal-card.sheet-releasing {
+  transition: transform .26s cubic-bezier(.22, .82, .24, 1), opacity .26s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-picker-layer.mobile .content-picker.sheet-releasing,
+  .speech-sheet-layer.mobile .speech-sheet.sheet-releasing,
+  .translation-layer.mobile .translation-panel.sheet-releasing,
+  .routine-modal-layer.mobile .routine-modal-card.sheet-releasing {
+    transition: none;
+  }
 }
 
 .content-picker header,

@@ -13,6 +13,7 @@ import {
   type SpeechComparison,
 } from "@/lib/learningSession";
 import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useSheetDragToClose } from "@/lib/sheetDrag";
 
 type AttemptResponse = { id: string; created_at: string };
 type SttProvider = "MOCK" | "GROQ" | "WHISPER" | "CLOUDFLARE";
@@ -147,6 +148,7 @@ export function SpeechPracticeSheet({
   onSaved?: (comparison: SpeechComparison) => void;
 }) {
   const { mobile } = useMobileUi();
+  const { sheetRef, sheetClassName, handleProps } = useSheetDragToClose({ onClose, enabled: mobile });
   const portalReady = usePortalReady();
   const [recording, setRecording] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -447,8 +449,12 @@ export function SpeechPracticeSheet({
 
   return createPortal(
     <div className={`speech-sheet-layer ${mobile ? "mobile" : "desktop"}`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="speech-sheet" role="dialog" aria-modal={mobile} aria-labelledby="speech-sheet-title">
-        {mobile && <div className="speech-sheet-handle" aria-hidden="true" />}
+      <section ref={sheetRef} className={`speech-sheet${sheetClassName}`} role="dialog" aria-modal={mobile} aria-labelledby="speech-sheet-title">
+        {mobile && (
+          <div className="speech-sheet-grabber" {...handleProps}>
+            <div className="speech-sheet-handle" aria-hidden="true" />
+          </div>
+        )}
         <header><div><p className="eyebrow">SPEAK · COMPARE · RETRY</p><h2 id="speech-sheet-title">문장 말해보기</h2></div><button onClick={onClose} aria-label="말하기 연습 닫기"><X size={19} /></button></header>
         <div className="speech-reference"><small>따라 말할 문장</small><strong>{referenceText}</strong><div><button onClick={() => onListen(false)}><Play size={15} /> 원문 듣기</button><button onClick={() => onListen(true)}><RotateCcw size={15} /> 느리게 듣기</button></div></div>
         <div className={`speech-recorder ${recording ? "recording" : ""}`}>

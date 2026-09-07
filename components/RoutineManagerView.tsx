@@ -8,6 +8,7 @@ import { triggerHapticImpact } from "@/lib/haptics";
 import type { ContentStrategy, RoutineActivityType, RoutineItem, RoutineItemConfig, RoutinePayload } from "@/lib/types";
 import { ACTIVITY_LABELS, DAY_LABELS, RoutineIcon, daySummary, defaultRoutineItem, fetchRoutines, notifyRoutinesUpdated, syncRoutineNotifications } from "@/lib/routines";
 import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useSheetDragToClose } from "@/lib/sheetDrag";
 
 const activityOptions: RoutineActivityType[] = ["listen", "shadowing", "recall", "record", "review", "ai_conversation", "free_study"];
 const strategyOptions: ContentStrategy[] = ["recommended", "continue_recent", "fixed", "saved", "manual", "none"];
@@ -591,6 +592,7 @@ function RoutineItemEditorModal({
 }) {
   const portalReady = usePortalReady();
   const { mobile } = useMobileUi();
+  const { sheetRef, sheetClassName, handleProps } = useSheetDragToClose({ onClose, enabled: mobile });
 
   const [name, setName] = useState(item.name);
   const [selectedIcon, setSelectedIcon] = useState(item.icon);
@@ -661,8 +663,12 @@ function RoutineItemEditorModal({
       className={`routine-modal-layer ${mobile ? "mobile" : "desktop"}`}
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <section className="routine-modal-card" role="dialog" aria-modal="true" aria-labelledby="routine-modal-title">
-        {mobile && <div className="routine-modal-handle" aria-hidden="true" />}
+      <section ref={sheetRef} className={`routine-modal-card${sheetClassName}`} role="dialog" aria-modal="true" aria-labelledby="routine-modal-title">
+        {mobile && (
+          <div className="routine-modal-grabber" {...handleProps}>
+            <div className="routine-modal-handle" aria-hidden="true" />
+          </div>
+        )}
 
         <header className="routine-modal-header">
           <div>

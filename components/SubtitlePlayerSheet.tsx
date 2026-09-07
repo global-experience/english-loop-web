@@ -6,6 +6,7 @@ import { BookOpen, Pause, Play, RotateCcw, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { ContentDetailResponse } from "@/lib/reviewTypes";
 import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useSheetDragToClose } from "@/lib/sheetDrag";
 
 export type SubtitlePlayerTarget = {
   text: string;
@@ -34,6 +35,7 @@ export function SubtitlePlayerSheet({
 }) {
   const { mobile } = useMobileUi();
   const portalReady = usePortalReady();
+  const { sheetRef, sheetClassName, handleProps } = useSheetDragToClose({ onClose, enabled: mobile });
 
   const [repeatsLeft, setRepeatsLeft] = useState(3);
   const [repeatTarget, setRepeatTarget] = useState(3);
@@ -354,8 +356,18 @@ export function SubtitlePlayerSheet({
       className={`speech-sheet-layer ${mobile ? "mobile" : "desktop"} subtitle-player-layer`}
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <section className="speech-sheet subtitle-player-sheet" role="dialog" aria-modal={mobile} aria-labelledby="subtitle-player-title">
-        {mobile && <div className="speech-sheet-handle" aria-hidden="true" />}
+      <section
+        ref={sheetRef}
+        className={`speech-sheet subtitle-player-sheet${sheetClassName}`}
+        role="dialog"
+        aria-modal={mobile}
+        aria-labelledby="subtitle-player-title"
+      >
+        {mobile && (
+          <div className="speech-sheet-grabber" {...handleProps}>
+            <div className="speech-sheet-handle" aria-hidden="true" />
+          </div>
+        )}
         <header>
           <div>
             <p className="eyebrow">SUBTITLE AUDIO</p>

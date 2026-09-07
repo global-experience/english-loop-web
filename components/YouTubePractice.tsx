@@ -10,6 +10,7 @@ import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
 import type { TranscriptSegment } from "@/lib/youtubeStore";
 import type { LearningPresetOptions, LearningSessionEntry, SpeechComparison } from "@/lib/learningSession";
 import { useBodyScrollLock, useMobileUi } from "@/lib/useMobileUi";
+import { useSheetDragToClose } from "@/lib/sheetDrag";
 import { LearningSessionHeader } from "./LearningSessionHeader";
 import { SpeechPracticeSheet } from "./SpeechPracticeSheet";
 
@@ -239,6 +240,12 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   const [translationPanel, setTranslationPanel] = useState<TranslationPanelState | null>(null);
   const { mobile: mobileTranslationUi, platform: translationPlatform } = useMobileTranslationUi();
   const mobileTranslationSheetOpen = mobileTranslationUi && translationPanel !== null;
+  const closeTranslationPanel = useCallback(() => setTranslationPanel(null), []);
+  const {
+    sheetRef: translationSheetRef,
+    sheetClassName: translationSheetClassName,
+    handleProps: translationHandleProps,
+  } = useSheetDragToClose({ onClose: closeTranslationPanel, enabled: mobileTranslationUi });
 
   useBodyScrollLock(mobileTranslationSheetOpen);
 
@@ -1017,12 +1024,17 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
           }}
         >
           <section
-            className="translation-panel"
+            ref={translationSheetRef}
+            className={`translation-panel${translationSheetClassName}`}
             role="dialog"
             aria-modal={mobileTranslationUi}
             aria-labelledby="translation-panel-title"
           >
-            {mobileTranslationUi && <div className="translation-sheet-handle" aria-hidden="true" />}
+            {mobileTranslationUi && (
+              <div className="translation-sheet-grabber" {...translationHandleProps}>
+                <div className="translation-sheet-handle" aria-hidden="true" />
+              </div>
+            )}
             <header>
               <div>
                 {!mobileTranslationUi && <p className="eyebrow"><Sparkles size={12} /> AI TRANSLATION</p>}

@@ -15,6 +15,7 @@ import {
 import { apiFetch } from "@/lib/api";
 import { youtubeStore } from "@/lib/youtubeStore";
 import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { useSheetDragToClose } from "@/lib/sheetDrag";
 import { YouTubePractice } from "./YouTubePractice";
 import { DirectContentPractice } from "./DirectContentPractice";
 import { RoutineManagerView } from "./RoutineManagerView";
@@ -142,6 +143,7 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
 
 function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose: () => void; onSelect: (entry: LearningSessionEntry) => void }) {
   const { mobile } = useMobileUi();
+  const { sheetRef, sheetClassName, handleProps } = useSheetDragToClose({ onClose, enabled: mobile });
   const portalReady = usePortalReady();
   const [items, setItems] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,8 +178,12 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
 
   return createPortal(
     <div className={`content-picker-layer ${mobile ? "mobile" : "desktop"}`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="content-picker" role="dialog" aria-modal={mobile} aria-labelledby="content-picker-title">
-        {mobile && <div className="content-picker-handle" aria-hidden="true" />}
+      <section ref={sheetRef} className={`content-picker${sheetClassName}`} role="dialog" aria-modal={mobile} aria-labelledby="content-picker-title">
+        {mobile && (
+          <div className="content-picker-grabber" {...handleProps}>
+            <div className="content-picker-handle" aria-hidden="true" />
+          </div>
+        )}
         <header><div><p className="eyebrow">CONTENT SOURCE</p><h2 id="content-picker-title">학습 콘텐츠 선택</h2></div><button onClick={onClose} aria-label="콘텐츠 선택 닫기"><X size={19} /></button></header>
         <form className="youtube-url-form content-picker-url" onSubmit={submitYoutube}>
           <label className="sr-only" htmlFor="learning-youtube-url">YouTube URL</label>
