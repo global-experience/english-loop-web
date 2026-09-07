@@ -1710,6 +1710,52 @@
   touch-action: auto;
 }
 
+.translation-audio-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.translation-audio-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 10px;
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .18s ease, transform .14s ease, border-color .18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.translation-audio-actions button:hover {
+  background: rgba(255, 255, 255, .16);
+  border-color: rgba(255, 255, 255, .3);
+}
+
+.translation-audio-actions button:active {
+  transform: scale(0.96);
+}
+
+.translation-layer.mobile .translation-audio-actions {
+  margin-top: 12px;
+}
+
+.translation-layer.mobile .translation-audio-actions button {
+  min-height: 36px;
+  padding: 0 13px;
+  font-size: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .12);
+  border-color: rgba(255, 255, 255, .22);
+}
+
 .translation-grammar {
   margin-top: 12px;
 }

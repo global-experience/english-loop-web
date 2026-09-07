@@ -158,6 +158,13 @@ describe("YouTubePractice", () => {
     expect(document.body.style.position).toBe("fixed");
     expect(document.documentElement).toHaveClass("translation-sheet-open");
     expect(screen.getByText(/선택한 구절은 기기 번역/)).toBeInTheDocument();
+    const listenButton = screen.getByRole("button", { name: "원문 듣기" });
+    const slowListenButton = screen.getByRole("button", { name: "느리게 듣기" });
+    expect(listenButton).toBeInTheDocument();
+    expect(slowListenButton).toBeInTheDocument();
+    fireEvent.click(listenButton);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
     const translationCalls = vi.mocked(apiFetch).mock.calls.filter(([path]) =>
       String(path).includes("/translate"),
     );

@@ -331,15 +331,27 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   useEffect(() => {
     const handleNativeTranslationAction = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{
-        action?: "selection" | "save";
+        action?: "selection" | "save" | "listen";
         segmentId?: string;
         text?: string;
+        slow?: boolean;
       }>;
-      const { action, segmentId, text: rawText } = event.detail || {};
+      const { action, segmentId, text: rawText, slow } = event.detail || {};
       const sourceText = rawText?.replace(/\s+/g, " ").trim() || "";
       const segment = transcript?.segments.find((item) => item.id === segmentId);
       const bridge = getNativeTranslationBridge();
-      if (!action || !segment || !sourceText || sourceText.length > 300 || !bridge) return;
+      if (!action || !segment) return;
+
+      if (action === "listen") {
+        const targetIndex = transcript?.segments.findIndex((item) => item.id === segmentId);
+        const indexToPlay = targetIndex != null && targetIndex >= 0 ? targetIndex : selectedIndex;
+        if (slow) setStoreState({ playbackRate: Math.min(playbackRate, 0.75) });
+        else setStoreState({ playbackRate: 1.0 });
+        window.setTimeout(() => startLoop(indexToPlay, false, true), 0);
+        return;
+      }
+
+      if (!sourceText || sourceText.length > 300 || !bridge) return;
 
       const translateSelection = async () => apiFetch<TranslationResponse>(
         `/api/v1/transcript/segments/${segment.id}/translate`,
@@ -508,11 +520,13 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     }
   }, [playerReady, playbackRate]);
 
-  function startLoop(index = selectedIndex, revealWorkspace = false) {
+  function startLoop(index = selectedIndex, revealWorkspace = false, keepTranslationPanel = false) {
     const segment = transcript?.segments[index];
     const player = playerRef.current;
     if (!segment) return;
-    setTranslationPanel(null);
+    if (!keepTranslationPanel) {
+      setTranslationPanel(null);
+    }
     setStoreState({ selectedIndex: index, error: "" });
     setCompletedRepeats(0);
     setLoopPaused(false);
@@ -525,7 +539,15 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     }
 
     if (!player || !playerReady || typeof player.seekTo !== "function" || typeof player.playVideo !== "function") {
-      setStoreState({ error: "YouTube 플레이어를 준비하고 있습니다. 잠시 후 다시 눌러주세요." });
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(segment.text);
+        utterance.lang = "en-US";
+        utterance.rate = playbackRate;
+        window.speechSynthesis.speak(utterance);
+      } else {
+        setStoreState({ error: "YouTube 플레이어를 준비하고 있습니다. 잠시 후 다시 눌러주세요." });
+      }
       return;
     }
 
@@ -571,6 +593,32 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
       setLoopPaused(true);
     }
   }
+
+  const handleTranslationListen = useCallback(
+    (slow = false) => {
+      if (!translationPanel?.segment) return;
+      const targetSegment = translationPanel.segment;
+      const segmentIndex = transcript?.segments.findIndex((s) => s.id === targetSegment.id);
+      const indexToPlay = segmentIndex !== -1 && segmentIndex != null ? segmentIndex : selectedIndex;
+
+      const targetRate = slow ? Math.min(playbackRate, 0.75) : 1.0;
+      setStoreState({ playbackRate: targetRate });
+
+      const player = playerRef.current;
+      if (player && playerReady && typeof player.seekTo === "function" && typeof player.playVideo === "function") {
+        window.setTimeout(() => startLoop(indexToPlay, false, true), 0);
+      } else {
+        if (typeof window !== "undefined" && "speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(targetSegment.text);
+          utterance.lang = "en-US";
+          utterance.rate = targetRate;
+          window.speechSynthesis.speak(utterance);
+        }
+      }
+    },
+    [translationPanel, transcript, selectedIndex, playbackRate, playerReady],
+  );
 
   function selectSegment(index: number, play = true, revealWorkspace = true) {
     if (!transcript?.segments[index]) return;
@@ -1056,6 +1104,22 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
                 <p className="selectable-text" data-segment-id={translationPanel.segment.id} lang="en">
                   {translationPanel.segment.text}
                 </p>
+                <div className="translation-audio-actions">
+                  <button
+                    type="button"
+                    onClick={() => handleTranslationListen(false)}
+                    aria-label="원문 듣기"
+                  >
+                    <Play size={13} /> 원문 듣기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTranslationListen(true)}
+                    aria-label="느리게 듣기"
+                  >
+                    <RotateCcw size={13} /> 느리게 듣기
+                  </button>
+                </div>
               </div>
               <div className="translation-copy korean" aria-live="polite">
                 <span>한국어</span>
