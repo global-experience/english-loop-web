@@ -500,9 +500,16 @@ export function FeedView({
       setItems(data.items);
       setActiveIndex(0);
       setPlayIndex(0);
+      activeIndexRef.current = 0;
       if (streamRef.current) {
         streamRef.current.scrollTo({ top: 0, behavior: "instant" });
       }
+      try {
+        if (playerRef.current) {
+          playerRef.current.seekTo(0, true);
+          playerRef.current.playVideo();
+        }
+      } catch { /* ignore */ }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "피드를 불러오지 못했습니다.");
     } finally {
@@ -546,7 +553,7 @@ export function FeedView({
     }, { root, threshold: [0.62, 0.8] });
     cards.forEach((card) => observer.observe(card));
     return () => observer.disconnect();
-  }, [items.length]);
+  }, [items]);
 
   useEffect(() => {
     const current = items[activeIndex];
@@ -580,7 +587,7 @@ export function FeedView({
     }
   }
 
-  if (loading) return <section className="feed-loading"><LoaderCircle className="spin" /><p>오늘의 영어 영상을 고르고 있어요.</p></section>;
+  if (loading && !items.length) return <section className="feed-loading"><LoaderCircle className="spin" /><p>오늘의 영어 영상을 고르고 있어요.</p></section>;
   if (!items.length) return <section className="empty-state"><Sparkles /><h2>아직 피드 영상이 없습니다.</h2><p>관리자에서 후보 영상을 수집하고 승인하면 여기에 나타납니다.</p>{error && <span className="feed-error">{error}</span>}</section>;
 
   return (
