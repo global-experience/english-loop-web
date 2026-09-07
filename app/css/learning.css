@@ -2101,9 +2101,17 @@
 }
 
 /*
- * 시트 등장 애니메이션이 `both` 로 transform 을 계속 점유하므로,
- * 드래그 중에는 애니메이션을 끊어야 인라인 transform 이 먹는다.
+ * 시트 등장 애니메이션은 `both` 로 transform 을 계속 점유한다. 인라인 transform 이
+ * 먹으려면 애니메이션을 꺼야 하는데, 손을 뗀 뒤 다시 켜면 등장 애니메이션이
+ * 처음부터 재생되어 깜박인다. 그래서 한 번 잡은 시트는 계속 꺼둔 상태로 둔다.
  */
+.content-picker-layer.mobile .content-picker.sheet-interacted,
+.speech-sheet-layer.mobile .speech-sheet.sheet-interacted,
+.translation-layer.mobile .translation-panel.sheet-interacted,
+.routine-modal-layer.mobile .routine-modal-card.sheet-interacted {
+  animation: none;
+}
+
 .content-picker-layer.mobile .content-picker.sheet-dragging,
 .content-picker-layer.mobile .content-picker.sheet-releasing,
 .speech-sheet-layer.mobile .speech-sheet.sheet-dragging,
@@ -2112,7 +2120,6 @@
 .translation-layer.mobile .translation-panel.sheet-releasing,
 .routine-modal-layer.mobile .routine-modal-card.sheet-dragging,
 .routine-modal-layer.mobile .routine-modal-card.sheet-releasing {
-  animation: none;
   will-change: transform;
 }
 
