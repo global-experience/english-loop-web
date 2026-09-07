@@ -6,14 +6,22 @@ import { apiFetch } from "@/lib/api";
 import type { Analytics, Report } from "@/lib/types";
 
 type LearningResult = { id: string; practiced_line_count: number; saved_expression_count: number; retry_line_count: number; missing_words: string[]; completed_at: string };
+type LearningProfile = {
+  profile_version: string;
+  generated_at: string;
+  data_quality: { confidence: string; evidence_count: number; coach_reports: number; feed_events_14d: number; speech_attempts_14d: number };
+  content_preferences: { top_channels: Array<{ channel: string; affinity_score: number; opens: number; saves: number }> };
+  integration: { latest_coach_session: null | { study_date: string; status: string; context_version: string; report_received_at: string | null; report_evidence_count: number }; unfinished_sessions: number };
+};
 
 export function ReportView() {
   const [days, setDays] = useState<7 | 14>(7);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [learningResults, setLearningResults] = useState<LearningResult[]>([]);
+  const [profile, setProfile] = useState<LearningProfile | null>(null);
   useEffect(() => {
-    void Promise.all([apiFetch<Analytics>(`/api/analytics/weekly?days=${days}`), apiFetch<{ items: Report[] }>("/api/reports?page_size=14"), apiFetch<{ items: LearningResult[] }>("/api/learning/sessions/results?limit=30")]).then(([stats, reportData, resultData]) => { setAnalytics(stats); setReports(reportData.items); setLearningResults(resultData.items); });
+    void Promise.all([apiFetch<Analytics>(`/api/analytics/weekly?days=${days}`), apiFetch<{ items: Report[] }>("/api/reports?page_size=14"), apiFetch<{ items: LearningResult[] }>(`/api/learning/sessions/results?limit=200&days=${days}`), apiFetch<LearningProfile>("/api/learning/profile")]).then(([stats, reportData, resultData, profileData]) => { setAnalytics(stats); setReports(reportData.items); setLearningResults(resultData.items); setProfile(profileData); });
   }, [days]);
   const latest = reports[0];
   const practicedLines = learningResults.reduce((sum, item) => sum + item.practiced_line_count, 0);
