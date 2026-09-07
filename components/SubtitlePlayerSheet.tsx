@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BookOpen, Pause, Play, RotateCcw, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -50,12 +50,19 @@ export function SubtitlePlayerSheet({
   const repeatsLeftRef = useRef(3);
   const repeatTargetRef = useRef(3);
   const speedRef = useRef(1);
+  const openRef = useRef(open);
+  const ttsTimerRef = useRef<number | null>(null);
+  const isCancelingTtsRef = useRef(false);
 
   useEffect(() => {
     repeatsLeftRef.current = repeatsLeft;
     repeatTargetRef.current = repeatTarget;
     speedRef.current = speed;
   }, [repeatsLeft, repeatTarget, speed]);
+
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
 
   // Extract 11-char YouTube Video ID
   const videoId = useMemo(() => {
@@ -246,12 +253,39 @@ export function SubtitlePlayerSheet({
     );
   }
 
-  function speakTts() {
-    if (!target?.text || typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
+  const stopTts = useCallback(() => {
+    isCancelingTtsRef.current = true;
+    if (ttsTimerRef.current !== null) {
+      window.clearTimeout(ttsTimerRef.current);
+      ttsTimerRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch { /* ignore */ }
+    }
+    setPlaying(false);
+    window.setTimeout(() => {
+      isCancelingTtsRef.current = false;
+    }, 100);
+  }, []);
+
+  const speakTts = useCallback(() => {
+    if (!openRef.current || !target?.text || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    if (ttsTimerRef.current !== null) {
+      window.clearTimeout(ttsTimerRef.current);
+      ttsTimerRef.current = null;
+    }
+
+    isCancelingTtsRef.current = false;
+    try {
+      window.speechSynthesis.cancel();
+    } catch { /* ignore */ }
+
     const utterance = new SpeechSynthesisUtterance(target.text);
     utterance.lang = "en-US";
-    utterance.rate = Math.max(0.75, Math.min(1.5, speed));
+    utterance.rate = Math.max(0.75, Math.min(1.5, speedRef.current));
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
@@ -260,18 +294,40 @@ export function SubtitlePlayerSheet({
       utterance.voice = naturalVoice;
     }
 
-    utterance.onstart = () => setPlaying(true);
+    utterance.onstart = () => {
+      if (!openRef.current || isCancelingTtsRef.current) {
+        try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+        return;
+      }
+      setPlaying(true);
+    };
+
     utterance.onend = () => {
       setPlaying(false);
-      if (repeatTargetRef.current > 0 && repeatsLeftRef.current > 1) {
-        repeatsLeftRef.current -= 1;
-        setRepeatsLeft(repeatsLeftRef.current);
-        setTimeout(() => speakTts(), 500);
+      if (!openRef.current || isCancelingTtsRef.current) return;
+
+      const isInfinite = repeatTargetRef.current === 0;
+      if (isInfinite || (repeatTargetRef.current > 0 && repeatsLeftRef.current > 1)) {
+        if (!isInfinite) {
+          repeatsLeftRef.current -= 1;
+          setRepeatsLeft(repeatsLeftRef.current);
+        }
+        ttsTimerRef.current = window.setTimeout(() => {
+          ttsTimerRef.current = null;
+          if (openRef.current && !isCancelingTtsRef.current) {
+            speakTts();
+          }
+        }, 500);
       }
     };
+
     utterance.onerror = () => setPlaying(false);
-    window.speechSynthesis.speak(utterance);
-  }
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setPlaying(false);
+    }
+  }, [target?.text]);
 
   function startPlay() {
     repeatsLeftRef.current = repeatTarget;
@@ -304,8 +360,7 @@ export function SubtitlePlayerSheet({
       } catch { /* ignore */ }
     } else {
       if (playing) {
-        if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-        setPlaying(false);
+        stopTts();
       } else {
         speakTts();
       }
@@ -317,37 +372,46 @@ export function SubtitlePlayerSheet({
       repeatsLeftRef.current = repeatTarget;
       setRepeatsLeft(repeatTarget);
       setPlaying(false);
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopTts();
       if (!videoId) {
         speakTts();
       }
     } else {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopTts();
     }
-  }, [open, target, repeatTarget, videoId]);
+  }, [open, target, repeatTarget, videoId, speakTts, stopTts]);
+
+  useEffect(() => {
+    return () => {
+      stopTts();
+    };
+  }, [stopTts]);
 
   useBodyScrollLock(mobile ? open : false);
 
-  // Auto close popup when switching tabs
+  // Auto close popup when switching tabs or backgrounding
   useEffect(() => {
     if (!open) return;
     const handleTabVisibility = (event: CustomEvent<{ tab: string; active: boolean }>) => {
       if (!event.detail.active) {
-        if (typeof window !== "undefined" && "speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-        }
+        stopTts();
         onClose();
       }
     };
+    const handleBackground = () => {
+      stopTts();
+      if (playerRef.current && typeof playerRef.current.pauseVideo === "function") {
+        try { playerRef.current.pauseVideo(); } catch { /* ignore */ }
+      }
+      onClose();
+    };
     window.addEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    window.addEventListener("loopine:app-background", handleBackground);
     return () => {
       window.removeEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+      window.removeEventListener("loopine:app-background", handleBackground);
     };
-  }, [open, onClose]);
+  }, [open, onClose, stopTts]);
 
   if (!open || !target || !portalReady) return null;
 
@@ -415,6 +479,9 @@ export function SubtitlePlayerSheet({
                       if (typeof playerRef.current.playVideo === "function") playerRef.current.playVideo();
                       setPlaying(true);
                     } catch { /* ignore */ }
+                  } else {
+                    stopTts();
+                    speakTts();
                   }
                 }}
               >
