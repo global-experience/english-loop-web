@@ -6,6 +6,7 @@ import { BookOpen, Pause, Play, RotateCcw, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { ContentDetailResponse } from "@/lib/reviewTypes";
 import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { pickEnglishVoice } from "@/lib/speech";
 import { useSheetDragToClose } from "@/lib/sheetDrag";
 
 export type SubtitlePlayerTarget = {
@@ -221,36 +222,16 @@ export function SubtitlePlayerSheet({
     return () => clearInterval(interval);
   }, [open, playing, playerReady, resolvedTiming, target]);
 
+  /**
+   * 목소리 선택은 lib/speech.ts 가 단독으로 갖는다.
+   *
+   * 여기 따로 있던 목록이 「발음 듣기」쪽과 달라서, 같은 문장이 화면에 따라
+   * 다른 목소리로 읽히고 있었다. compact(저품질) 목소리 배제 같은 규칙도 한쪽에만
+   * 있었다.
+   */
   function pickNaturalEnglishVoice(): SpeechSynthesisVoice | null {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-
-    const preferredNames = [
-      "Google US English",
-      "Google UK English Female",
-      "Google UK English Male",
-      "Samantha",
-      "Karen",
-      "Daniel",
-      "Alex",
-      "Fiona",
-      "Victoria",
-      "Moira",
-    ];
-
-    for (const name of preferredNames) {
-      const match = voices.find((v) => v.name.includes(name) || v.voiceURI.includes(name));
-      if (match) return match;
-    }
-
-    return (
-      voices.find((v) => v.lang === "en-US" && v.localService === false) ||
-      voices.find((v) => v.lang.startsWith("en") && v.localService === false) ||
-      voices.find((v) => v.lang === "en-US") ||
-      voices.find((v) => v.lang.startsWith("en")) ||
-      null
-    );
+    return pickEnglishVoice(window.speechSynthesis.getVoices() || []);
   }
 
   const stopTts = useCallback(() => {

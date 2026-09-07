@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, LoaderCircle, Mic, Pause, Play, RotateCcw, Square, X } from "lucide-react";
+import { Check, LoaderCircle, Mic, Pause, Play, RotateCcw, Square, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import {
   compareSpeech,
@@ -13,6 +13,7 @@ import {
   type SpeechComparison,
 } from "@/lib/learningSession";
 import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
+import { speakEnglish } from "@/lib/speech";
 import { useSheetDragToClose } from "@/lib/sheetDrag";
 
 type AttemptResponse = { id: string; created_at: string };
@@ -444,6 +445,19 @@ export function SpeechPracticeSheet({
     }
   }
 
+  /**
+   * 「발음 듣기」는 기기 TTS 로만 읽는다.
+   *
+   * 전에는 TTS 를 쓸 수 없을 때 `onListen(true)`(영상 느리게 재생)로 넘어갔다.
+   * 그러면 두 버튼이 같은 소리를 내서 무엇을 들었는지 알 수 없다. 들려줄 수
+   * 없으면 그렇다고 말하는 편이 낫다.
+   */
+  function speakReference() {
+    if (!speakEnglish(referenceText, { rate: 0.85 })) {
+      setMessage("이 브라우저는 발음 읽어주기를 지원하지 않습니다.");
+    }
+  }
+
   const isNative = Boolean(open && typeof window !== "undefined" && getNativeRecordingBridge());
   if (!open || !portalReady || isNative) return null;
 
@@ -456,7 +470,7 @@ export function SpeechPracticeSheet({
           </div>
         )}
         <header><div><p className="eyebrow">SPEAK · COMPARE · RETRY</p><h2 id="speech-sheet-title">문장 말해보기</h2></div><button onClick={onClose} aria-label="말하기 연습 닫기"><X size={19} /></button></header>
-        <div className="speech-reference"><small>따라 말할 문장</small><strong>{referenceText}</strong><div><button onClick={() => onListen(false)}><Play size={15} /> 원문 듣기</button><button onClick={() => onListen(true)}><RotateCcw size={15} /> 느리게 듣기</button></div></div>
+        <div className="speech-reference"><small>따라 말할 문장</small><strong>{referenceText}</strong><div><button onClick={() => onListen(false)}><Play size={15} /> 영상 듣기</button><button onClick={speakReference}><Volume2 size={15} /> 발음 듣기</button></div></div>
         <div className={`speech-recorder ${recording ? "recording" : ""}`}>
           <button className="speech-record-main" onClick={recording ? stopRecording : () => void startRecording()} disabled={processing}>
             {processing ? <LoaderCircle className="spin" /> : recording ? <Square fill="currentColor" /> : <Mic />}

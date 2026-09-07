@@ -10,6 +10,7 @@ import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
 import type { TranscriptSegment } from "@/lib/youtubeStore";
 import type { LearningPresetOptions, LearningSessionEntry, SpeechComparison } from "@/lib/learningSession";
 import { useBodyScrollLock, useMobileUi } from "@/lib/useMobileUi";
+import { speakEnglish } from "@/lib/speech";
 import { useSheetDragToClose } from "@/lib/sheetDrag";
 import { LearningSessionHeader } from "./LearningSessionHeader";
 import { SpeechPracticeSheet } from "./SpeechPracticeSheet";
@@ -230,6 +231,13 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   const [completedRepeats, setCompletedRepeats] = useState(0);
   const [apiReady, setApiReady] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
+  /**
+   * 네이티브 시트에서 오는 이벤트 핸들러는 `transcript`/`videoId` 가 바뀔 때만
+   * 다시 등록된다. 그 시점에는 플레이어가 아직 준비되지 않았으므로, 상태 변수를
+   * 그대로 읽으면 영원히 `false` 인 값을 보게 된다(스테일 클로저). 호출 시점의
+   * 진짜 값을 읽어야 해서 ref 로 함께 들고 간다.
+   */
+  const playerReadyRef = useRef(false);
   const [isLooping, setIsLooping] = useState(false);
   const [loopPaused, setLoopPaused] = useState(false);
   const [showTranscriptText, setShowTranscriptText] = useState(true);
@@ -337,19 +345,24 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
         slow?: boolean;
       }>;
       const { action, segmentId, text: rawText, slow } = event.detail || {};
-      const sourceText = rawText?.replace(/\s+/g, " ").trim() || "";
-      const segment = transcript?.segments.find((item) => item.id === segmentId);
-      const bridge = getNativeTranslationBridge();
-      if (!action || !segment) return;
+      if (!action) return;
 
       if (action === "listen") {
-        const targetIndex = transcript?.segments.findIndex((item) => item.id === segmentId);
-        const indexToPlay = targetIndex != null && targetIndex >= 0 ? targetIndex : selectedIndex;
-        if (slow) setStoreState({ playbackRate: Math.min(playbackRate, 0.75) });
+        const state = youtubeStore.getState();
+        const currentSegments = state.transcript?.segments || transcript?.segments || [];
+        let indexToPlay = currentSegments.findIndex((item) => item.id === segmentId);
+        if (indexToPlay < 0) indexToPlay = state.selectedIndex;
+        if (slow) setStoreState({ playbackRate: Math.min(state.playbackRate, 0.75) });
         else setStoreState({ playbackRate: 1.0 });
         window.setTimeout(() => startLoop(indexToPlay, false, true), 0);
         return;
       }
+
+      const sourceText = rawText?.replace(/\s+/g, " ").trim() || "";
+      const currentTranscript = youtubeStore.getState().transcript || transcript;
+      const segment = currentTranscript?.segments.find((item) => item.id === segmentId);
+      const bridge = getNativeTranslationBridge();
+      if (!segment) return;
 
       if (!sourceText || sourceText.length > 300 || !bridge) return;
 
@@ -424,6 +437,10 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     window.addEventListener("loopine:native-translation-action", handleNativeTranslationAction);
     return () => window.removeEventListener("loopine:native-translation-action", handleNativeTranslationAction);
   }, [transcript, videoId]);
+
+  useEffect(() => {
+    playerReadyRef.current = playerReady;
+  }, [playerReady]);
 
   const clearLoopTimers = useCallback(() => {
     if (loopTimerRef.current) clearInterval(loopTimerRef.current);
@@ -521,7 +538,8 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   }, [playerReady, playbackRate]);
 
   function startLoop(index = selectedIndex, revealWorkspace = false, keepTranslationPanel = false) {
-    const segment = transcript?.segments[index];
+    const currentTranscript = youtubeStore.getState().transcript || transcript;
+    const segment = currentTranscript?.segments[index];
     const player = playerRef.current;
     if (!segment) return;
     if (!keepTranslationPanel) {
@@ -538,22 +556,19 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
       window.setTimeout(() => playerFrameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     }
 
-    if (!player || !playerReady || typeof player.seekTo !== "function" || typeof player.playVideo !== "function") {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(segment.text);
-        utterance.lang = "en-US";
-        utterance.rate = playbackRate;
-        window.speechSynthesis.speak(utterance);
-      } else {
-        setStoreState({ error: "YouTube 플레이어를 준비하고 있습니다. 잠시 후 다시 눌러주세요." });
-      }
+    const currentRate = youtubeStore.getState().playbackRate || playbackRate;
+
+    // 「영상 듣기」는 영상 소리만 낸다. 준비가 안 됐을 때 TTS 로 대체하면
+    // 「발음 듣기」와 구별이 안 되고, 사용자는 영상 소리를 들었다고 착각한다.
+    // 들려줄 수 없으면 말해주는 편이 낫다.
+    if (!player || !playerReadyRef.current || typeof player.seekTo !== "function" || typeof player.playVideo !== "function") {
+      setStoreState({ error: "YouTube 플레이어를 준비하고 있습니다. 잠시 후 다시 눌러주세요." });
       return;
     }
 
     setIsLooping(true);
-    const segmentEnd = effectiveSegmentEnd(transcript.segments, index);
-    player.setPlaybackRate(playbackRate);
+    const segmentEnd = effectiveSegmentEnd(currentTranscript.segments, index);
+    player.setPlaybackRate(currentRate);
     player.seekTo(segment.start, true);
     player.playVideo();
 
@@ -569,7 +584,9 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
         setIsLooping(false);
         setLoopPaused(false);
         setPracticedLines((current) => new Set(current).add(segment.id));
-        setNextLineHint(index < transcript.segments.length - 1);
+        // 스토어의 transcript 를 우선 쓰는 지점이므로 여기서도 같은 값을 봐야 한다.
+        // 상태 변수 `transcript` 는 null 일 수 있고, 이 콜백은 반복 완료 시 실행된다.
+        setNextLineHint(index < currentTranscript.segments.length - 1);
         return;
       }
 
@@ -604,21 +621,20 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
       const targetRate = slow ? Math.min(playbackRate, 0.75) : 1.0;
       setStoreState({ playbackRate: targetRate });
 
-      const player = playerRef.current;
-      if (player && playerReady && typeof player.seekTo === "function" && typeof player.playVideo === "function") {
-        window.setTimeout(() => startLoop(indexToPlay, false, true), 0);
-      } else {
-        if (typeof window !== "undefined" && "speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(targetSegment.text);
-          utterance.lang = "en-US";
-          utterance.rate = targetRate;
-          window.speechSynthesis.speak(utterance);
-        }
-      }
+      // 준비 판정과 오류 안내는 startLoop 이 한 곳에서 처리한다. 여기서 또
+      // 분기하면 TTS 대체가 되살아난다.
+      window.setTimeout(() => startLoop(indexToPlay, false, true), 0);
     },
-    [translationPanel, transcript, selectedIndex, playbackRate, playerReady],
+    [translationPanel, transcript, selectedIndex, playbackRate],
   );
+
+  const handleTranslationSpeech = useCallback(() => {
+    if (!translationPanel?.segment) return;
+    const targetSegment = translationPanel.segment;
+    const selection = typeof window !== "undefined" ? window.getSelection()?.toString().trim() : "";
+    const textToSpeak = (selection && selection.length < 300) ? selection : targetSegment.text;
+    speakEnglish(textToSpeak, { rate: 0.85 });
+  }, [translationPanel]);
 
   function selectSegment(index: number, play = true, revealWorkspace = true) {
     if (!transcript?.segments[index]) return;
@@ -1108,16 +1124,16 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
                   <button
                     type="button"
                     onClick={() => handleTranslationListen(false)}
-                    aria-label="원문 듣기"
+                    aria-label="영상 듣기"
                   >
-                    <Play size={13} /> 원문 듣기
+                    <Play size={13} /> 영상 듣기
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleTranslationListen(true)}
-                    aria-label="느리게 듣기"
+                    onClick={handleTranslationSpeech}
+                    aria-label="발음 듣기"
                   >
-                    <RotateCcw size={13} /> 느리게 듣기
+                    <Volume2 size={13} /> 발음 듣기
                   </button>
                 </div>
               </div>

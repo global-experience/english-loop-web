@@ -158,11 +158,11 @@ describe("YouTubePractice", () => {
     expect(document.body.style.position).toBe("fixed");
     expect(document.documentElement).toHaveClass("translation-sheet-open");
     expect(screen.getByText(/선택한 구절은 기기 번역/)).toBeInTheDocument();
-    const listenButton = screen.getByRole("button", { name: "원문 듣기" });
-    const slowListenButton = screen.getByRole("button", { name: "느리게 듣기" });
-    expect(listenButton).toBeInTheDocument();
-    expect(slowListenButton).toBeInTheDocument();
-    fireEvent.click(listenButton);
+    const videoListenButton = screen.getByRole("button", { name: "영상 듣기" });
+    const speechButton = screen.getByRole("button", { name: "발음 듣기" });
+    expect(videoListenButton).toBeInTheDocument();
+    expect(speechButton).toBeInTheDocument();
+    fireEvent.click(videoListenButton);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     const translationCalls = vi.mocked(apiFetch).mock.calls.filter(([path]) =>
@@ -258,5 +258,38 @@ describe("YouTubePractice", () => {
     }));
 
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ selectionText: "Office English", selectionTranslation: "오피스 영어" })));
+  });
+
+  it("plays the segment video audio when receiving listen action from native translation sheet", async () => {
+    // jsdom 에는 speechSynthesis 가 없다. 「영상 듣기」가 TTS 로 새는지 보려면
+    // 직접 심어야 한다.
+    const speak = vi.fn();
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: { speak, cancel: vi.fn() },
+    });
+
+    try {
+      renderPractice();
+      expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
+      await waitFor(() => expect(window.YT?.Player).toHaveBeenCalled());
+
+      window.dispatchEvent(new CustomEvent("loopine:native-translation-action", {
+        detail: {
+          action: "listen",
+          segmentId: "b".repeat(64),
+          slow: false,
+        },
+      }));
+
+      await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(7, true));
+      expect(player.playVideo).toHaveBeenCalled();
+      // 이 핸들러는 transcript/videoId 가 바뀔 때만 등록되므로, 플레이어 준비
+      // 여부를 상태 변수로 읽으면 영원히 false 를 본다(스테일 클로저). 그러면
+      // 「영상 듣기」가 조용히 기계 목소리로 바뀌어 「발음 듣기」와 구별되지 않는다.
+      expect(speak).not.toHaveBeenCalled();
+    } finally {
+      delete (window as unknown as { speechSynthesis?: unknown }).speechSynthesis;
+    }
   });
 });
