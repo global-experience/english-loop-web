@@ -202,6 +202,8 @@ export type FeedVideo = {
   status: string;
   saved_status: "PROCESSING" | "READY" | "FAILED" | null;
   learning_content_id?: string | null;
+  personalization_score?: number;
+  recommendation_reason?: string | null;
 };
 
 export type Report = {

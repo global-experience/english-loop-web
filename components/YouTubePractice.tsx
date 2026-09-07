@@ -208,6 +208,11 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   onOpenReview: () => void;
   onNextRoutine: () => void;
 }) {
+  const clientSessionIdRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `learn-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const [storeState, setStoreState, loadTranscript] = useYouTubeStore();
   const {
     videoId,
@@ -762,6 +767,7 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
       await apiFetch("/api/learning/sessions/complete", {
         method: "POST",
         body: JSON.stringify({
+          client_session_id: clientSessionIdRef.current,
           content_id: entry.contentId,
           activity_id: entry.activityId || null,
           routine_item_id: entry.routineItemId || null,

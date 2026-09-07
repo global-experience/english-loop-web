@@ -25,6 +25,7 @@ type FeedPlayer = {
   destroy: () => void;
   getPlayerState?: () => number;
   getDuration?: () => number;
+  getCurrentTime?: () => number;
 };
 
 function durationLabel(seconds: number) {
@@ -98,26 +99,43 @@ export function FeedView({
   const [apiReady, setApiReady] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
-  const activeStartedAt = useRef(Date.now());
   const previousActive = useRef<FeedVideo | null>(null);
   const userInteractedRef = useRef(false);   // true once user has touched/clicked anywhere
   const userMutedRef = useRef(false);          // true if user explicitly chose to mute
   const playerRef = useRef<FeedPlayer | null>(null);
   const playerHostRef = useRef<HTMLDivElement>(null);
   const currentVideoIdRef = useRef<string | null>(null);
+  const feedSessionIdRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `feed-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  const eventSequenceRef = useRef(0);
+  const playbackSecondsRef = useRef(new Map<string, number>());
+  const playingStartedAtRef = useRef<number | null>(null);
   const activeTabRef = useRef(active);
   const watchdogRef = useRef<number | null>(null);
+
+  const settlePlayback = useCallback(() => {
+    const videoId = currentVideoIdRef.current;
+    const startedAt = playingStartedAtRef.current;
+    if (!videoId || startedAt === null) return;
+    const elapsed = Math.max(0, (performance.now() - startedAt) / 1000);
+    playbackSecondsRef.current.set(videoId, (playbackSecondsRef.current.get(videoId) || 0) + elapsed);
+    playingStartedAtRef.current = null;
+  }, []);
 
   const pausePlayer = useCallback((hardStop = false) => {
     const player = playerRef.current;
     if (!player) return;
+    settlePlayback();
     try {
       player.pauseVideo();
       if (hardStop) player.stopVideo?.();
     } catch {
       // Ignore transient YouTube iframe state.
     }
-  }, []);
+  }, [settlePlayback]);
 
   // ── YouTube IFrame API readiness ──
   useEffect(() => {
@@ -202,6 +220,7 @@ export function FeedView({
     if (currentVideoIdRef.current === ytVideoId && playerRef.current) return;
 
     // Destroy previous player
+    settlePlayback();
     clearWatchdog();
     try { playerRef.current?.destroy(); } catch { /* ignore */ }
     playerRef.current = null;
@@ -264,6 +283,11 @@ export function FeedView({
         },
         onStateChange: (event: { data: number }) => {
           if (event.data === YT_STATE_PLAYING || event.data === YT_STATE_BUFFERING) clearWatchdog();
+          if (event.data === YT_STATE_PLAYING) {
+            if (playingStartedAtRef.current === null) playingStartedAtRef.current = performance.now();
+          } else {
+            settlePlayback();
+          }
         },
         // 2: 잘못된 파라미터, 5: HTML5 재생 오류, 100: 삭제/비공개, 101·150: 임베드 차단
         onError: () => markBlocked(ytVideoId),
@@ -276,7 +300,7 @@ export function FeedView({
       // Cleanup only if this effect re-runs (playIndex changed)
       // The destroy happens at the top of the next effect run
     };
-  }, [active, apiReady, playIndex, items, pausePlayer, blockedVideoIds, clearWatchdog, markBlocked]);
+  }, [active, apiReady, playIndex, items, pausePlayer, blockedVideoIds, clearWatchdog, markBlocked, settlePlayback]);
 
   useEffect(() => clearWatchdog, [clearWatchdog]);
 
@@ -362,6 +386,7 @@ export function FeedView({
       setActiveIndex(0);
       setPlayIndex(0);
       activeIndexRef.current = 0;
+      playbackSecondsRef.current.clear();
       return [focusVideo, ...current];
     });
 
@@ -535,9 +560,18 @@ export function FeedView({
   }, [reloadFeed]);
 
   const sendEvent = useCallback((video: FeedVideo, eventType: "VIEW" | "SKIP" | "OPEN_LEARNING", watchSeconds?: number) => {
+    const sessionId = feedSessionIdRef.current;
+    const eventId = eventType === "VIEW"
+      ? `${sessionId}:${video.id}:view`
+      : `${sessionId}:${video.id}:${eventType.toLowerCase()}:${++eventSequenceRef.current}`;
     void apiFetch(`/api/feed/${video.id}/events`, {
       method: "POST",
-      body: JSON.stringify({ event_type: eventType, watch_seconds: watchSeconds }),
+      body: JSON.stringify({
+        event_type: eventType,
+        watch_seconds: watchSeconds,
+        feed_session_id: sessionId,
+        event_id: eventId,
+      }),
     }).catch(() => undefined);
   }, []);
 
@@ -565,14 +599,17 @@ export function FeedView({
       return;
     }
     if (previous && previous.id !== current.id) {
-      const watched = Math.max(0, Math.round((Date.now() - activeStartedAt.current) / 1000));
+      settlePlayback();
+      const watched = Math.min(
+        previous.duration_seconds || 86400,
+        Math.max(0, Math.round(playbackSecondsRef.current.get(previous.youtube_video_id) || 0)),
+      );
       sendEvent(previous, "SKIP", watched);
     }
     previousActive.current = current;
-    activeStartedAt.current = Date.now();
     sendEvent(current, "VIEW");
     if (activeIndex >= items.length - 6 && cursor !== null) void loadMore();
-  }, [activeIndex, cursor, items, loadMore, sendEvent]);
+  }, [activeIndex, cursor, items, loadMore, sendEvent, settlePlayback]);
 
   async function save(video: FeedVideo) {
     if (video.saved_status === "PROCESSING" || video.saved_status === "READY") return;
@@ -656,6 +693,7 @@ export function FeedView({
               <div className="feed-copy">
                 <div className="feed-meta"><span>{video.channel_title}</span>{video.caption_available && <span className="cc"><Subtitles size={13} /> CC</span>}</div>
                 <h3>{video.title}</h3>
+                {video.recommendation_reason && <p className="feed-recommendation-reason">{video.recommendation_reason}</p>}
                 <div className="feed-actions">
                   <button className={saved ? "feed-save saved" : "feed-save"} onClick={() => void save(video)} disabled={savingId === video.id || saved}>
                     {savingId === video.id ? <LoaderCircle className="spin" size={17} /> : saved ? <Check size={17} /> : <Bookmark size={17} />}
