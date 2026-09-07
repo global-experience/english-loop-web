@@ -13,6 +13,7 @@ import {
   type ReviewQueueSummary,
 } from "@/lib/reviewTypes";
 import { SubtitlePlayerSheet, type SubtitlePlayerTarget } from "@/components/SubtitlePlayerSheet";
+import { triggerHapticImpact } from "@/lib/haptics";
 import { PanelEmpty, PanelError, PanelLoading } from "./ReviewStates";
 
 const KIND_ORDER: ReviewItemKind[] = ["SAVED_EXPRESSION", "SPEAK_AGAIN", "CORRECTION", "NOT_USED"];
@@ -81,6 +82,7 @@ export function ReviewQueuePanel({
   );
 
   function reveal(itemId: string) {
+    void triggerHapticImpact("light");
     setRevealed((current) => new Set(current).add(itemId));
   }
 
@@ -235,8 +237,8 @@ export function ReviewQueuePanel({
               <small>{stageLabel(current.current_stage)}{current.match_score !== null ? ` · ${current.match_score}% 단어 일치` : ""}</small>
             </div>
           ) : (
-            <button className="secondary-button wide" onClick={() => reveal(current.id)}>
-              정답 확인 <ArrowRight size={17} />
+            <button className="secondary-button wide review-reveal-button" onClick={() => reveal(current.id)}>
+              <span>정답 확인</span> <ArrowRight size={17} />
             </button>
           )}
 
@@ -298,7 +300,9 @@ export function ReviewQueuePanel({
                     {item.example_sentence && item.example_sentence !== item.answer_text && <p>{item.example_sentence}</p>}
                   </div>
                 ) : (
-                  <button className="text-button" onClick={() => reveal(item.id)}>정답 확인</button>
+                  <button className="text-button review-list-reveal-btn" onClick={() => reveal(item.id)}>
+                    <span>정답 확인</span> <ArrowRight size={14} />
+                  </button>
                 )}
                 <div className="review-grades compact" role="group" aria-label={`${item.kind_label} 평가`}>
                   {REVIEW_GRADES.map((option) => (
