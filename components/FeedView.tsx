@@ -1,11 +1,15 @@
 "use client";
 
 import Script from "next/script";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bookmark, Check, ChevronDown, ChevronUp, CircleAlert, LoaderCircle, Play, Sparkles, Subtitles, Volume2, VolumeX } from "lucide-react";
+import { Bookmark, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, LayoutGrid, LoaderCircle, Play, Sparkles, Subtitles, Volume2, VolumeX } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { isNativeAppRuntime, shouldStartFeedMuted, hasUserActivation } from "@/lib/nativeRuntime";
-import type { FeedVideo } from "@/lib/types";
+import type { CatalogRow, FeedVideo } from "@/lib/types";
+import { catalogSeed, fetchVideoDetail } from "@/lib/catalog";
+import { FeedCatalog } from "./feed/FeedCatalog";
+import { FeedVideoDetail } from "./feed/FeedVideoDetail";
 
 type FeedResponse = {
   items: FeedVideo[];
@@ -97,6 +101,162 @@ export function FeedView({
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
   const [apiReady, setApiReady] = useState(false);
+  const pathname = usePathname();
+  const [catalogOpen, setCatalogOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.location.pathname.replace(/\/$/, "") === "/feed/categories";
+    }
+    return pathname.replace(/\/$/, "") === "/feed/categories";
+  });
+  const [hasOpenedCatalog, setHasOpenedCatalog] = useState(() => catalogOpen);
+  const [isReturning, setIsReturning] = useState(false);
+  const savedFeedScrollTopRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (catalogOpen && !hasOpenedCatalog) {
+      setHasOpenedCatalog(true);
+    }
+  }, [catalogOpen, hasOpenedCatalog]);
+
+  const openCatalog = useCallback(() => {
+    try {
+      playerRef.current?.pauseVideo();
+    } catch { /* ignore */ }
+
+    if (typeof window !== "undefined") {
+      window.history.pushState({ loopine: true, view: "catalog", tab: "feed" }, "", "/feed/categories/");
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+    setIsReturning(false);
+    setCatalogOpen(true);
+    setHasOpenedCatalog(true);
+  }, []);
+
+  useEffect(() => {
+    if (!active || catalogOpen) {
+      document.body.classList.remove("feed-reels-locked");
+    } else {
+      document.body.classList.add("feed-reels-locked");
+    }
+    return () => {
+      document.body.classList.remove("feed-reels-locked");
+    };
+  }, [active, catalogOpen]);
+
+  const closeCatalog = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      if (window.history.state?.view === "catalog") {
+        window.history.back();
+      } else {
+        window.history.pushState({ loopine: true }, "", "/feed/");
+      }
+    }
+    setCatalogOpen(false);
+    setIsReturning(true);
+    window.setTimeout(() => setIsReturning(false), 240);
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const isCatalog = window.location.pathname.replace(/\/$/, "") === "/feed/categories";
+      if (isCatalog) {
+        setIsReturning(false);
+        setCatalogOpen(true);
+        setHasOpenedCatalog(true);
+      } else if (catalogOpen) {
+        if (typeof window !== "undefined") {
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+        setCatalogOpen(false);
+        setIsReturning(true);
+        window.setTimeout(() => setIsReturning(false), 240);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [catalogOpen]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isCatalog = window.location.pathname.replace(/\/$/, "") === "/feed/categories";
+      setCatalogOpen(isCatalog);
+    }
+  }, [pathname]);
+
+  // 터치 스와이프 제스처 (카테고리 탭에서 오른쪽 스와이프 시 피드로 자연스럽게 복귀)
+  const touchRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const targetEl = e.target as HTMLElement | null;
+    const trackEl = targetEl?.closest?.(".catalog-track") as HTMLElement | null;
+    if (trackEl && trackEl.scrollLeft > 6 && touch.clientX > 45) {
+      touchRef.current.active = false;
+      return;
+    }
+    touchRef.current = { x: touch.clientX, y: touch.clientY, active: true };
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    if (!touchRef.current.active) return;
+    touchRef.current.active = false;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchRef.current.x;
+    const deltaY = touch.clientY - touchRef.current.y;
+
+    if (deltaX > 45 && deltaX > Math.abs(deltaY) * 1.3) {
+      closeCatalog();
+    }
+  }, [closeCatalog]);
+
+  const deepLinkHandled = useRef(false);
+  /** 카탈로그에서 연 상세. 어느 줄에서 왔는지 함께 들고 있어야 세로 스와이프가 그 줄 안에서 돈다. */
+  const [detail, setDetail] = useState<{ row: CatalogRow; index: number; origin: DOMRect | null } | null>(null);
+
+  /**
+   * 공유 링크(`/feed/?video=<youtube_video_id>`)로 들어온 경우.
+   *
+   * 상세 화면은 "어느 줄에서 왔는가" 를 알아야 세로 스와이프가 그 줄 안에서
+   * 돈다. 딥링크에는 그 맥락이 없으므로, 영상이 속한 첫 카테고리를 불러와
+   * 그 줄로 삼는다. 어느 카테고리에도 없으면 그 영상 하나짜리 줄로 연다.
+   */
+  useEffect(() => {
+    if (!active || deepLinkHandled.current || typeof window === "undefined") return;
+    const target = new URLSearchParams(window.location.search).get("video");
+    if (!target) return;
+    deepLinkHandled.current = true;
+
+    (async () => {
+      try {
+        const video = await fetchVideoDetail(target);
+        const category = video.categories[0];
+        if (category) {
+          const { fetchCategoryPage } = await import("@/lib/catalog");
+          const row = await fetchCategoryPage(category.slug, 0, catalogSeed(), 20);
+          const index = row.items.findIndex((item) => item.id === video.id);
+          // 첫 페이지에 없으면 그 영상을 맨 앞에 두고 나머지를 뒤로 붙인다.
+          setDetail(index >= 0
+            ? { row, index, origin: null }
+            : { row: { ...row, items: [video, ...row.items] }, index: 0, origin: null });
+          return;
+        }
+        setDetail({
+          row: {
+            category: { id: "", slug: "", label: "공유된 영상", description: null, kind: "TOPIC", sort_order: 0 },
+            items: [video],
+            next_cursor: null,
+            total: 1,
+          },
+          index: 0,
+          origin: null,
+        });
+      } catch {
+        // 링크가 낡았거나 영상이 내려간 것이다. 일반 피드를 그대로 보여준다.
+      }
+    })();
+  }, [active]);
   const streamRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const previousActive = useRef<FeedVideo | null>(null);
@@ -203,9 +363,15 @@ export function FeedView({
     return () => window.clearTimeout(timer);
   }, [activeIndex, playIndex]);
 
-  // ── Create / destroy YT.Player when playIndex or apiReady changes ──
+  // ── Create / destroy YT.Player when playIndex, apiReady, or catalogOpen changes ──
   useEffect(() => {
-    activeTabRef.current = active;
+    activeTabRef.current = active && !catalogOpen;
+    if (catalogOpen) {
+      pausePlayer(false);
+      clearWatchdog();
+      return;
+    }
+
     const video = items[playIndex];
     const blocked = video ? blockedVideoIds.includes(video.youtube_video_id) : false;
     if (!active || !apiReady || !window.YT?.Player || !video || blocked) {
@@ -217,7 +383,12 @@ export function FeedView({
     if (!hostEl) return;
 
     const ytVideoId = video.youtube_video_id;
-    if (currentVideoIdRef.current === ytVideoId && playerRef.current) return;
+    if (currentVideoIdRef.current === ytVideoId && playerRef.current) {
+      try {
+        if (activeTabRef.current) playerRef.current.playVideo();
+      } catch { /* ignore */ }
+      return;
+    }
 
     // Destroy previous player
     settlePlayback();
@@ -261,7 +432,7 @@ export function FeedView({
           currentVideoIdRef.current = ytVideoId;
           setIsMuted(shouldMute);
           try {
-            if (activeTabRef.current) player.playVideo();
+            if (activeTabRef.current && !catalogOpen) player.playVideo();
             else pausePlayer(true);
           } catch { /* ignore */ }
 
@@ -300,7 +471,20 @@ export function FeedView({
       // Cleanup only if this effect re-runs (playIndex changed)
       // The destroy happens at the top of the next effect run
     };
-  }, [active, apiReady, playIndex, items, pausePlayer, blockedVideoIds, clearWatchdog, markBlocked, settlePlayback]);
+  }, [active, catalogOpen, apiReady, playIndex, items, pausePlayer, blockedVideoIds, clearWatchdog, markBlocked, settlePlayback]);
+
+  // 피드로 돌아왔을 때 스크롤 복원
+  useEffect(() => {
+    if (!catalogOpen && streamRef.current && savedFeedScrollTopRef.current > 0) {
+      const top = savedFeedScrollTopRef.current;
+      streamRef.current.scrollTo({ top, behavior: "instant" });
+      window.requestAnimationFrame(() => {
+        if (streamRef.current) {
+          streamRef.current.scrollTo({ top, behavior: "instant" });
+        }
+      });
+    }
+  }, [catalogOpen]);
 
   useEffect(() => clearWatchdog, [clearWatchdog]);
 
@@ -559,6 +743,27 @@ export function FeedView({
     return () => window.removeEventListener("loopine:pull-refresh", handlePull);
   }, [reloadFeed]);
 
+  useEffect(() => {
+    const handlePatch = (e: Event) => {
+      const customEvent = e as CustomEvent<{ videoId: string; patch: Partial<FeedVideo> }>;
+      if (!customEvent.detail) return;
+      const { videoId, patch } = customEvent.detail;
+      setItems((prev) => prev.map((v) => (v.id === videoId ? { ...v, ...patch } : v)));
+      setDetail((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          row: {
+            ...prev.row,
+            items: prev.row.items.map((v) => (v.id === videoId ? { ...v, ...patch } : v)),
+          },
+        };
+      });
+    };
+    window.addEventListener("loopine:video-patch", handlePatch);
+    return () => window.removeEventListener("loopine:video-patch", handlePatch);
+  }, []);
+
   const sendEvent = useCallback((video: FeedVideo, eventType: "VIEW" | "SKIP" | "OPEN_LEARNING", watchSeconds?: number) => {
     const sessionId = feedSessionIdRef.current;
     const eventId = eventType === "VIEW"
@@ -577,10 +782,10 @@ export function FeedView({
 
   useEffect(() => {
     const root = streamRef.current;
-    if (!root || !items.length) return;
+    if (!root || !items.length || catalogOpen) return;
     const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-feed-index]"));
     const observer = new IntersectionObserver((entries) => {
-      if (!activeTabRef.current) return;
+      if (!activeTabRef.current || catalogOpen) return;
       const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
       if (!visible || visible.intersectionRatio < 0.62) return;
       const nextIndex = Number((visible.target as HTMLElement).dataset.feedIndex || 0);
@@ -588,7 +793,7 @@ export function FeedView({
     }, { root, threshold: [0.62, 0.8] });
     cards.forEach((card) => observer.observe(card));
     return () => observer.disconnect();
-  }, [items]);
+  }, [items, catalogOpen]);
 
   useEffect(() => {
     const current = items[activeIndex];
@@ -625,24 +830,47 @@ export function FeedView({
     }
   }
 
-  if (loading && !items.length) return <section className="feed-loading"><LoaderCircle className="spin" /><p>오늘의 영어 영상을 고르고 있어요.</p></section>;
-  if (!items.length) return <section className="empty-state"><Sparkles /><h2>아직 피드 영상이 없습니다.</h2><p>관리자에서 후보 영상을 수집하고 승인하면 여기에 나타납니다.</p>{error && <span className="feed-error">{error}</span>}</section>;
+  if (loading && !items.length && !catalogOpen) return <section className="feed-loading"><LoaderCircle className="spin" /><p>오늘의 영어 영상을 고르고 있어요.</p></section>;
+  if (!items.length && !catalogOpen) return <section className="empty-state"><Sparkles /><h2>아직 피드 영상이 없습니다.</h2><p>관리자에서 후보 영상을 수집하고 승인하면 여기에 나타납니다.</p>{error && <span className="feed-error">{error}</span>}</section>;
 
   return (
-    <section className="feed-view">
-      <Script
-        src="https://www.youtube.com/iframe_api"
-        strategy="afterInteractive"
-        onReady={() => { if (window.YT?.Player) setApiReady(true); }}
-        onError={() => setError("YouTube 플레이어를 불러오지 못했습니다.")}
-      />
+    <>
+      <section
+        className={`feed-view feed-view-reels ${isReturning ? "feed-returning" : ""} ${catalogOpen ? "inactive" : "active"}`}
+        aria-hidden={catalogOpen}
+      >
+        <Script
+          src="https://www.youtube.com/iframe_api"
+          strategy="afterInteractive"
+          onReady={() => { if (window.YT?.Player) setApiReady(true); }}
+          onError={() => setError("YouTube 플레이어를 불러오지 못했습니다.")}
+        />
 
-      <header className="feed-heading">
+      {detail && !catalogOpen && (
+        <FeedVideoDetail
+          row={detail.row}
+          startIndex={detail.index}
+          seed={catalogSeed()}
+          originRect={detail.origin}
+          onClose={() => setDetail(null)}
+          onOpenLearning={(video) => { setDetail(null); openLearning(video); }}
+          onPatchVideo={(videoId, patch) => {
+            setItems((prev) => prev.map((v) => (v.id === videoId ? { ...v, ...patch } : v)));
+          }}
+        />
+      )}
+
+      <section className="feed-category-entry" aria-labelledby="feed-category-title">
+        <span className="feed-category-entry-icon" aria-hidden="true"><LayoutGrid size={19} /></span>
         <div>
-          <p className="eyebrow">DISCOVER · SAVE · LEARN</p>
+          <p className="eyebrow">BROWSE BY CATEGORY</p>
+          <h2 id="feed-category-title">카테고리별 영상</h2>
+          <p>관심 있는 주제의 영어 영상을 모아보세요.</p>
         </div>
-        <span>{items.length}개 준비됨</span>
-      </header>
+        <button type="button" className="feed-browse-button" onClick={openCatalog}>
+          더보기 <ChevronRight size={17} />
+        </button>
+      </section>
       {error && <div className="feed-error"><CircleAlert size={16} />{error}</div>}
 
       <div className="feed-container">
@@ -732,5 +960,36 @@ export function FeedView({
         </nav>
       </div>
     </section>
+
+    {hasOpenedCatalog && (
+      <section
+        className={`feed-view feed-view-catalog ${catalogOpen ? "active" : "inactive"}`}
+        aria-hidden={!catalogOpen}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <FeedCatalog
+          onClose={closeCatalog}
+          onOpenVideo={(video, row, origin) => {
+            const index = row.items.findIndex((item) => item.id === video.id);
+            setDetail({ row, index: index < 0 ? 0 : index, origin });
+          }}
+        />
+        {detail && catalogOpen && (
+          <FeedVideoDetail
+            row={detail.row}
+            startIndex={detail.index}
+            seed={catalogSeed()}
+            originRect={detail.origin}
+            onClose={() => setDetail(null)}
+            onOpenLearning={(video) => { setDetail(null); openLearning(video); }}
+            onPatchVideo={(videoId, patch) => {
+              setItems((prev) => prev.map((v) => (v.id === videoId ? { ...v, ...patch } : v)));
+            }}
+          />
+        )}
+      </section>
+    )}
+  </>
   );
 }

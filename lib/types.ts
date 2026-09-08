@@ -204,6 +204,38 @@ export type FeedVideo = {
   learning_content_id?: string | null;
   personalization_score?: number;
   recommendation_reason?: string | null;
+  /** 「하트」. 찜(saved_status)과 별개의 가벼운 취향 신호다. */
+  liked?: boolean;
+};
+
+/** 카탈로그 화면의 한 줄. 순서는 어드민의 sort_order 가 정한다. */
+export type FeedCategory = {
+  id: string;
+  slug: string;
+  label: string;
+  description: string | null;
+  kind: string;
+  sort_order: number;
+};
+
+export type CatalogRow = {
+  category: FeedCategory;
+  items: FeedVideo[];
+  /** null 이면 그 줄의 영상이 떨어진 것이다. 더 요청하지 않는다. */
+  next_cursor: number | null;
+  total: number;
+};
+
+export type CatalogPage = {
+  rows: CatalogRow[];
+  seed: string;
+  /** null 이면 카테고리가 떨어진 것이다. 세로 스크롤을 멈춘다. */
+  next_cursor: number | null;
+  total: number;
+};
+
+export type FeedVideoDetail = FeedVideo & {
+  categories: FeedCategory[];
 };
 
 export type Report = {

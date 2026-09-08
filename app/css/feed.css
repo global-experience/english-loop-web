@@ -1,14 +1,13 @@
-/* Prevent outer main page scroll in feed tab while keeping scrollbar track visible (Instagram Reels style layout stability) */
-body:has([data-tab="feed"]) {
+/* Normal reels scroll locking for feed tab (disabled in catalog view for window scroll) */
+body.feed-reels-locked {
   overflow-x: hidden;
-  /* overflow-y: scroll; */
   height: 100dvh;
   overscroll-behavior-x: none;
   overscroll-behavior-y: auto;
   touch-action: pan-y;
 }
 
-[data-tab="feed"] {
+body.feed-reels-locked [data-tab="feed"] {
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
@@ -16,23 +15,83 @@ body:has([data-tab="feed"]) {
   flex-direction: column;
 }
 
-[data-tab="feed"] .tab-viewport {
+body.feed-reels-locked [data-tab="feed"] .tab-viewport {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-[data-tab="feed"] .tab-scene {
+body.feed-reels-locked [data-tab="feed"] .tab-scene {
   height: 100%;
   overflow: hidden;
 }
 
-[data-tab="feed"] .feed-view {
+/* Inactive view state for both reels view and catalog view */
+[data-tab="feed"] .feed-view.inactive {
+  position: absolute !important;
+  inset: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  contain: layout style paint !important;
+}
+
+[data-tab="feed"] .feed-view-reels.active {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
   overflow: hidden;
+}
+
+[data-tab="feed"] .feed-view-reels.active.feed-returning {
+  animation: feedReturningIn 0.24s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+[data-tab="feed"] .feed-view-catalog.active {
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
+  display: block;
+  background: var(--paper);
+  animation: feedCatalogIn 0.24s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes feedCatalogIn {
+  from {
+    opacity: 0;
+    transform: translate3d(26px, 0, 0) scale(.992);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes feedReturningIn {
+  from {
+    opacity: 0;
+    transform: translate3d(-26px, 0, 0) scale(.992);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-tab="feed"] .feed-view-catalog.active,
+  [data-tab="feed"] .feed-view-reels.active.feed-returning {
+    animation: none !important;
+    transform: none !important;
+  }
 }
 
 .feed-container {
@@ -88,14 +147,19 @@ body:has([data-tab="feed"]) {
 }
 
 @media (min-width: 640px) {
-  [data-tab="feed"] .tab-viewport {
+  body.feed-reels-locked [data-tab="feed"] .tab-viewport {
     flex: 1;
     min-height: 0;
   }
 
-  [data-tab="feed"] .feed-view {
+  [data-tab="feed"] .feed-view:not(.feed-view-catalog) {
     width: min(100%, 520px);
     margin-inline: auto;
+  }
+
+  [data-tab="feed"] .feed-view.feed-view-catalog {
+    width: 100%;
+    margin-inline: 0;
   }
 
   .feed-pc-nav {

@@ -298,7 +298,15 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const initialUrl = getTabUrl(tabRef.current);
-    window.history.replaceState({ loopine: true, tab: tabRef.current }, "", initialUrl);
+    const currentPathSegment = window.location.pathname.replace(/^\/|\/$/g, "").split("/")[0];
+    const isNestedTabRoute = currentPathSegment === tabRef.current && window.location.pathname !== initialUrl;
+    // `/feed/categories/`처럼 탭 안의 독립 페이지로 직접 들어온 경우 URL을
+    // `/feed/`로 덮어쓰지 않는다. 상태만 등록해 브라우저 뒤로가기는 유지한다.
+    if (isNestedTabRoute) {
+      window.history.replaceState({ loopine: true, tab: tabRef.current }, "");
+    } else {
+      window.history.replaceState({ loopine: true, tab: tabRef.current }, "", initialUrl);
+    }
 
     const onPopState = (event: PopStateEvent) => {
       const stateTab = event.state?.tab;
