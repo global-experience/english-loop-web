@@ -76,4 +76,53 @@ describe("PullToRefresh Component", () => {
     expect(onRefresh).not.toHaveBeenCalled();
     document.body.classList.remove("modal-open");
   });
+
+  it("does not trigger refresh in feed catalog view when scrolled down", () => {
+    (window as unknown as { Capacitor?: { isNativePlatform: () => boolean } }).Capacitor = {
+      isNativePlatform: () => true,
+    };
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+
+    // Inactive reels stream exists with scrollTop = 0
+    const inactiveReels = document.createElement("div");
+    inactiveReels.className = "feed-view feed-view-reels inactive";
+    const feedStream = document.createElement("div");
+    feedStream.className = "feed-stream";
+    feedStream.scrollTop = 0;
+    inactiveReels.appendChild(feedStream);
+    document.body.appendChild(inactiveReels);
+
+    // Active catalog view exists
+    const catalogView = document.createElement("div");
+    catalogView.className = "feed-view feed-view-catalog active";
+    document.body.appendChild(catalogView);
+
+    // Mock window.scrollY to simulate scrolled catalog
+    Object.defineProperty(window, "scrollY", { value: 300, writable: true, configurable: true });
+
+    render(
+      <PullToRefresh onRefresh={onRefresh} activeTab="feed">
+        <div data-testid="child-content">Content</div>
+      </PullToRefresh>
+    );
+
+    window.dispatchEvent(
+      new TouchEvent("touchstart", {
+        touches: [{ clientX: 100, clientY: 100 } as Touch],
+      })
+    );
+    window.dispatchEvent(
+      new TouchEvent("touchmove", {
+        touches: [{ clientX: 100, clientY: 250 } as Touch],
+      })
+    );
+    window.dispatchEvent(new TouchEvent("touchend"));
+
+    expect(onRefresh).not.toHaveBeenCalled();
+
+    // Clean up DOM and mocks
+    document.body.removeChild(inactiveReels);
+    document.body.removeChild(catalogView);
+    Object.defineProperty(window, "scrollY", { value: 0, writable: true, configurable: true });
+  });
 });

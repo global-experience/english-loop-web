@@ -76,11 +76,18 @@ export function PullToRefresh({ children, onRefresh, activeTab, disabled = false
     // 팝업이 열려있으면 메인 화면 pull-to-refresh는 절대 동작하지 않음
     if (isModalOrPopupActive()) return false;
 
-    // 피드 탭일 경우 내부의 .feed-stream 스크롤 상태 확인
+    // 피드 탭일 경우 내부의 스크롤 상태 확인
     if (activeTab === "feed") {
-      const feedStream = document.querySelector(".feed-stream");
-      if (feedStream) {
-        return feedStream.scrollTop <= 1;
+      // 1. 카테고리 뷰가 열려있는 경우 (.feed-view-catalog.active) 윈도우 스크롤 상태 확인
+      const catalogActive = document.querySelector(".feed-view-catalog.active");
+      if (catalogActive) {
+        return window.scrollY <= 1 && document.documentElement.scrollTop <= 1;
+      }
+
+      // 2. 기본 릴스 뷰일 경우 활성화된 .feed-view-reels 내부의 .feed-stream 스크롤 상태 확인
+      const activeFeedStream = document.querySelector(".feed-view-reels.active .feed-stream") || document.querySelector(".feed-stream");
+      if (activeFeedStream) {
+        return activeFeedStream.scrollTop <= 1;
       }
     }
 
