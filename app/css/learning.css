@@ -3990,6 +3990,12 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: scale(1.34);
+  transition: transform .22s ease;
+}
+
+.catalog-card:hover .catalog-card-thumb img {
+  transform: scale(1.4);
 }
 
 .catalog-card-thumb em {
