@@ -144,7 +144,8 @@ export function FeedCatalog({
         )}
         {/* 끝에 도달했음을 알린다. 아무 표시가 없으면 더 있는데 안 나오는 줄 안다. */}
         {cursor === null && rows.length > 0 && !error && (
-          <p className="catalog-end">모든 카테고리를 확인했습니다</p>
+          // <p className="catalog-end">모든 카테고리를 확인했습니다</p>
+          <div />
         )}
       </div>
     </div>
@@ -251,14 +252,14 @@ function CatalogCategoryRow({
             <span className="catalog-card-thumb">
               {video.thumbnail_url
                 ? <img
-                    src={thumbnailUrl(video.thumbnail_url, "medium")}
-                    alt=""
-                    width={480}
-                    height={270}
-                    loading="lazy"
-                    decoding="async"
-                    draggable={false}
-                  />
+                  src={thumbnailUrl(video.thumbnail_url, "medium")}
+                  alt=""
+                  width={480}
+                  height={270}
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                />
                 : <Clapperboard size={22} aria-hidden="true" />}
               <em>{durationLabel(video.duration_seconds)}</em>
               <i aria-hidden="true"><Play size={14} fill="currentColor" /></i>
