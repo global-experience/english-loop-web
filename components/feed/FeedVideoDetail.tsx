@@ -234,10 +234,9 @@ export function FeedVideoDetail({
                   {isPlaying ? (
                     <iframe
                       key={item.youtube_video_id}
-                      src={`https://www.youtube-nocookie.com/embed/${item.youtube_video_id}?autoplay=1&playsinline=1&rel=0`}
+                      src={`https://www.youtube.com/embed/${item.youtube_video_id}?autoplay=1&playsinline=1&controls=0&fs=0&disablekb=1&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0`}
                       title={item.title}
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
                     />
                   ) : (
                     <>
