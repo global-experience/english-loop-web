@@ -210,11 +210,14 @@ export function FeedVideoDetail({
   const modalNode = (
     <div className={`video-detail-layer${closing ? " closing" : ""}`} role="dialog" aria-modal="true" aria-label={video.title}>
       <div className="video-detail-sheet">
-        <header className="video-detail-top">
-          <button type="button" onClick={handleClose} aria-label="닫기"><X size={20} /></button>
-          <span>{row.category.label}</span>
-          <small>{index + 1} / {items.length}{nextCursor !== null ? "+" : ""}</small>
-        </header>
+        <button
+          type="button"
+          className="video-detail-close"
+          onClick={handleClose}
+          aria-label="닫기"
+        >
+          <X size={20} />
+        </button>
 
         <div
           className="feed-stream video-detail-stream"
@@ -232,12 +235,22 @@ export function FeedVideoDetail({
               >
                 <div className="feed-media video-detail-hero">
                   {isPlaying ? (
-                    <iframe
-                      key={item.youtube_video_id}
-                      src={`https://www.youtube.com/embed/${item.youtube_video_id}?autoplay=1&playsinline=1&controls=0&fs=0&disablekb=1&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0`}
-                      title={item.title}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    />
+                    <>
+                      <iframe
+                        key={item.youtube_video_id}
+                        src={`https://www.youtube.com/embed/${item.youtube_video_id}?autoplay=1&playsinline=1&controls=0&fs=0&disablekb=1&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0`}
+                        title={item.title}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      />
+                      <div
+                        className="video-detail-top-shield"
+                        aria-hidden="true"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
+                      />
+                    </>
                   ) : (
                     <>
                       <img
