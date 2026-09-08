@@ -116,6 +116,7 @@ export default function Home() {
   // review tab returns to today's queue even if it was left on another sub-tab.
   const [feedFocusTarget, setFeedFocusTarget] = useState<{ video: FeedVideo; key: number } | null>(null);
   const [reviewTodaySignal, setReviewTodaySignal] = useState(0);
+  const [reviewRoutineEntry, setReviewRoutineEntry] = useState<TodayRoutineItem | null>(null);
   const [settingsKey, setSettingsKey] = useState(0);
   const [today, setToday] = useState<TodayData | null>(restoredBootstrap?.today || null);
   const [user, setUser] = useState<User | null>(restoredBootstrap?.user || null);
@@ -320,6 +321,12 @@ export default function Home() {
   const openLearning = (target: Activity | TodayRoutineItem) => {
     const activity = "slot" in target ? target : null;
     const routineItem = "slot" in target ? null : target;
+    if (routineItem?.activity_type === "review") {
+      setReviewRoutineEntry(routineItem);
+      setReviewTodaySignal((value) => value + 1);
+      switchTab("review");
+      return;
+    }
     const mode: LearningMode = activity
       ? activity.slot === "MORNING_COMMUTE" ? "morning" : activity.slot === "EVENING_COMMUTE" ? "evening" : "lunch"
       : "youtube";
@@ -350,6 +357,7 @@ export default function Home() {
   };
 
   const openReviewToday = () => {
+    setReviewRoutineEntry(null);
     setReviewTodaySignal((value) => value + 1);
     switchTab("review");
   };
@@ -461,8 +469,8 @@ export default function Home() {
                 />
               )}
               {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
-              {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} openTodaySignal={reviewTodaySignal} />}
-              {paneTab === "report" && <ReportView />}
+              {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} openTodaySignal={reviewTodaySignal} routineEntry={reviewRoutineEntry} onRoutineCompleted={refresh} />}
+              {paneTab === "report" && <ReportView active={active} />}
               {paneTab === "settings" && (user ? <SettingsView key={settingsKey} user={user} onSaved={refresh} /> : bootstrapFallback)}
             </section>
           );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Award, ChartNoAxesColumnIncreasing, MessageCircle, Timer } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { Analytics, Report } from "@/lib/types";
@@ -15,15 +15,22 @@ type LearningProfile = {
   integration: { latest_coach_session: null | { study_date: string; status: string; context_version: string; report_received_at: string | null; report_evidence_count: number }; unfinished_sessions: number };
 };
 
-export function ReportView() {
+export function ReportView({ active = true }: { active?: boolean }) {
   const [days, setDays] = useState<7 | 14>(7);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [learningResults, setLearningResults] = useState<LearningResult[]>([]);
   const [profile, setProfile] = useState<LearningProfile | null>(null);
-  useEffect(() => {
-    void Promise.all([apiFetch<Analytics>(`/api/analytics/weekly?days=${days}`), apiFetch<{ items: Report[] }>("/api/reports?page_size=14"), apiFetch<{ items: LearningResult[] }>(`/api/learning/sessions/results?limit=200&days=${days}`), apiFetch<LearningProfile>("/api/learning/profile")]).then(([stats, reportData, resultData, profileData]) => { setAnalytics(stats); setReports(reportData.items); setLearningResults(resultData.items); setProfile(profileData); });
+  const loadReport = useCallback(async () => {
+    const [stats, reportData, resultData, profileData] = await Promise.all([apiFetch<Analytics>(`/api/analytics/weekly?days=${days}`), apiFetch<{ items: Report[] }>("/api/reports?page_size=14"), apiFetch<{ items: LearningResult[] }>(`/api/learning/sessions/results?limit=200&days=${days}`), apiFetch<LearningProfile>("/api/learning/profile")]);
+    setAnalytics(stats);
+    setReports(reportData.items);
+    setLearningResults(resultData.items);
+    setProfile(profileData);
   }, [days]);
+  useEffect(() => {
+    if (active) void loadReport();
+  }, [active, loadReport]);
   const latest = reports[0];
   const practicedLines = learningResults.reduce((sum, item) => sum + item.practiced_line_count, 0);
   const retryLines = learningResults.reduce((sum, item) => sum + item.retry_line_count, 0);

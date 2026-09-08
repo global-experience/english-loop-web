@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, Clock3, FolderOpen, LogOut, Route, Save, X } from "lucide-react";
 import { routineLabel, type LearningSessionEntry } from "@/lib/learningSession";
@@ -13,6 +13,7 @@ export function SessionResultModal({
   missingWords,
   onGoToReview,
   onNextRoutine,
+  onCompleteAndEnd,
   onEndSession,
 }: {
   open: boolean;
@@ -21,6 +22,7 @@ export function SessionResultModal({
   missingWords?: Set<string>;
   onGoToReview?: () => void;
   onNextRoutine?: () => void;
+  onCompleteAndEnd?: () => void;
   onEndSession: () => void;
 }) {
   const { mobile } = useMobileUi();
@@ -78,10 +80,22 @@ export function SessionResultModal({
         )}
 
         <div className="session-result-modal-actions">
-          {onNextRoutine && (
+          {onCompleteAndEnd && (
             <button
               type="button"
               className="primary-button"
+              onClick={() => {
+                onCompleteAndEnd();
+                onClose();
+              }}
+            >
+              <CheckCircle2 size={16} /> 완료하고 종료
+            </button>
+          )}
+          {onNextRoutine && (
+            <button
+              type="button"
+              className="secondary-button"
               onClick={() => {
                 onNextRoutine();
                 onClose();
@@ -107,7 +121,7 @@ export function SessionResultModal({
             className="end-session-modal-button"
             onClick={onEndSession}
           >
-            <LogOut size={16} /> 세션 종료하기
+            <LogOut size={16} /> 저장하지 않고 나가기
           </button>
         </div>
       </div>
@@ -126,6 +140,7 @@ export function LearningSessionHeader({
   missingWords,
   onGoToReview,
   onNextRoutine,
+  onCompleteAndEnd,
 }: {
   entry: LearningSessionEntry;
   progress: number;
@@ -136,6 +151,7 @@ export function LearningSessionHeader({
   missingWords?: Set<string>;
   onGoToReview?: () => void;
   onNextRoutine?: () => void;
+  onCompleteAndEnd?: () => void;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const sourceLabel =
@@ -198,6 +214,7 @@ export function LearningSessionHeader({
         missingWords={missingWords}
         onGoToReview={onGoToReview}
         onNextRoutine={onNextRoutine}
+        onCompleteAndEnd={onCompleteAndEnd}
         onEndSession={onEndSession}
       />
     </>

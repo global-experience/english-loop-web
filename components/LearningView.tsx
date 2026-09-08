@@ -112,6 +112,7 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
           onSessionEntryChange={setEntry}
           onOpenReview={openReview}
           onNextRoutine={openNextRoutine}
+          onRefresh={refresh}
         />
       )}
 

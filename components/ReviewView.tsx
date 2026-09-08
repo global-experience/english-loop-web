@@ -14,6 +14,7 @@ import {
 import { ContentDetailPanel } from "./review/ContentDetailPanel";
 import { ContentRecordsPanel } from "./review/ContentRecordsPanel";
 import { LibraryPanel } from "./review/LibraryPanel";
+import type { TodayRoutineItem } from "@/lib/types";
 import { ReviewQueuePanel } from "./review/ReviewQueuePanel";
 
 /** Where the review tab hands control back to the learning tab. */
@@ -29,6 +30,8 @@ export function ReviewView({
   active = true,
   openLearning,
   openTodaySignal = 0,
+  routineEntry = null,
+  onRoutineCompleted,
 }: {
   active?: boolean;
   openLearning?: (target: ReviewLearningTarget) => void;
@@ -37,6 +40,8 @@ export function ReviewView({
    * between visits, so this forces it back to today's queue.
    */
   openTodaySignal?: number;
+  routineEntry?: TodayRoutineItem | null;
+  onRoutineCompleted?: () => Promise<void>;
 }) {
   const [tab, setTab] = useState<ReviewTabKey>("today");
   const [tabDirection, setTabDirection] = useState<"forward" | "back">("forward");
@@ -46,6 +51,15 @@ export function ReviewView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const completedRoutineRef = useRef("");
+
+  useEffect(() => {
+    if (!routineEntry?.id) return;
+    void apiFetch(`/api/routines/items/${routineEntry.id}/start`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }).catch(() => undefined);
+  }, [routineEntry?.id]);
 
   const goToTab = useCallback((nextTab: ReviewTabKey) => {
     setTab((prev) => {
@@ -148,7 +162,19 @@ export function ReviewView({
         progress_percent: total + done ? Math.round((done / (total + done)) * 100) : 100,
       };
     });
-  }, []);
+    if (routineEntry?.id) {
+      const target = Math.max(1, routineEntry.config.targetCount || 1);
+      if (response.completed_today >= target && completedRoutineRef.current !== routineEntry.id) {
+        completedRoutineRef.current = routineEntry.id;
+        void apiFetch(`/api/routines/items/${routineEntry.id}/complete`, {
+          method: "POST",
+          body: JSON.stringify({ actual_minutes: routineEntry.estimated_minutes }),
+        }).then(() => onRoutineCompleted?.()).catch(() => {
+          completedRoutineRef.current = "";
+        });
+      }
+    }
+  }, [onRoutineCompleted, routineEntry]);
 
   const jumpToLearning = useCallback((target: ReviewLearningTarget) => {
     openLearning?.(target);

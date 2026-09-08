@@ -1,11 +1,11 @@
 "use client";
 
 import { TouchEvent, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Bookmark, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Save, Volume2 } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight, Eye, EyeOff, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { apiFetch, mediaUrl } from "@/lib/api";
 import { isMobileDeviceRuntime } from "@/lib/nativeRuntime";
 import type { LearningPresetOptions, LearningSessionEntry } from "@/lib/learningSession";
+import { routineCompletionProgress } from "@/lib/routineCompletion";
 import { LearningSessionHeader } from "./LearningSessionHeader";
 import { SpeechPracticeSheet } from "./SpeechPracticeSheet";
 
@@ -36,9 +36,14 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
   const [playing, setPlaying] = useState(false);
   const [repeats, setRepeats] = useState(0);
   const [showMeaning, setShowMeaning] = useState(false);
+  const [showTranscriptText, setShowTranscriptText] = useState(
+    entry.routineConfig?.subtitleMode !== "hidden" && entry.routineSnapshot?.config?.subtitleMode !== "hidden",
+  );
   const [speechOpen, setSpeechOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [practiced, setPracticed] = useState<Set<string>>(new Set());
+  const [spoken, setSpoken] = useState<Set<string>>(new Set());
+  const [recalled, setRecalled] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [savingId, setSavingId] = useState<string | null>(null);
   const [retry, setRetry] = useState<Set<string>>(new Set());
@@ -55,6 +60,7 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
   const currentSentenceRef = useRef<HTMLDivElement>(null);
   const transcriptListRef = useRef<HTMLOListElement>(null);
   const touchStart = useRef(0);
+  const automaticCompletionRef = useRef("");
 
   const selected = content.segments[index];
   const source = mediaUrl(content.media_url);
@@ -151,10 +157,46 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
     }
   }
 
-  async function completeWorkspace(next: "review" | "routine") {
+  const routineProgress = routineCompletionProgress(entry, {
+    practiced: practiced.size,
+    spoken: spoken.size,
+    recalled: recalled.size,
+  });
+
+  useEffect(() => {
+    if (!entry.routineItemId) return;
+    void apiFetch(`/api/routines/items/${entry.routineItemId}/start`, {
+      method: "POST",
+      body: JSON.stringify({ content_id: content.id }),
+    }).catch(() => undefined);
+  }, [content.id, entry.routineItemId]);
+
+  useEffect(() => {
+    if (!routineProgress.eligible || !entry.routineItemId) return;
+    const completionKey = `${entry.routineItemId}:${clientSessionIdRef.current}`;
+    if (automaticCompletionRef.current === completionKey) return;
+    automaticCompletionRef.current = completionKey;
+    void apiFetch(`/api/routines/items/${entry.routineItemId}/complete`, {
+      method: "POST",
+      body: JSON.stringify({
+        content_id: content.id,
+        actual_minutes: entry.routineSnapshot?.estimated_minutes || 0,
+      }),
+    }).then(async () => {
+      setMessage(`${routineProgress.label} 목표 ${routineProgress.target}개를 달성해 오늘 루틴을 완료했어요.`);
+      await onRefresh();
+    }).catch(() => {
+      automaticCompletionRef.current = "";
+      setMessage("루틴 완료를 저장하지 못했어요. 세션 종료에서 다시 저장할 수 있습니다.");
+    });
+  }, [content.id, entry.routineItemId, entry.routineSnapshot?.estimated_minutes, onRefresh, routineProgress.eligible, routineProgress.label, routineProgress.target]);
+
+  async function completeWorkspace(next: "review" | "routine" | "end") {
     await apiFetch("/api/learning/sessions/complete", { method: "POST", body: JSON.stringify({ client_session_id: clientSessionIdRef.current, content_id: content.id, activity_id: entry.activityId || null, routine_item_id: entry.routineItemId || null, routine_snapshot: entry.routineSnapshot || {}, entry_source: entry.entrySource, practiced_line_count: practiced.size, saved_expression_count: saved.size, retry_line_count: retry.size, missing_words: Array.from(missingWords) }) });
     await onRefresh();
-    if (next === "review") onOpenReview(); else onNextRoutine();
+    if (next === "review") onOpenReview();
+    else if (next === "routine") onNextRoutine();
+    else onEndSession();
   }
 
   if (!selected) return null;
@@ -170,20 +212,21 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
         missingWords={missingWords}
         onGoToReview={() => void completeWorkspace("review")}
         onNextRoutine={() => void completeWorkspace("routine")}
+        onCompleteAndEnd={() => void completeWorkspace("end")}
       />
       {source ? <audio ref={audioRef} src={source} onTimeUpdate={timeUpdate} onEnded={() => setPlaying(false)} preload="metadata" /> : <div className="media-notice">재생 가능한 오디오가 없어도 자막 학습과 말하기 기록은 사용할 수 있습니다.</div>}
       <div className="youtube-loop-settings"><div><span>반복</span>{presets.repeats.map((count) => <button key={count} className={repeatTarget === count ? "active" : ""} onClick={() => setRepeatTarget(count)}>{count}회</button>)}</div><div><span>속도</span>{presets.speeds.map((speed) => <button key={speed} className={rate === speed ? "active" : ""} onClick={() => { setRate(speed); if (audioRef.current) audioRef.current.playbackRate = speed; }}>{speed}×</button>)}</div></div>
       <div className="youtube-shadowing sentence-swipe-stage learning-workspace-scroll-anchor" ref={currentSentenceRef} onTouchStart={(event) => { touchStart.current = event.touches[0].clientX; }} onTouchEnd={swipeEnd}>
         <div className="selected-line-meta"><p className="eyebrow">LINE {index + 1} / {content.segments.length} · {formatTime(selected.start_ms)}</p><button className="record-inline-button" onClick={() => setSpeechOpen(true)}><Mic size={16} /> 녹음</button></div>
-        <h3 className="selectable-text">{selected.english_text}</h3>
+        <h3 className={`selectable-text ${!showTranscriptText ? "blurred-text" : ""}`} onClick={() => { if (!showTranscriptText) setShowTranscriptText(true); }}>{selected.english_text}</h3>
         {showMeaning && <p className="selected-meaning">{savedMeaning || "등록된 번역이 없습니다."}</p>}
-        <div className="current-sentence-tools"><button onClick={() => setShowMeaning((value) => !value)}><Languages size={15} /> 번역 보기</button><button type="button" className={saved.has(selected.id) ? "saved" : ""} onClick={() => void saveExpression()} disabled={savingId === selected.id}>{savingId === selected.id ? <LoaderCircle className="spin" size={15} /> : <Bookmark size={15} fill={saved.has(selected.id) ? "currentColor" : "none"} />} {savingId === selected.id ? (saved.has(selected.id) ? "저장 취소 중…" : "저장 중…") : (saved.has(selected.id) ? "문장 저장됨" : "문장 저장")}</button><button onClick={() => void startLoop(index, true)}><Volume2 size={15} /> 느리게 듣기</button></div>
+        <div className="current-sentence-tools"><button onClick={() => setShowMeaning((value) => !value)}><Languages size={15} /> 번역 보기</button><button type="button" className={saved.has(selected.id) ? "saved" : ""} onClick={() => void saveExpression()} disabled={savingId === selected.id}>{savingId === selected.id ? <LoaderCircle className="spin" size={15} /> : <Bookmark size={15} fill={saved.has(selected.id) ? "currentColor" : "none"} />} {savingId === selected.id ? (saved.has(selected.id) ? "저장 취소 중…" : "저장 중…") : (saved.has(selected.id) ? "문장 저장됨" : "문장 저장")}</button><button onClick={() => setShowTranscriptText((value) => !value)}>{showTranscriptText ? <EyeOff size={15} /> : <Eye size={15} />} 자막 {showTranscriptText ? "숨기기" : "보기"}</button><button onClick={() => void startLoop(index, true)}><Volume2 size={15} /> 느리게 듣기</button></div>
         {!isMobileDevice && <div className="sentence-swipe-nav"><button onClick={() => selectLine(index - 1, true, true)} disabled={index === 0}><ChevronLeft /></button><span>옆으로 넘겨 다음 문장</span><button onClick={() => selectLine(index + 1, true, true)} disabled={index === content.segments.length - 1}><ChevronRight /></button></div>}
         <div className="youtube-shadow-actions"><button className="primary-button" onClick={() => void startLoop()}><RotateCcw size={17} /> {repeatTarget}회 구간 반복</button><button className="icon-toggle" onClick={pauseResume} disabled={!source} aria-label={playing ? "일시정지" : "이어서 재생"}>{playing ? <Pause /> : <Play />}</button></div>
       </div>
       {message && <p className="save-message">{message}</p>}
       <div className="youtube-transcript-list"><div className="youtube-transcript-head"><div><p className="eyebrow">FULL TRANSCRIPT</p><strong>원하는 문장을 선택하세요</strong></div><small>{content.segments.length}개 문장</small></div><ol className="transcript-list" ref={transcriptListRef}>{content.segments.map((line, lineIndex) => <li key={line.id}><button data-line-index={lineIndex} className={lineIndex === index ? "active" : ""} onClick={() => selectLine(lineIndex, true, true)}><time>{formatTime(line.start_ms)}</time><span>{line.english_text}</span><Play size={14} /></button></li>)}</ol></div>
-      <SpeechPracticeSheet open={speechOpen} entry={entry} lineId={selected.id} referenceText={selected.english_text} onClose={() => setSpeechOpen(false)} onListen={(slow) => void startLoop(index, slow)} onSaved={(comparison) => { setPracticed((current) => new Set(current).add(selected.id)); if (comparison.missingWords.length || comparison.differentWords.length) setRetry((current) => new Set(current).add(selected.id)); setMissingWords((current) => new Set([...current, ...comparison.missingWords])); }} />
+      <SpeechPracticeSheet open={speechOpen} entry={entry} lineId={selected.id} referenceText={selected.english_text} onClose={() => setSpeechOpen(false)} onListen={(slow) => void startLoop(index, slow)} onSaved={(comparison) => { setPracticed((current) => new Set(current).add(selected.id)); setSpoken((current) => new Set(current).add(selected.id)); if (!showTranscriptText) setRecalled((current) => new Set(current).add(selected.id)); if (comparison.missingWords.length || comparison.differentWords.length) setRetry((current) => new Set(current).add(selected.id)); setMissingWords((current) => new Set([...current, ...comparison.missingWords])); }} />
     </section>
   );
 }

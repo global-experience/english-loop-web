@@ -3,15 +3,16 @@
 import Script from "next/script";
 import { MouseEvent as ReactMouseEvent, TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bookmark, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, EyeOff, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Sparkles, Volume2, X } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight, Eye, EyeOff, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Sparkles, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { isMobileDeviceRuntime, isNativeAppRuntime } from "@/lib/nativeRuntime";
 import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
 import type { TranscriptSegment } from "@/lib/youtubeStore";
 import type { LearningPresetOptions, LearningSessionEntry, SpeechComparison } from "@/lib/learningSession";
-import { useBodyScrollLock, useMobileUi } from "@/lib/useMobileUi";
+import { useBodyScrollLock } from "@/lib/useMobileUi";
 import { speakEnglish } from "@/lib/speech";
 import { useSheetDragToClose } from "@/lib/sheetDrag";
+import { routineCompletionProgress } from "@/lib/routineCompletion";
 import { LearningSessionHeader } from "./LearningSessionHeader";
 import { SpeechPracticeSheet } from "./SpeechPracticeSheet";
 
@@ -200,7 +201,7 @@ function useMobileTranslationUi() {
   return { mobile, platform };
 }
 
-export function YouTubePractice({ entry, presets, onChangeContent, onEndSession, onSessionEntryChange, onOpenReview, onNextRoutine }: {
+export function YouTubePractice({ entry, presets, onChangeContent, onEndSession, onSessionEntryChange, onOpenReview, onNextRoutine, onRefresh = async () => undefined }: {
   entry: LearningSessionEntry;
   presets: LearningPresetOptions;
   onChangeContent: () => void;
@@ -208,6 +209,7 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   onSessionEntryChange: (entry: LearningSessionEntry) => void;
   onOpenReview: () => void;
   onNextRoutine: () => void;
+  onRefresh?: () => Promise<void>;
 }) {
   const clientSessionIdRef = useRef(
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -240,10 +242,14 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   const playerReadyRef = useRef(false);
   const [isLooping, setIsLooping] = useState(false);
   const [loopPaused, setLoopPaused] = useState(false);
-  const [showTranscriptText, setShowTranscriptText] = useState(true);
+  const [showTranscriptText, setShowTranscriptText] = useState(
+    entry.routineConfig?.subtitleMode !== "hidden" && entry.routineSnapshot?.config?.subtitleMode !== "hidden",
+  );
   const [speechOpen, setSpeechOpen] = useState(false);
   const [nextLineHint, setNextLineHint] = useState(false);
   const [practicedLines, setPracticedLines] = useState<Set<string>>(new Set());
+  const [spokenLines, setSpokenLines] = useState<Set<string>>(new Set());
+  const [recalledLines, setRecalledLines] = useState<Set<string>>(new Set());
   const [savedLines, setSavedLines] = useState<Set<string>>(new Set());
   const [savingSegmentId, setSavingSegmentId] = useState<string | null>(null);
   const [retryLines, setRetryLines] = useState<Set<string>>(new Set());
@@ -285,6 +291,7 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
   const activeTabRef = useRef(true);
   const touchStartRef = useRef(0);
   const transcriptListRef = useRef<HTMLOListElement>(null);
+  const automaticCompletionRef = useRef("");
 
   useEffect(() => {
     setPortalReady(true);
@@ -330,9 +337,9 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
         setSpeechOpen(false);
       }
     };
-    window.addEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+    window.addEventListener("loopine:tab-visibility", handleTabVisibility as EventListener);
     return () => {
-      window.removeEventListener("loopine:tab-visibility" as any, handleTabVisibility);
+      window.removeEventListener("loopine:tab-visibility", handleTabVisibility as EventListener);
     };
   }, []);
 
@@ -825,7 +832,41 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     retry: retryLines.size,
   }), [practicedLines.size, retryLines.size, savedLines.size]);
 
-  async function completeWorkspace(next: "review" | "routine") {
+  const routineProgress = routineCompletionProgress(entry, {
+    practiced: practicedLines.size,
+    spoken: spokenLines.size,
+    recalled: recalledLines.size,
+  });
+
+  useEffect(() => {
+    if (!entry.routineItemId) return;
+    void apiFetch(`/api/routines/items/${entry.routineItemId}/start`, {
+      method: "POST",
+      body: JSON.stringify({ content_id: entry.contentId }),
+    }).catch(() => undefined);
+  }, [entry.contentId, entry.routineItemId]);
+
+  useEffect(() => {
+    if (!routineProgress.eligible || !entry.routineItemId) return;
+    const completionKey = `${entry.routineItemId}:${clientSessionIdRef.current}`;
+    if (automaticCompletionRef.current === completionKey) return;
+    automaticCompletionRef.current = completionKey;
+    void apiFetch(`/api/routines/items/${entry.routineItemId}/complete`, {
+      method: "POST",
+      body: JSON.stringify({
+        content_id: entry.contentId,
+        actual_minutes: entry.routineSnapshot?.estimated_minutes || 0,
+      }),
+    }).then(async () => {
+      setSessionMessage(`${routineProgress.label} 목표 ${routineProgress.target}개를 달성해 오늘 루틴을 완료했어요.`);
+      await onRefresh();
+    }).catch(() => {
+      automaticCompletionRef.current = "";
+      setSessionMessage("루틴 완료를 저장하지 못했어요. 세션 종료에서 다시 저장할 수 있습니다.");
+    });
+  }, [entry.contentId, entry.routineItemId, entry.routineSnapshot?.estimated_minutes, onRefresh, routineProgress.eligible, routineProgress.label, routineProgress.target]);
+
+  async function completeWorkspace(next: "review" | "routine" | "end") {
     setSessionMessage("세션 결과를 저장하는 중이에요…");
     try {
       await apiFetch("/api/learning/sessions/complete", {
@@ -843,7 +884,10 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
           missing_words: Array.from(missingWords),
         }),
       });
-      if (next === "review") onOpenReview(); else onNextRoutine();
+      await onRefresh();
+      if (next === "review") onOpenReview();
+      else if (next === "routine") onNextRoutine();
+      else onEndSession();
     } catch (caught) {
       setSessionMessage(caught instanceof Error ? caught.message : "세션 결과를 저장하지 못했어요.");
     }
@@ -892,6 +936,7 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
           missingWords={missingWords}
           onGoToReview={() => void completeWorkspace("review")}
           onNextRoutine={() => void completeWorkspace("routine")}
+          onCompleteAndEnd={() => void completeWorkspace("end")}
         />
 
         <div className="youtube-frame learning-workspace-scroll-anchor" aria-label="YouTube 학습 영상" ref={playerFrameRef}>
@@ -1081,6 +1126,8 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
         }}
         onSaved={(comparison: SpeechComparison) => {
           setPracticedLines((current) => new Set(current).add(selected.id));
+          setSpokenLines((current) => new Set(current).add(selected.id));
+          if (!showTranscriptText) setRecalledLines((current) => new Set(current).add(selected.id));
           if (comparison.missingWords.length || comparison.differentWords.length) setRetryLines((current) => new Set(current).add(selected.id));
           else setRetryLines((current) => { const next = new Set(current); next.delete(selected.id); return next; });
           setMissingWords((current) => new Set([...current, ...comparison.missingWords]));

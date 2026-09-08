@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportView } from "@/components/ReportView";
 
@@ -46,5 +46,14 @@ describe("ReportView", () => {
     expect(screen.getByText("33.3%")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "14일" }));
     expect(apiFetchMock).toHaveBeenCalledWith("/api/analytics/weekly?days=14");
+  });
+
+  it("refreshes the report when its app tab becomes active again", async () => {
+    const view = render(<ReportView active={false}/>);
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    view.rerender(<ReportView active/>);
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/analytics/weekly?days=7"));
   });
 });
