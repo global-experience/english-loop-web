@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clapperboard, LoaderCircle, Play, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { thumbnailUrl } from "@/lib/thumbnails";
 import { usePortalReady } from "@/lib/useMobileUi";
 import {
   durationLabel,
@@ -39,7 +40,7 @@ export function ContentCard({
       <button className="content-record-main" onClick={onOpen} aria-label={`${card.title} 학습 기록 열기`}>
         <span className="content-record-thumb">
           {card.thumbnail_url
-            ? <img src={card.thumbnail_url} alt="" loading="lazy" />
+            ? <img src={thumbnailUrl(card.thumbnail_url, "small")} alt="" width={320} height={180} loading="lazy" decoding="async" />
             : <Clapperboard size={22} aria-hidden="true" />}
           {card.due_count > 0 && <b className="content-record-due">복습 {card.due_count}</b>}
         </span>

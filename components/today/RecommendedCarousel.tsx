@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Clapperboard, Play, RefreshCw } from "lucide-react";
 import type { FeedVideo } from "@/lib/types";
+import { thumbnailUrl } from "@/lib/thumbnails";
 
 function durationLabel(seconds: number) {
   if (!seconds) return "길이 미정";
@@ -169,7 +170,15 @@ export function RecommendedCarousel({
               <button type="button" onClick={() => openVideo(video)} aria-label={`${video.title} 피드에서 보기`}>
                 <span className="today-video-thumb">
                   {video.thumbnail_url
-                    ? <img src={video.thumbnail_url} alt="" loading="lazy" draggable={false} />
+                    ? <img
+                        src={thumbnailUrl(video.thumbnail_url, "medium")}
+                        alt=""
+                        width={480}
+                        height={270}
+                        loading="lazy"
+                        decoding="async"
+                        draggable={false}
+                      />
                     : <Clapperboard size={22} aria-hidden="true" />}
                   <em>{durationLabel(video.duration_seconds)}</em>
                   <i aria-hidden="true"><Play size={15} fill="currentColor" /></i>

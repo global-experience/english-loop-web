@@ -26,9 +26,58 @@ function message(caught: unknown, fallback: string) {
 
 export type RecommendedVideos = { items: FeedVideo[]; total: number };
 
+const RECOMMENDED_CACHE_KEY = "loopine:today-videos:v1";
+
+/**
+ * 「오늘의 추천」이 하루 동안 같은 목록이 되도록 날짜를 seed 로 쓴다.
+ *
+ * seed 를 비우면 서버가 매번 새로 뽑기 때문에, 탭에 들어올 때마다 추천이
+ * 통째로 바뀐다. 이름과 다르기도 하고, 아래 캐시를 갱신할 때마다 목록이
+ * 눈앞에서 교체되는 문제도 생긴다.
+ */
+function dailySeed(now = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `today-${year}${month}${day}`;
+}
+
+type CachedRecommendation = RecommendedVideos & { seed: string };
+
+/**
+ * 직전에 본 추천 목록. 오늘 탭의 다른 구간은 앱 셸 스냅샷 덕분에 즉시 그려지는데
+ * 이 구간만 캐시가 없어, 화면 한가운데서 혼자 스켈레톤이 깜빡였다.
+ */
+export function readCachedRecommendedVideos(now = new Date()): RecommendedVideos | null {
+  if (typeof window === "undefined" || typeof window.sessionStorage === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(RECOMMENDED_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedRecommendation;
+    // 날짜가 바뀌면 어제의 추천이다. 버리고 새로 받는다.
+    if (parsed?.seed !== dailySeed(now) || !Array.isArray(parsed.items)) return null;
+    return { items: parsed.items, total: parsed.total || 0 };
+  } catch {
+    return null;
+  }
+}
+
+function cacheRecommendedVideos(value: RecommendedVideos, now = new Date()) {
+  if (typeof window === "undefined" || typeof window.sessionStorage === "undefined") return;
+  try {
+    const payload: CachedRecommendation = { ...value, seed: dailySeed(now) };
+    window.sessionStorage.setItem(RECOMMENDED_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // 저장 용량 초과나 사생활 보호 모드. 캐시는 없어도 동작에 지장이 없다.
+  }
+}
+
 export async function fetchRecommendedVideos(limit = 8): Promise<RecommendedVideos> {
-  const data = await apiFetch<{ items: FeedVideo[]; total: number }>(`/api/feed?limit=${limit}`);
-  return { items: data.items || [], total: data.total || 0 };
+  const params = new URLSearchParams({ limit: String(limit), seed: dailySeed() });
+  const data = await apiFetch<{ items: FeedVideo[]; total: number }>(`/api/feed?${params}`);
+  const value = { items: data.items || [], total: data.total || 0 };
+  cacheRecommendedVideos(value);
+  return value;
 }
 
 export type TodayReviewSummary = ReviewQueueSummary & { speakAgainCount: number };

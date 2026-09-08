@@ -9,6 +9,7 @@ import {
   fetchRecommendedVideos,
   fetchReviewSummary,
   idleSection,
+  readCachedRecommendedVideos,
   sectionError,
   type AsyncSection,
   type CoachHint as CoachHintData,
@@ -57,7 +58,17 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
   const [sessionLabel, sessionDetail] =
     sessionCopy[today.coach_session?.status as keyof typeof sessionCopy] ?? sessionCopy.NOT_STARTED;
 
-  const [videos, setVideos] = useState<AsyncSection<RecommendedVideos>>(idleSection);
+  /**
+   * 캐시가 있으면 스켈레톤 없이 바로 그린다.
+   *
+   * 상단 요약과 오늘의 루틴은 앱 셸 스냅샷이 있어 즉시 뜨는데, 이 구간만
+   * 매번 빈 상태에서 시작해 화면 한가운데가 혼자 늦게 채워졌다. 그 자리가
+   * 시선이 먼저 닿는 곳이라 실제 응답 시간보다 훨씬 느리게 느껴진다.
+   */
+  const [videos, setVideos] = useState<AsyncSection<RecommendedVideos>>(() => {
+    const cached = readCachedRecommendedVideos();
+    return cached ? { data: cached, loading: false, error: "" } : idleSection<RecommendedVideos>();
+  });
   const [review, setReview] = useState<AsyncSection<TodayReviewSummary>>(idleSection);
   const [coach, setCoach] = useState<AsyncSection<CoachHintData>>(idleSection);
   const [creatingPlan, setCreatingPlan] = useState(false);
@@ -88,7 +99,11 @@ export function TodayView({ today, user, refresh, openLearning, openFeedVideo, o
     try {
       setVideos({ data: await fetchRecommendedVideos(8), loading: false, error: "" });
     } catch (caught) {
-      setVideos({ data: null, loading: false, error: sectionError(caught, "추천 영상을 불러오지 못했습니다.") });
+      // 캐시로 이미 보여주고 있다면 그대로 둔다. 배경 갱신이 실패했다고 해서
+      // 눈앞의 목록을 오류 문구로 바꿀 이유가 없다.
+      setVideos((current) => current.data
+        ? { ...current, loading: false, error: "" }
+        : { data: null, loading: false, error: sectionError(caught, "추천 영상을 불러오지 못했습니다.") });
     }
   }, []);
 

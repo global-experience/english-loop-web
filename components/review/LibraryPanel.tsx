@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, Clapperboard, Filter, LoaderCircle, Mic, Play, Quote, Search, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { thumbnailUrl } from "@/lib/thumbnails";
 import {
   durationLabel,
   type LibraryKind,
@@ -305,7 +306,7 @@ function LibraryPanelInner({
             <article className="library-video-card" key={`${video.id || video.content_id || 'video'}-${index}`}>
               <span className="content-record-thumb">
                 {video.thumbnail_url
-                  ? <img src={video.thumbnail_url} alt="" loading="lazy" />
+                  ? <img src={thumbnailUrl(video.thumbnail_url, "small")} alt="" width={320} height={180} loading="lazy" decoding="async" />
                   : <Clapperboard size={22} aria-hidden="true" />}
               </span>
               <div>
