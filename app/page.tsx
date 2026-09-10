@@ -10,6 +10,7 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { TodayView } from "@/components/TodayView";
 import { LearningView, type LearningMode } from "@/components/LearningView";
 import { AppSplash, useAppSplash } from "@/components/AppSplash";
+import { OnboardingPreferences } from "@/components/OnboardingPreferences";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { youtubeStore } from "@/lib/youtubeStore";
 import { triggerHapticSelection } from "@/lib/haptics";
@@ -444,6 +445,16 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
 
   if (isUnauthorized || (!splash.ready || splash.visible)) {
     return <AppSplash fadingOut={splash.fadingOut && !isUnauthorized && (!loading || !!user)} />;
+  }
+
+  /**
+   * 승인된 사용자가 관심 주제를 아직 안 골랐으면 온보딩을 먼저 띄운다.
+   *
+   * 선택 목록이 비었는지가 아니라 `preferences_set_at` 으로 판단한다. 비었는지로
+   * 보면 "고르고 나서 다 지운" 사용자에게 매번 다시 뜬다.
+   */
+  if (user && user.approval_status === "APPROVED" && !user.preferences_set_at) {
+    return <OnboardingPreferences mode="onboarding" onDone={() => void refresh()} />;
   }
 
   const needsBootstrap = !user || !today;

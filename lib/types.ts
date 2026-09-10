@@ -185,6 +185,8 @@ export type User = {
   daily_minutes: number;
   recording_retention_days: number;
   approval_status: "PENDING" | "APPROVED" | "REJECTED";
+  /** NULL 이면 아직 관심 주제를 고르지 않은 것이다(온보딩 미완료). */
+  preferences_set_at?: string | null;
 };
 
 export type FeedVideo = {

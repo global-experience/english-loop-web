@@ -4900,3 +4900,236 @@
     margin: 4px 0 4px;
   }
 }
+/* ══════════════════ 관심 주제 (온보딩·설정) ══════════════════ */
+
+/* ── Onboarding animations ───────────────────────────────── */
+@keyframes ob-fade-up {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ob-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes ob-chip-pop {
+  0%   { transform: scale(.96); opacity: 0; }
+  60%  { transform: scale(1.03); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes ob-check-in {
+  0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+  60%  { transform: scale(1.25) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+/* ── Loading ─────────────────────────────────────────────── */
+.onboarding-loading {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  color: var(--muted);
+  animation: ob-fade-in .4s ease both;
+}
+
+/* ── Full-screen wrapper ─────────────────────────────────── */
+.onboarding-screen {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: calc(24px + var(--safe-top, 0px)) 20px calc(24px + var(--safe-bottom, 0px));
+  background: var(--paper, #f4f5f0);
+  animation: ob-fade-in .35s ease both;
+}
+
+/* ── Card ────────────────────────────────────────────────── */
+.onboarding-card {
+  width: min(100%, 560px);
+  padding: 28px 24px 24px;
+  border-radius: 26px;
+  background: var(--surface, #fff);
+  box-shadow: 0 18px 50px rgba(23, 32, 27, .1);
+  animation: ob-fade-up .5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Eyebrow badge ───────────────────────────────────────── */
+.onboarding-card .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  animation: ob-fade-up .45s .08s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Headline ────────────────────────────────────────────── */
+.onboarding-card h1 {
+  margin: 10px 0 0;
+  font: 700 26px/1.28 var(--font-display, inherit);
+  letter-spacing: -.035em;
+  animation: ob-fade-up .45s .15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Lead copy ───────────────────────────────────────────── */
+.onboarding-lead {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.65;
+  animation: ob-fade-up .45s .22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Chip grid ───────────────────────────────────────────── */
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+@media (max-width: 420px) {
+  .onboarding-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Individual chips — stagger via nth-child ────────────── */
+.onboarding-chip {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 15px 16px;
+  border: 1.5px solid var(--line, #dfe4dc);
+  border-radius: 16px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0;
+  animation: ob-chip-pop .4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: border-color .18s ease, background .18s ease, transform .14s ease, box-shadow .18s ease;
+}
+
+/* 최대 12개 칩까지 stagger. 그 이상은 마지막 delay 유지 */
+.onboarding-chip:nth-child(1)  { animation-delay: .32s; }
+.onboarding-chip:nth-child(2)  { animation-delay: .37s; }
+.onboarding-chip:nth-child(3)  { animation-delay: .42s; }
+.onboarding-chip:nth-child(4)  { animation-delay: .47s; }
+.onboarding-chip:nth-child(5)  { animation-delay: .52s; }
+.onboarding-chip:nth-child(6)  { animation-delay: .57s; }
+.onboarding-chip:nth-child(7)  { animation-delay: .62s; }
+.onboarding-chip:nth-child(8)  { animation-delay: .67s; }
+.onboarding-chip:nth-child(9)  { animation-delay: .70s; }
+.onboarding-chip:nth-child(10) { animation-delay: .73s; }
+.onboarding-chip:nth-child(11) { animation-delay: .76s; }
+.onboarding-chip:nth-child(n+12) { animation-delay: .78s; }
+
+.onboarding-chip:hover {
+  border-color: color-mix(in srgb, var(--green, #1d5c43) 45%, var(--line, #dfe4dc));
+  box-shadow: 0 4px 14px rgba(29, 92, 67, .08);
+  transform: translateY(-1px);
+}
+
+.onboarding-chip:active {
+  transform: scale(.97);
+  transition-duration: .08s;
+}
+
+/* 선택 상태: 테두리 + 배경 + 체크 아이콘을 함께 준다 */
+.onboarding-chip.active {
+  border-color: var(--green, #1d5c43);
+  background: color-mix(in srgb, var(--green, #1d5c43) 8%, #fff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green, #1d5c43) 18%, transparent);
+}
+
+.onboarding-chip span {
+  color: var(--ink, #17201b);
+  font: 600 14px/1.35 var(--font-body, inherit);
+  transition: color .16s ease;
+}
+
+.onboarding-chip.active span {
+  color: var(--green, #1d5c43);
+  font-weight: 700;
+}
+
+.onboarding-chip small {
+  color: var(--muted, #68736c);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* 체크 아이콘 — 선택 시 튀어 나온다 */
+.onboarding-chip i {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--green, #1d5c43);
+  animation: ob-check-in .3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Actions row ─────────────────────────────────────────── */
+.onboarding-actions {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  animation: ob-fade-up .45s .82s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.onboarding-actions .primary-button {
+  width: 100%;
+  justify-content: center;
+  transition: transform .14s ease, box-shadow .14s ease, background .18s ease;
+}
+
+.onboarding-actions .primary-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(29, 92, 67, .22);
+}
+
+.onboarding-actions .primary-button:not(:disabled):active {
+  transform: scale(.97);
+  transition-duration: .08s;
+}
+
+/* ── Empty / Error states ────────────────────────────────── */
+.onboarding-empty,
+.onboarding-error {
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.onboarding-empty {
+  color: var(--muted, #68736c);
+}
+
+.onboarding-error {
+  color: var(--red, #a43e32);
+}
+
+/* ── Settings variant — 이미 화면에 있으므로 입장 애니메이션 제거 ── */
+.onboarding-settings .onboarding-grid {
+  margin-top: 14px;
+}
+
+.onboarding-settings .onboarding-chip {
+  animation: none;
+  opacity: 1;
+}
+
+.onboarding-settings .onboarding-actions {
+  justify-items: start;
+  animation: none;
+  opacity: 1;
+}
+
+.onboarding-settings .onboarding-actions .primary-button {
+  width: auto;
+}
