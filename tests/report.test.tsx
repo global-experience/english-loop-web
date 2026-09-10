@@ -56,4 +56,36 @@ describe("ReportView", () => {
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/analytics/weekly?days=7"));
   });
+
+  it("displays skeleton screen while loading and then reveals actual content", async () => {
+    let resolveAnalytics: (value: unknown) => void;
+    const pendingAnalytics = new Promise((resolve) => {
+      resolveAnalytics = resolve;
+    });
+
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path.startsWith("/api/analytics")) return pendingAnalytics;
+      if (path.startsWith("/api/reports")) return Promise.resolve({ items: [report] });
+      return Promise.resolve({ items: [] });
+    });
+
+    render(<ReportView />);
+
+    // Skeleton should be visible while loading
+    expect(screen.getByTestId("report-skeleton")).toBeInTheDocument();
+    expect(screen.getByText("리포트 데이터를 불러오는 중입니다...")).toBeInTheDocument();
+
+    // Premature empty states should NOT be rendered while loading
+    expect(screen.queryByText("아직 저장된 수업 분석이 없어요.")).not.toBeInTheDocument();
+    expect(screen.queryByText("따라 말하기 결과가 쌓이면 자주 빠지는 단어를 보여줘요.")).not.toBeInTheDocument();
+
+    // Now resolve the analytics API
+    resolveAnalytics!(analytics);
+
+    // After resolution, real content should be visible and skeleton removed
+    expect(await screen.findByText(report.summary_ko)).toBeInTheDocument();
+    expect(screen.getByText("33.3%")).toBeInTheDocument();
+    expect(screen.queryByTestId("report-skeleton")).not.toBeInTheDocument();
+  });
 });
+

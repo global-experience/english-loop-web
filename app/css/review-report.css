@@ -360,3 +360,219 @@
   color: #c7cec9;
   font-size: 11px;
 }
+
+/* ── report skeleton screens & shimmer wave (옆 로딩) ─────────────────── */
+@keyframes report-shimmer-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%, 100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes report-shimmer-line {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes report-bar-fill-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes report-fade-in {
+  from {
+    opacity: 0.6;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes report-dot-pulse {
+  0%, 100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.report-content-enter {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: report-fade-in 0.25s ease-out;
+}
+
+.report-skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Base sweeping light beam container */
+.skeleton-shimmer {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.48) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: report-shimmer-sweep 1.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.skeleton-shimmer.skeleton-card-acid::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.7) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+.skeleton-shimmer.skeleton-card-ink::after,
+.skeleton-shimmer.skeleton-dark::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.16) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* Staggered lateral sweep across metric cards */
+.metric-grid .skeleton-shimmer:nth-child(1)::after { animation-delay: 0s; }
+.metric-grid .skeleton-shimmer:nth-child(2)::after { animation-delay: 0.12s; }
+.metric-grid .skeleton-shimmer:nth-child(3)::after { animation-delay: 0.24s; }
+.metric-grid .skeleton-shimmer:nth-child(4)::after { animation-delay: 0.36s; }
+.metric-grid .skeleton-shimmer:nth-child(5)::after { animation-delay: 0.48s; }
+
+.report-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.report-skeleton-line.h-xs { height: 9px; border-radius: 4px; }
+.report-skeleton-line.h-sm { height: 13px; border-radius: 6px; }
+.report-skeleton-line.h-md { height: 18px; border-radius: 7px; }
+.report-skeleton-line.h-lg { height: 28px; border-radius: 8px; }
+
+.report-skeleton-line.w-20 { width: 20%; }
+.report-skeleton-line.w-25 { width: 25%; }
+.report-skeleton-line.w-30 { width: 30%; }
+.report-skeleton-line.w-35 { width: 35%; }
+.report-skeleton-line.w-40 { width: 40%; }
+.report-skeleton-line.w-45 { width: 45%; }
+.report-skeleton-line.w-50 { width: 50%; }
+.report-skeleton-line.w-55 { width: 55%; }
+.report-skeleton-line.w-60 { width: 60%; }
+.report-skeleton-line.w-65 { width: 65%; }
+.report-skeleton-line.w-70 { width: 70%; }
+.report-skeleton-line.w-75 { width: 75%; }
+.report-skeleton-line.w-80 { width: 80%; }
+.report-skeleton-line.w-90 { width: 90%; }
+.report-skeleton-line.w-100 { width: 100%; }
+
+.report-skeleton-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.report-skeleton-badge {
+  width: 50px;
+  height: 20px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.22) 50%, rgba(255, 255, 255, 0.08) 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.metric-card.skeleton-card-acid {
+  background: var(--acid);
+}
+.metric-card.skeleton-card-acid .report-skeleton-line,
+.metric-card.skeleton-card-acid .report-skeleton-icon {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.2) 50%, rgba(0, 0, 0, 0.08) 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.metric-card.skeleton-card-ink {
+  background: var(--ink);
+}
+.metric-card.skeleton-card-ink .report-skeleton-line,
+.metric-card.skeleton-card-ink .report-skeleton-icon,
+.latest-report.skeleton-dark .report-skeleton-line,
+.latest-report.skeleton-dark .report-skeleton-badge {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.22) 50%, rgba(255, 255, 255, 0.08) 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.routine-chart.skeleton-routine .bar-row {
+  grid-template-columns: 54px 1fr 32px;
+}
+.skeleton-bar-track {
+  position: relative;
+  height: 8px;
+  border-radius: 5px;
+  background: #cbc7bd;
+  overflow: hidden;
+}
+.skeleton-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #baa59d 0%, var(--coral) 50%, #baa59d 100%);
+  background-size: 200% 100%;
+  animation: report-bar-fill-sweep 1.6s ease-in-out infinite;
+}
+
+.skeleton-score-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-dot.skeleton-dot {
+  background: #dcd7cc;
+  animation: report-dot-pulse 1.5s ease-in-out infinite;
+}
+.status-dot.skeleton-dot.dark {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+
