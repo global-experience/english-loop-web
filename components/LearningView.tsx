@@ -238,7 +238,7 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
       if (!result.ok) {
         const errorMsg = result.reason || "이 영상은 소유자의 설정으로 인해 다른 웹사이트에서 재생할 수 없습니다. 다른 영상을 선택해 주세요.";
         setError(errorMsg);
-        // window.alert(errorMsg);
+        window.alert(errorMsg);
         return;
       }
 

@@ -43,8 +43,10 @@
     transition: transform 0.2s ease;
   }
 
-  .desktop-side-brand:hover {
-    transform: scale(1.08);
+  @media (hover: hover) and (pointer: fine) {
+    .desktop-side-brand:hover {
+      transform: scale(1.08);
+    }
   }
 
   .desktop-side-brand img {
@@ -83,10 +85,12 @@
     line-height: 1;
   }
 
-  .desktop-side-menu button:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-2px);
+  @media (hover: hover) and (pointer: fine) {
+    .desktop-side-menu button:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
   }
 
   .desktop-side-menu button:active {

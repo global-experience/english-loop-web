@@ -119,9 +119,11 @@ input[type="button"],
 input[type="submit"],
 input[type="reset"],
 [role="button"],
-.button {
+.button,
+a {
   cursor: pointer;
   color: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button:disabled,

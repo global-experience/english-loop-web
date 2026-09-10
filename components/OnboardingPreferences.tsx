@@ -71,6 +71,16 @@ export function OnboardingPreferences({
     }
   }
 
+  const categories = data?.categories ?? [];
+
+  // 관리자가 카테고리를 아직 안 만들었다면 고를 게 없다.
+  // 온보딩에서 빈 화면을 보여주느니 조용히 넘긴다.
+  useEffect(() => {
+    if (mode === "onboarding" && data && !categories.length) {
+      void save([]);
+    }
+  }, [mode, data, categories.length]);
+
   if (!data) {
     return (
       <div className="onboarding-loading">
@@ -79,17 +89,14 @@ export function OnboardingPreferences({
     );
   }
 
-  // 관리자가 카테고리를 아직 안 만들었다면 고를 게 없다.
-  // 온보딩에서 빈 화면을 보여주느니 조용히 넘긴다.
-  if (mode === "onboarding" && !data.categories.length) {
-    void save([]);
+  if (mode === "onboarding" && !categories.length) {
     return <div className="onboarding-loading"><LoaderCircle className="spin" size={22} /></div>;
   }
 
   const body = (
     <>
       <div className="onboarding-grid">
-        {data.categories.map((category) => {
+        {categories.map((category) => {
           const active = selected.includes(category.id);
           return (
             <button
@@ -106,7 +113,7 @@ export function OnboardingPreferences({
           );
         })}
       </div>
-      {!data.categories.length && (
+      {!categories.length && (
         <p className="onboarding-empty">아직 고를 수 있는 주제가 없습니다. 나중에 설정에서 다시 골라 주세요.</p>
       )}
       {error && <p className="onboarding-error" role="alert">{error}</p>}

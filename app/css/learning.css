@@ -686,10 +686,12 @@
   transition: all 0.15s ease;
 }
 
-.routine-card:hover .routine-card-edit-btn {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: white;
+@media (hover: hover) and (pointer: fine) {
+  .routine-card:hover .routine-card-edit-btn {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: white;
+  }
 }
 
 /* ── Routine Manager Skeleton Screen (옆 로딩 쉬머) ─────────────────── */
@@ -965,8 +967,10 @@
   transition: background 0.15s ease;
 }
 
-.routine-modal-header button:hover {
-  background: rgba(255, 255, 255, 0.15);
+@media (hover: hover) and (pointer: fine) {
+  .routine-modal-header button:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
 }
 
 .routine-modal-form {
@@ -1105,10 +1109,12 @@
   transition: all 0.18s ease;
 }
 
-.routine-icon-option-btn:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.09);
+@media (hover: hover) and (pointer: fine) {
+  .routine-icon-option-btn:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.09);
+  }
 }
 
 .routine-icon-option-btn.selected {
@@ -1137,9 +1143,11 @@
   transition: all 0.15s ease;
 }
 
-.routine-day-preset-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+@media (hover: hover) and (pointer: fine) {
+  .routine-day-preset-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+  }
 }
 
 .routine-days-grid {
@@ -1162,9 +1170,11 @@
   transition: all 0.15s ease;
 }
 
-.routine-day-btn:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+@media (hover: hover) and (pointer: fine) {
+  .routine-day-btn:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+  }
 }
 
 .routine-day-btn.selected {
@@ -1197,9 +1207,11 @@
   transition: all 0.15s ease;
 }
 
-.routine-toggle-btn:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+@media (hover: hover) and (pointer: fine) {
+  .routine-toggle-btn:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+  }
 }
 
 .routine-toggle-btn.selected {
@@ -1933,9 +1945,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.translation-audio-actions button:hover {
-  background: rgba(255, 255, 255, .16);
-  border-color: rgba(255, 255, 255, .3);
+@media (hover: hover) and (pointer: fine) {
+  .translation-audio-actions button:hover {
+    background: rgba(255, 255, 255, .16);
+    border-color: rgba(255, 255, 255, .3);
+  }
 }
 
 .translation-audio-actions button:active {
@@ -2627,10 +2641,12 @@
   opacity: 0.8;
 }
 
-.youtube-shadowing h3.blurred-text:hover,
-.selectable-text.blurred-text:hover {
-  opacity: 1;
-  text-shadow: 0 0 12px rgba(255, 255, 255, 0.85), 0 0 6px rgba(255, 255, 255, 0.5);
+@media (hover: hover) and (pointer: fine) {
+  .youtube-shadowing h3.blurred-text:hover,
+  .selectable-text.blurred-text:hover {
+    opacity: 1;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.85), 0 0 6px rgba(255, 255, 255, 0.5);
+  }
 }
 
 .selected-meaning {
@@ -4041,9 +4057,11 @@
   transition: transform .18s ease, background .18s ease;
 }
 
-.feed-browse-button:hover {
-  background: #29342f;
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .feed-browse-button:hover {
+    background: #29342f;
+    transform: translateY(-1px);
+  }
 }
 
 .feed-browse-button:active {
@@ -4136,9 +4154,11 @@
   transition: transform .15s ease, background .15s ease;
 }
 
-.catalog-close:hover {
-  background: var(--paper);
-  transform: scale(1.04);
+@media (hover: hover) and (pointer: fine) {
+  .catalog-close:hover {
+    background: var(--paper);
+    transform: scale(1.04);
+  }
 }
 
 .catalog-content {
@@ -4196,9 +4216,11 @@
   transition: background .15s ease, transform .12s ease;
 }
 
-.catalog-row-nav button:hover:not(:disabled) {
-  background: var(--paper);
-  transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .catalog-row-nav button:hover:not(:disabled) {
+    background: var(--paper);
+    transform: scale(1.05);
+  }
 }
 
 .catalog-row-nav button:disabled {
@@ -4258,8 +4280,10 @@
   transition: transform .22s ease;
 }
 
-.catalog-card:hover .catalog-card-thumb img {
-  transform: scale(1.4);
+@media (hover: hover) and (pointer: fine) {
+  .catalog-card:hover .catalog-card-thumb img {
+    transform: scale(1.4);
+  }
 }
 
 .catalog-card-thumb em {
@@ -4287,8 +4311,10 @@
   transition: opacity .18s ease;
 }
 
-.catalog-card:hover .catalog-card-thumb i {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .catalog-card:hover .catalog-card-thumb i {
+    opacity: 1;
+  }
 }
 
 .catalog-card-badge {
@@ -4649,9 +4675,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.video-detail-close:hover {
-  background: rgba(18, 24, 21, 0.9);
-  transform: scale(1.06);
+@media (hover: hover) and (pointer: fine) {
+  .video-detail-close:hover {
+    background: rgba(18, 24, 21, 0.9);
+    transform: scale(1.06);
+  }
 }
 
 .video-detail-close:active {
@@ -5099,10 +5127,12 @@
 .onboarding-chip:nth-child(11) { animation-delay: .76s; }
 .onboarding-chip:nth-child(n+12) { animation-delay: .78s; }
 
-.onboarding-chip:hover {
-  border-color: color-mix(in srgb, var(--green, #1d5c43) 45%, var(--line, #dfe4dc));
-  box-shadow: 0 4px 14px rgba(29, 92, 67, .08);
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .onboarding-chip:hover {
+    border-color: color-mix(in srgb, var(--green, #1d5c43) 45%, var(--line, #dfe4dc));
+    box-shadow: 0 4px 14px rgba(29, 92, 67, .08);
+    transform: translateY(-1px);
+  }
 }
 
 .onboarding-chip:active {
@@ -5165,9 +5195,11 @@
   transition: transform .14s ease, box-shadow .14s ease, background .18s ease;
 }
 
-.onboarding-actions .primary-button:not(:disabled):hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(29, 92, 67, .22);
+@media (hover: hover) and (pointer: fine) {
+  .onboarding-actions .primary-button:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(29, 92, 67, .22);
+  }
 }
 
 .onboarding-actions .primary-button:not(:disabled):active {

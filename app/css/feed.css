@@ -193,10 +193,12 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
     transition: background-color 0.18s ease, transform 0.12s ease;
   }
 
-  .feed-pc-nav-btn:hover:not(:disabled) {
-    background: var(--acid);
-    color: var(--ink);
-    transform: scale(1.08);
+  @media (hover: hover) and (pointer: fine) {
+    .feed-pc-nav-btn:hover:not(:disabled) {
+      background: var(--acid);
+      color: var(--ink);
+      transform: scale(1.08);
+    }
   }
 
   .feed-pc-nav-btn:active:not(:disabled) {
@@ -387,9 +389,11 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
   pointer-events: auto;
 }
 
-.feed-sound-toggle:hover {
-  background: rgba(24, 32, 29, .95);
-  transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .feed-sound-toggle:hover {
+    background: rgba(24, 32, 29, .95);
+    transform: scale(1.05);
+  }
 }
 
 .feed-sound-toggle:active {

@@ -393,23 +393,20 @@
               color 0.2s ease;
 }
 
-.review-focus-card .secondary-button:hover,
-.review-reveal-button:hover {
-  transform: translateY(-2px);
-  background: rgba(216, 239, 103, 0.08);
-  border-color: var(--acid);
-  color: var(--acid);
-  box-shadow: 0 4px 18px rgba(216, 239, 103, 0.18);
-}
+@media (hover: hover) and (pointer: fine) {
+  .review-focus-card .secondary-button:hover,
+  .review-reveal-button:hover {
+    transform: translateY(-2px);
+    background: rgba(216, 239, 103, 0.08);
+    border-color: var(--acid);
+    color: var(--acid);
+    box-shadow: 0 4px 18px rgba(216, 239, 103, 0.18);
+  }
 
-.review-focus-card .secondary-button svg,
-.review-reveal-button svg {
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.review-focus-card .secondary-button:hover svg,
-.review-reveal-button:hover svg {
-  transform: translateX(4px);
+  .review-focus-card .secondary-button:hover svg,
+  .review-reveal-button:hover svg {
+    transform: translateX(4px);
+  }
 }
 
 .review-focus-card .secondary-button:active,
@@ -465,8 +462,10 @@
   transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
-.review-focus-audio-btn:hover {
-  transform: scale(1.06);
+@media (hover: hover) and (pointer: fine) {
+  .review-focus-audio-btn:hover {
+    transform: scale(1.06);
+  }
 }
 
 .review-focus-audio-btn:active {
@@ -563,9 +562,11 @@
 .review-grades button:not(:disabled):nth-child(3) { animation-delay: 0.12s; }
 .review-grades button:not(:disabled):nth-child(4) { animation-delay: 0.16s; }
 
-.review-grades button:not(:disabled):hover {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .review-grades button:not(:disabled):hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .review-grades button:not(:disabled):active {
@@ -649,13 +650,15 @@
   transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.review-list-reveal-btn:hover {
-  color: #5c6f2c;
-  transform: translateX(2px);
-}
+@media (hover: hover) and (pointer: fine) {
+  .review-list-reveal-btn:hover {
+    color: #5c6f2c;
+    transform: translateX(2px);
+  }
 
-.review-list-reveal-btn:hover svg {
-  transform: translateX(3px);
+  .review-list-reveal-btn:hover svg {
+    transform: translateX(3px);
+  }
 }
 
 .review-list-reveal-btn:active {
@@ -825,9 +828,11 @@
   transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s ease, color 0.15s ease;
 }
 
-.review-search-clear:hover {
-  background: #d8d3c5;
-  transform: scale(1.12);
+@media (hover: hover) and (pointer: fine) {
+  .review-search-clear:hover {
+    background: #d8d3c5;
+    transform: scale(1.12);
+  }
 }
 
 .review-search-clear:active {
@@ -850,9 +855,11 @@
   transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.review-search-submit:hover {
-  transform: scale(1.12);
-  box-shadow: 0 4px 14px rgba(216, 255, 73, 0.6);
+@media (hover: hover) and (pointer: fine) {
+  .review-search-submit:hover {
+    transform: scale(1.12);
+    box-shadow: 0 4px 14px rgba(216, 255, 73, 0.6);
+  }
 }
 
 .review-search-submit:active {

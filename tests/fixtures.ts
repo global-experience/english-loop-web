@@ -4,6 +4,7 @@ export const user: User = {
   id: "u1", email: "learner@example.com", display_name: "학습자", english_level: "B1",
   goals: ["네트워킹"], timezone: "Asia/Seoul", custom_gpt_url: "https://chatgpt.com/g/test",
   daily_minutes: 120, recording_retention_days: 30, approval_status: "APPROVED",
+  preferences_set_at: "2026-08-23T00:00:00Z",
 };
 
 export const listeningActivity: Activity = {
