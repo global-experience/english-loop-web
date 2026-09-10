@@ -37,6 +37,7 @@ const ICON_OPTIONS = [
 ];
 
 type Props = {
+  active?: boolean;
   onBack: () => void;
   onRefresh?: () => Promise<void>;
 };
@@ -58,7 +59,7 @@ type DragSession = DragPreview & {
   cardCenters: number[];
 };
 
-export function RoutineManagerView({ onBack, onRefresh }: Props) {
+export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) {
   const portalReady = usePortalReady();
   const [routines, setRoutinesState] = useState<RoutinePayload | null>(null);
   const routinesRef = useRef<RoutinePayload | null>(null);
@@ -81,6 +82,13 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
   const [planDirection, setPlanDirection] = useState<"forward" | "back">("forward");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoutineItem | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setEditingItemId(null);
+      setDeleteTarget(null);
+    }
+  }, [active]);
 
   const selectPlan = useCallback((planId: string) => {
     if (planId === selectedPlanId) return;

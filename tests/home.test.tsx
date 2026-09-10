@@ -75,4 +75,27 @@ describe("Home", () => {
     expect(screen.getByRole("status", { name: "설정을 불러오는 중입니다" })).toBeInTheDocument();
     expect(document.getElementById("panel-settings")).toHaveClass("tab-pane", "active");
   });
+
+  it("deactivates content picker popup when switching to another tab", async () => {
+    apiFetchMock.mockImplementation((path: string) => {
+      if (path === "/api/me") return Promise.resolve(user);
+      if (path.startsWith("/api/contents")) return Promise.resolve({ items: [] });
+      return Promise.resolve(today);
+    });
+
+    render(<Home />);
+    await screen.findByText("오늘의 루틴");
+
+    fireEvent.click(document.getElementById("tab-learn")!);
+    expect(await screen.findByText("무엇을 연습할까요?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "콘텐츠 선택" }));
+    expect(await screen.findByRole("dialog", { name: "학습 콘텐츠 선택" })).toBeInTheDocument();
+
+    fireEvent.click(document.getElementById("tab-today")!);
+    expect(screen.queryByRole("dialog", { name: "학습 콘텐츠 선택" })).not.toBeInTheDocument();
+
+    fireEvent.click(document.getElementById("tab-learn")!);
+    expect(screen.queryByRole("dialog", { name: "학습 콘텐츠 선택" })).not.toBeInTheDocument();
+  });
 });

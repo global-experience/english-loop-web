@@ -23,6 +23,7 @@ import { RoutineManagerView } from "./RoutineManagerView";
 export type LearningMode = "morning" | "lunch" | "evening" | "library" | "youtube";
 
 type Props = {
+  active?: boolean;
   today: TodayData;
   entry: LearningSessionEntry | null;
   setEntry: (entry: LearningSessionEntry | null) => void;
@@ -31,11 +32,28 @@ type Props = {
   openNextRoutine: () => void;
 };
 
-export function LearningView({ today, entry, setEntry, refresh, openReview, openNextRoutine }: Props) {
+export function LearningView({ active = true, today, entry, setEntry, refresh, openReview, openNextRoutine }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [routineManagerOpen, setRoutineManagerOpen] = useState(false);
   const [recent, setRecent] = useState<LearningSessionEntry | null>(null);
   const presets = entry?.routineConfig ? learningPresetsFromConfig(entry.routineConfig) : readLearningPresets();
+
+  useEffect(() => {
+    if (!active) {
+      setPickerOpen(false);
+    }
+  }, [active]);
+
+  useEffect(() => {
+    const handleTabVisibility = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: string; active?: boolean }>;
+      if (customEvent.detail?.tab === "learn" && customEvent.detail?.active === false) {
+        setPickerOpen(false);
+      }
+    };
+    window.addEventListener("loopine:tab-visibility", handleTabVisibility);
+    return () => window.removeEventListener("loopine:tab-visibility", handleTabVisibility);
+  }, []);
 
   useEffect(() => setRecent(readRecentLearningEntry()), []);
   useEffect(() => {
@@ -59,6 +77,7 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
   if (routineManagerOpen) {
     return (
       <RoutineManagerView
+        active={active}
         onBack={() => {
           void refresh();
           setRoutineManagerOpen(false);
@@ -123,7 +142,7 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
         />
       )}
 
-      {pickerOpen && (
+      {active && pickerOpen && (
         <ContentPicker
           today={today}
           onClose={() => setPickerOpen(false)}

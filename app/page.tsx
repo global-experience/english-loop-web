@@ -481,7 +481,7 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
                   onFocusConsumed={() => setFeedFocusTarget(null)}
                 />
               )}
-              {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
+              {paneTab === "learn" && (today ? <LearningView active={active} today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
               {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} openTodaySignal={reviewTodaySignal} routineEntry={reviewRoutineEntry} onRoutineCompleted={refresh} />}
               {paneTab === "report" && <ReportView active={active} />}
               {paneTab === "settings" && <SettingsView key={settingsKey} user={user} onSaved={refresh} loading={loading && !user} />}
