@@ -143,21 +143,61 @@ function ContentRecordsPanelInner({
 
   const isBusy = isLoading || isPullRefreshing;
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const sentinelCallbackRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+      if (!node || !active || !hasNextPage) return;
+
+      if (typeof IntersectionObserver !== "undefined") {
+        observerRef.current = new IntersectionObserver(
+          (entries) => {
+            if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+              void fetchNextPage();
+            }
+          },
+          { root: null, rootMargin: "0px 0px 600px 0px", threshold: 0 }
+        );
+        observerRef.current.observe(node);
+      }
+    },
+    [active, fetchNextPage, hasNextPage, isFetchingNextPage]
+  );
 
   useEffect(() => {
-    if (!sentinelRef.current || !hasNextPage || isFetchingNextPage) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, []);
+
+  // 스크롤이 하단 600px 이내로 도달할 때쯤 미리 다음 페이지 로드
+  useEffect(() => {
+    if (!active || !hasNextPage || isFetchingNextPage) return;
+
+    let ticking = false;
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        if (!hasNextPage || isFetchingNextPage) return;
+        const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, 0);
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        const clientHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const remaining = scrollHeight - (scrollTop + clientHeight);
+        if (remaining < 600) {
           void fetchNextPage();
         }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(sentinelRef.current);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+      });
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [active, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   async function deleteCard(card: ContentProgressCard) {
     setDeletingId(card.content_id);
@@ -269,8 +309,28 @@ function ContentRecordsPanelInner({
           ))}
 
           {hasNextPage && (
-            <div key="sentinel" ref={sentinelRef} className="review-infinite-sentinel" style={{ padding: "16px", textAlign: "center" }}>
-              {isFetchingNextPage && <LoaderCircle size={20} className="spin" aria-label="10개씩 더 불러오는 중" />}
+            <div
+              key="sentinel"
+              ref={sentinelCallbackRef}
+              className="review-infinite-sentinel"
+              role="status"
+              aria-live="polite"
+              style={{
+                minHeight: "48px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "16px",
+              }}
+            >
+              {isFetchingNextPage ? (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", color: "var(--muted)", fontSize: "13px" }}>
+                  <LoaderCircle size={18} className="spin" />
+                  <span>더 불러오는 중…</span>
+                </div>
+              ) : (
+                <div style={{ height: "24px", width: "100%", pointerEvents: "none" }} />
+              )}
             </div>
           )}
         </div>

@@ -44,8 +44,9 @@ export function useInfiniteContentRecordsQuery({
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
-      if (lastPage.has_more && lastPage.page) {
-        return lastPage.page + 1;
+      if (lastPage?.has_more) {
+        const currentPage = typeof lastPage.page === "number" ? lastPage.page : 1;
+        return currentPage + 1;
       }
       return undefined;
     },
@@ -85,8 +86,9 @@ export function useInfiniteLibraryQuery({
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
-      if (lastPage.has_more && lastPage.page) {
-        return lastPage.page + 1;
+      if (lastPage?.has_more) {
+        const currentPage = typeof lastPage.page === "number" ? lastPage.page : 1;
+        return currentPage + 1;
       }
       return undefined;
     },

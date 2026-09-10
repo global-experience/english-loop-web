@@ -34,8 +34,40 @@ type TabDirection = "forward" | "back";
 
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
 import { ReviewViewSkeleton } from "@/components/review/ReviewSkeletons";
+import { CatalogSkeleton } from "@/components/feed/FeedCatalog";
 
-const FeedView = dynamic(() => import("@/components/FeedView").then((mod) => mod.FeedView), { ssr: false });
+function FeedViewFallback() {
+  const isCatalog = typeof window !== "undefined" && window.location.pathname.replace(/\/$/, "") === "/feed/categories";
+  if (isCatalog) {
+    return (
+      <div className="catalog-shell" aria-busy="true">
+        <header className="catalog-header">
+          <div>
+            <p className="eyebrow">BROWSE BY CATEGORY</p>
+            <h2>카테고리별 영상</h2>
+          </div>
+          <div className="catalog-close" style={{ opacity: 0.5, pointerEvents: "none" }}>
+            <Clapperboard size={18} />
+          </div>
+        </header>
+        <div className="catalog-content">
+          <CatalogSkeleton />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <section className="feed-loading">
+      <LoaderCircle className="spin" />
+      <p>오늘의 영어 영상을 고르고 있어요.</p>
+    </section>
+  );
+}
+
+const FeedView = dynamic(() => import("@/components/FeedView").then((mod) => mod.FeedView), {
+  ssr: false,
+  loading: () => <FeedViewFallback />,
+});
 const ReviewView = dynamic(() => import("@/components/ReviewView").then((mod) => mod.ReviewView), {
   ssr: false,
   loading: () => <ReviewViewSkeleton />,

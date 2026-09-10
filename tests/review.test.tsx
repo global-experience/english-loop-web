@@ -210,7 +210,7 @@ describe("Per-content study records", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Daily English Conversation 학습 기록 열기/ }));
 
     expect(await screen.findByRole("tab", { name: /^표현/ })).toBeInTheDocument();
-    expect(screen.getByText("keeping it simple")).toBeInTheDocument();
+    expect(await screen.findByText("keeping it simple")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /^문장/ }));
     expect(screen.getByText("The main challenge was keeping it simple.")).toBeInTheDocument();
@@ -577,5 +577,63 @@ describe("Recording playback states", () => {
     resolveRefetch();
     await waitFor(() => expect(doneMock).toHaveBeenCalled());
     expect(await screen.findByRole("button", { name: /복습 시작/ })).toBeInTheDocument();
+  });
+
+  it("loads next page via infinite scroll pagination when scrolling near bottom in LibraryPanel", async () => {
+    const pageRequests: string[] = [];
+    mockApi((path) => {
+      const url = String(path);
+      if (url.startsWith("/api/review/library")) {
+        pageRequests.push(url);
+        if (url.includes("page=2")) {
+          return {
+            kind: "words",
+            items: [{
+              ...savedWord,
+              expression_progress_id: "word-prog-2",
+              canonical_text: "break the ice",
+            }],
+            page: 2,
+            limit: 10,
+            has_more: false,
+            counts: { words: 2, sentences: 1 },
+            sources: [{ content_id: "content-1", title: "Daily English Conversation" }],
+            levels: ["B1"],
+          };
+        }
+        return {
+          kind: "words",
+          items: [savedWord],
+          page: 1,
+          limit: 10,
+          has_more: true,
+          counts: { words: 2, sentences: 1 },
+          sources: [{ content_id: "content-1", title: "Daily English Conversation" }],
+          levels: ["B1"],
+        };
+      }
+      return defaultHandler(url);
+    });
+
+    render(<ReviewView />);
+    await screen.findByRole("button", { name: /복습 시작/ });
+    fireEvent.click(screen.getByRole("tab", { name: /내 보관함/ }));
+
+    expect(await screen.findByText("keeping it simple")).toBeInTheDocument();
+    expect(pageRequests.some((p) => p.includes("page=1"))).toBe(true);
+
+    // Mock document dimensions to simulate scrolling near bottom (remaining < 600)
+    Object.defineProperty(document.documentElement, "scrollHeight", { value: 1200, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 800, configurable: true });
+    Object.defineProperty(window, "pageYOffset", { value: 500, configurable: true }); // remaining = 1200 - (500 + 800) = -100 < 600
+
+    window.dispatchEvent(new Event("scroll"));
+
+    await waitFor(() => {
+      expect(pageRequests.some((p) => p.includes("page=2"))).toBe(true);
+    });
+
+    expect(await screen.findByText("break the ice")).toBeInTheDocument();
+    expect(screen.getByText("keeping it simple")).toBeInTheDocument();
   });
 });
