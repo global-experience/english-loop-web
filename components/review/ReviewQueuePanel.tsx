@@ -14,7 +14,8 @@ import {
 } from "@/lib/reviewTypes";
 import { SubtitlePlayerSheet, type SubtitlePlayerTarget } from "@/components/SubtitlePlayerSheet";
 import { triggerHapticImpact } from "@/lib/haptics";
-import { PanelEmpty, PanelError, PanelLoading } from "./ReviewStates";
+import { PanelEmpty, PanelError } from "./ReviewStates";
+import { ReviewQueueSkeleton } from "./ReviewSkeletons";
 
 const KIND_ORDER: ReviewItemKind[] = ["SAVED_EXPRESSION", "SPEAK_AGAIN", "CORRECTION", "NOT_USED"];
 const KIND_LABELS: Record<ReviewItemKind, string> = {
@@ -109,7 +110,7 @@ export function ReviewQueuePanel({
     }
   }
 
-  if (loading) return <PanelLoading label="오늘 복습할 항목을 모으고 있어요." />;
+  if (loading) return <ReviewQueueSkeleton />;
   if (error) return <PanelError message={error} onRetry={onRetry} />;
 
   const summaryCard = (
@@ -144,7 +145,7 @@ export function ReviewQueuePanel({
 
   if (!total) {
     return (
-      <div className="review-panel">
+      <div className="review-panel review-content-enter">
         {summaryCard}
         <PanelEmpty
           icon={<Sparkles size={26} />}
@@ -157,7 +158,7 @@ export function ReviewQueuePanel({
   }
 
   return (
-    <div className="review-panel">
+    <div className="review-panel review-content-enter">
       {summaryCard}
 
       {!started ? (

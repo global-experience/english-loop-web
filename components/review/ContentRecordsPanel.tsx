@@ -14,7 +14,8 @@ import {
   type ContentProgressCard,
 } from "@/lib/reviewTypes";
 import { useInfiniteContentRecordsQuery, useInvalidateReviewQueries } from "@/lib/useReviewQuery";
-import { PanelEmpty, PanelError, PanelLoading } from "./ReviewStates";
+import { PanelEmpty, PanelError } from "./ReviewStates";
+import { ContentRecordsSkeleton } from "./ReviewSkeletons";
 
 const VIEWS: Array<{ key: ContentListView; label: string }> = [
   { key: "recent", label: "최근 학습" },
@@ -227,14 +228,14 @@ function ContentRecordsPanelInner({
         </div>
       </div>
 
-      {isLoading && <PanelLoading label="영상별 학습 기록을 불러오고 있어요." />}
+      {isLoading && <ContentRecordsSkeleton />}
       {isError && <PanelError message={error instanceof Error ? error.message : "학습 기록을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
       {actionError && <p className="review-inline-error" role="alert">{actionError}</p>}
       {!isError && !isLoading && !items.length && (
         <PanelEmpty icon={<Clapperboard size={26} />} title={emptyCopy.title} description={emptyCopy.description} />
       )}
-      {!isError && !!items.length && (
-        <div key={view} className="content-record-list review-panel-scene">
+      {!isError && !isLoading && !!items.length && (
+        <div key={view} className="content-record-list review-panel-scene review-content-enter">
           {items.map((card, index) => (
             <ContentCard
               key={card.content_id || index}

@@ -2055,3 +2055,165 @@
   justify-content: center;
   padding-top: 4px;
 }
+
+/* ── Review Tab Skeleton Screen UI & Shimmer Wave (옆 로딩) ───────── */
+.review-queue-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-summary.skeleton-dark {
+  background: var(--ink);
+  color: var(--cream);
+  min-height: 180px;
+}
+
+.skeleton-orbit {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.skeleton-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  display: inline-flex;
+  align-items: center;
+}
+
+.review-start-btn-skeleton {
+  width: 180px;
+  height: 48px;
+  border-radius: 999px;
+  background: #2b302d;
+}
+
+.skeleton-focus-card {
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.85);
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-content-card {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 253, 247, 0.7);
+}
+
+.skeleton-video-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: rgba(255, 253, 247, 0.7);
+}
+
+.skeleton-video-card > div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.skeleton-recording-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 253, 247, 0.72);
+}
+
+.skeleton-recording-card header {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.skeleton-recording-card header > div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.skeleton-saved-item {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.skeleton-thumb {
+  background: rgba(24, 32, 29, 0.07);
+}
+
+.skeleton-circle-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(24, 32, 29, 0.08);
+}
+
+.skeleton-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(24, 32, 29, 0.08);
+}
+
+.saved-item-skeleton-actions {
+  display: flex;
+  gap: 6px;
+  align-self: center;
+}
+
+.skeleton-mark {
+  background: rgba(216, 239, 103, 0.35) !important;
+}
+
+.skeleton-audio-track {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(24, 32, 29, 0.08);
+  width: 100%;
+  margin: 6px 0;
+}
+
+/* Staggered Shimmer Delays */
+.review-skeleton-list .skeleton-shimmer:nth-child(1)::after { animation-delay: 0s; }
+.review-skeleton-list .skeleton-shimmer:nth-child(2)::after { animation-delay: 0.12s; }
+.review-skeleton-list .skeleton-shimmer:nth-child(3)::after { animation-delay: 0.24s; }
+.review-skeleton-list .skeleton-shimmer:nth-child(4)::after { animation-delay: 0.36s; }
+.review-skeleton-list .skeleton-shimmer:nth-child(5)::after { animation-delay: 0.48s; }
+
+/* Smooth content fade-in */
+@keyframes review-content-in {
+  from {
+    opacity: 0.65;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.review-content-enter {
+  animation: review-content-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

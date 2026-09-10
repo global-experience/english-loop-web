@@ -17,7 +17,8 @@ import { SubtitlePlayerSheet, type SubtitlePlayerTarget } from "@/components/Sub
 import { RecordingCard } from "./RecordingCard";
 import { SavedItemCard } from "./SavedItemCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
-import { PanelEmpty, PanelError, PanelLoading } from "./ReviewStates";
+import { PanelEmpty, PanelError } from "./ReviewStates";
+import { LibrarySkeleton } from "./ReviewSkeletons";
 
 const KINDS: Array<{ key: LibraryKind; label: string }> = [
   { key: "words", label: "전체 단어" },
@@ -248,7 +249,7 @@ function LibraryPanelInner({
         </div>
       )}
 
-      {isLoading && <PanelLoading label="보관함을 불러오고 있어요." />}
+      {isLoading && <LibrarySkeleton kind={kind} />}
       {isError && <PanelError message={error instanceof Error ? error.message : "보관함을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
       {actionError && <p className="review-inline-error" role="alert">{actionError}</p>}
 
@@ -266,8 +267,8 @@ function LibraryPanelInner({
         />
       )}
 
-      {!isError && showsSelectedKind && !!items.length && (kind === "words" || kind === "sentences") && (
-        <div key={kind} className="saved-item-list review-panel-scene">
+      {!isError && !isLoading && showsSelectedKind && !!items.length && (kind === "words" || kind === "sentences") && (
+        <div key={kind} className="saved-item-list review-panel-scene review-content-enter">
           {(items as SavedItem[]).map((item, index) => (
             <SavedItemCard
               key={`${item.expression_progress_id || item.expression_id || 'item'}-${index}`}
@@ -300,8 +301,8 @@ function LibraryPanelInner({
         </div>
       )}
 
-      {!isError && showsSelectedKind && !!items.length && kind === "videos" && (
-        <div key={kind} className="library-video-list review-panel-scene">
+      {!isError && !isLoading && showsSelectedKind && !!items.length && kind === "videos" && (
+        <div key={kind} className="library-video-list review-panel-scene review-content-enter">
           {(items as SavedVideoRecord[]).map((video, index) => (
             <article className="library-video-card" key={`${video.id || video.content_id || 'video'}-${index}`}>
               <span className="content-record-thumb">
@@ -354,8 +355,8 @@ function LibraryPanelInner({
         </div>
       )}
 
-      {!isError && showsSelectedKind && !!items.length && kind === "recordings" && (
-        <div key={kind} className="recording-list review-panel-scene">
+      {!isError && !isLoading && showsSelectedKind && !!items.length && kind === "recordings" && (
+        <div key={kind} className="recording-list review-panel-scene review-content-enter">
           {(items as SpeechAttemptRecord[]).map((recording, index) => (
             <RecordingCard
               key={`${recording.id || 'rec'}-${index}`}

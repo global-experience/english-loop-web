@@ -33,9 +33,13 @@ import {
 type TabDirection = "forward" | "back";
 
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
+import { ReviewViewSkeleton } from "@/components/review/ReviewSkeletons";
 
 const FeedView = dynamic(() => import("@/components/FeedView").then((mod) => mod.FeedView), { ssr: false });
-const ReviewView = dynamic(() => import("@/components/ReviewView").then((mod) => mod.ReviewView), { ssr: false });
+const ReviewView = dynamic(() => import("@/components/ReviewView").then((mod) => mod.ReviewView), {
+  ssr: false,
+  loading: () => <ReviewViewSkeleton />,
+});
 const ReportView = dynamic(() => import("@/components/ReportView").then((mod) => mod.ReportView), { ssr: false });
 const SettingsView = dynamic(() => import("@/components/SettingsView").then((mod) => mod.SettingsView), {
   ssr: false,
