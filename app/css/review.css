@@ -1535,7 +1535,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .review-start-bar {
+  .review-start-bar,
+  .review-start-bar-skeleton {
     position: static;
     justify-items: start;
     grid-auto-flow: column;
@@ -1544,7 +1545,8 @@
     align-items: center;
   }
 
-  .review-start-button {
+  .review-start-button,
+  .review-start-btn-skeleton {
     width: auto;
     min-width: 220px;
   }
@@ -2063,43 +2065,133 @@
   gap: 16px;
 }
 
+.skeleton-dark-line {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.skeleton-dark-line.skeleton-dark-acid {
+  background: linear-gradient(
+    90deg,
+    rgba(216, 239, 103, 0.18) 0%,
+    rgba(216, 239, 103, 0.42) 50%,
+    rgba(216, 239, 103, 0.18) 100%
+  );
+  background-size: 200% 100%;
+}
+
+.skeleton-title-line {
+  display: block;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
 .review-summary.skeleton-dark {
   background: var(--ink);
   color: var(--cream);
-  min-height: 180px;
+  min-height: 196px;
+  position: relative;
+  overflow: hidden;
 }
 
 .skeleton-orbit {
+  position: absolute;
+  right: 22px;
+  top: 22px;
   width: 54px;
   height: 54px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
+  display: grid;
+  place-items: center;
 }
 
-.skeleton-chip {
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
+.skeleton-orbit::after {
+  content: "";
+  width: 22px;
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.review-kind-chips .skeleton-chip {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 7px 11px;
+  border: 1px solid #36423c;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.skeleton-chip-badge {
+  display: inline-block;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* 복습 시작 바 스켈레톤 (시작 버튼 + 목록으로 훑어보기 분리) */
+.review-start-bar-skeleton {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .review-start-btn-skeleton {
-  width: 180px;
-  height: 48px;
+  width: 100%;
+  min-height: 56px;
   border-radius: 999px;
-  background: #2b302d;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 10px 26px rgba(24, 32, 29, 0.18);
 }
 
-.skeleton-focus-card {
-  padding: 24px;
-  border-radius: 24px;
-  border: 1px solid var(--line);
-  background: rgba(255, 253, 247, 0.85);
-  display: flex;
-  flex-direction: column;
+.skeleton-start-icon {
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 11px solid rgba(255, 255, 255, 0.25);
+}
+
+.skeleton-start-text {
+  width: 64px;
+  height: 14px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.review-overview-btn-skeleton {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  background: transparent;
+}
+
+.skeleton-overview-text {
+  width: 96px;
+  height: 13px;
+  border-radius: 6px;
+  background: rgba(24, 32, 29, 0.14);
 }
 
 .skeleton-content-card {

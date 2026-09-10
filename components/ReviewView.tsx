@@ -212,9 +212,13 @@ export function ReviewView({
         <p className="eyebrow">REVIEW</p>
         <h2>기억이 흐려지기 전에<br />한 번 더 꺼내기.</h2>
         <span>
-          {dueBadge
-            ? `오늘 복습할 항목 ${dueBadge}개 · 예상 ${summary?.estimated_minutes || 0}분`
-            : "오늘 예정된 복습을 모두 마쳤어요."}
+          {loading ? (
+            <span className="skeleton-title-line" style={{ width: 180, height: 13, display: "inline-block", verticalAlign: "middle", borderRadius: 6 }} />
+          ) : dueBadge ? (
+            `오늘 복습할 항목 ${dueBadge}개 · 예상 ${summary?.estimated_minutes || 0}분`
+          ) : (
+            "오늘 예정된 복습을 모두 마쳤어요."
+          )}
         </span>
       </header>
 

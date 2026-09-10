@@ -12,45 +12,51 @@ export function ReviewQueueSkeleton() {
     <div className="review-panel review-queue-skeleton" role="status" aria-busy="true" aria-label="오늘의 복습 항목을 불러오는 중입니다">
       <p className="sr-only">오늘 복습할 항목을 모으고 있어요.</p>
 
-      {/* 요약 카드 스켈레톤 */}
+      {/* 요약 카드 스켈레톤 (var(--ink) 다크 테마 일치) */}
       <section className="review-summary skeleton-shimmer skeleton-dark" aria-hidden="true">
         <div className="review-summary-copy">
-          <div className="report-skeleton-line h-xs w-25" />
-          <div className="report-skeleton-line h-lg w-60" style={{ margin: "12px 0 6px" }} />
-          <div className="report-skeleton-line h-lg w-40" style={{ marginBottom: "10px" }} />
-          <div className="report-skeleton-line h-sm w-45" />
+          <div className="skeleton-dark-line" style={{ width: 105, height: 10, marginBottom: 12 }} />
+          <div className="skeleton-summary-title">
+            <div className="skeleton-dark-line" style={{ width: "min(210px, 75%)", height: 32, marginBottom: 6, borderRadius: 8 }} />
+            <div className="skeleton-dark-line skeleton-dark-acid" style={{ width: 78, height: 32, marginBottom: 12, borderRadius: 8 }} />
+          </div>
+          <div className="skeleton-dark-line" style={{ width: "min(220px, 80%)", height: 13 }} />
         </div>
 
-        {/* 원형 오르빗 진행률 뼈대 */}
+        {/* 원형 오르빗 진행률 뼈대 (54px 원형 + 0% 라벨 위치 동일) */}
         <div className="review-summary-orbit skeleton-orbit" />
 
-        {/* 복습 종류 칩 4개 뼈대 */}
+        {/* 복습 종류 칩 4개 뼈대 (실제 칩과 동일한 알약 규격 및 다크 색상) */}
         <div className="review-kind-chips">
-          <span className="skeleton-chip"><div className="report-skeleton-line h-xs" style={{ width: 52 }} /></span>
-          <span className="skeleton-chip"><div className="report-skeleton-line h-xs" style={{ width: 68 }} /></span>
-          <span className="skeleton-chip"><div className="report-skeleton-line h-xs" style={{ width: 84 }} /></span>
-          <span className="skeleton-chip"><div className="report-skeleton-line h-xs" style={{ width: 72 }} /></span>
+          <span className="skeleton-chip">
+            <span className="skeleton-dark-line" style={{ width: 46, height: 10 }} />
+            <span className="skeleton-chip-badge" style={{ width: 18 }} />
+          </span>
+          <span className="skeleton-chip">
+            <span className="skeleton-dark-line" style={{ width: 68, height: 10 }} />
+            <span className="skeleton-chip-badge" style={{ width: 18 }} />
+          </span>
+          <span className="skeleton-chip">
+            <span className="skeleton-dark-line" style={{ width: 96, height: 10 }} />
+            <span className="skeleton-chip-badge" style={{ width: 14 }} />
+          </span>
+          <span className="skeleton-chip">
+            <span className="skeleton-dark-line" style={{ width: 90, height: 10 }} />
+            <span className="skeleton-chip-badge" style={{ width: 14 }} />
+          </span>
         </div>
       </section>
 
-      {/* 복습 시작 바 뼈대 */}
-      <div className="review-start-bar skeleton-shimmer" aria-hidden="true">
-        <div className="skeleton-btn review-start-btn-skeleton" />
-        <div className="report-skeleton-line h-sm w-30" style={{ margin: "4px auto 0" }} />
+      {/* 복습 시작 바 뼈대 (개별 컴포넌트 규격/색상 분리: 검정 시작 버튼 + 텍스트 버튼) */}
+      <div className="review-start-bar review-start-bar-skeleton" aria-hidden="true">
+        <div className="skeleton-btn review-start-btn-skeleton skeleton-shimmer">
+          <span className="skeleton-start-icon" />
+          <span className="skeleton-start-text" />
+        </div>
+        <div className="skeleton-btn review-overview-btn-skeleton skeleton-shimmer">
+          <span className="skeleton-overview-text" />
+        </div>
       </div>
-
-      {/* 집중 모드 복습 카드 미리보기 뼈대 */}
-      <article className="review-focus-card skeleton-shimmer skeleton-focus-card" aria-hidden="true">
-        <div className="review-focus-top">
-          <div className="report-skeleton-line h-xs w-20" />
-          <div className="report-skeleton-line h-xs w-10" />
-        </div>
-        <div className="report-skeleton-line h-md w-70" style={{ margin: "16px 0 8px" }} />
-        <div className="report-skeleton-line h-lg w-90" style={{ marginBottom: "20px" }} />
-        <div className="review-focus-action-skeleton">
-          <div className="skeleton-btn" style={{ height: 44, borderRadius: 14 }} />
-        </div>
-      </article>
     </div>
   );
 }
@@ -179,12 +185,14 @@ export function LibrarySkeleton({ kind = "words" }: { kind?: LibraryKind }) {
 export function ReviewViewSkeleton() {
   return (
     <div className="view-stack review-view review-skeleton-root" role="status" aria-busy="true" aria-label="복습 탭을 불러오는 중입니다">
-      {/* 상단 뷰 타이틀 뼈대 */}
+      {/* 상단 뷰 타이틀 뼈대: 실제 텍스트 clamp 규격과 1:1 일치시켜 높이 점프 방지 */}
       <header className="view-title" aria-hidden="true">
-        <div className="report-skeleton-line h-xs w-20" style={{ marginBottom: 6 }} />
-        <div className="report-skeleton-line h-lg w-50" style={{ marginBottom: 4 }} />
-        <div className="report-skeleton-line h-lg w-40" style={{ marginBottom: 8 }} />
-        <div className="report-skeleton-line h-xs w-35" />
+        <div className="skeleton-title-line" style={{ width: 52, height: 11, marginBottom: 8, borderRadius: 4 }} />
+        <div className="view-title-heading-skeleton">
+          <div className="skeleton-title-line" style={{ width: "min(340px, 85%)", height: "clamp(32px, 9vw, 52px)", marginBottom: 8, borderRadius: 10 }} />
+          <div className="skeleton-title-line" style={{ width: "min(260px, 65%)", height: "clamp(32px, 9vw, 52px)", marginBottom: 8, borderRadius: 10 }} />
+        </div>
+        <div className="skeleton-title-line" style={{ width: 180, height: 14, marginTop: 4, borderRadius: 6 }} />
       </header>
 
       {/* 3개 서브탭 세그먼트 버튼 뼈대 */}
