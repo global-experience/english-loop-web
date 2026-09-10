@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { InfiniteData } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ChevronLeft, ChevronRight, Clapperboard, CircleAlert, Play } from "lucide-react";
@@ -137,19 +138,113 @@ function FeedCatalogContent({
     return () => window.removeEventListener("loopine:pull-refresh", handlePull);
   }, [queryClient]);
 
+  // 스크롤 방향 감지 (스크롤을 내리면 헤더 숨김, 위로 올리면 헤더 플로팅 표시)
+  const [mounted, setMounted] = useState(false);
+  const [isFixed, setIsFixed] = useState(false);
+  const [headerVisible, setHeaderVisible] = useState(false);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    let ticking = false;
+
+    const getScrollTop = (target: EventTarget | null) => {
+      if (!target || target === window || target === document) {
+        return (
+          window.scrollY ||
+          window.pageYOffset ||
+          document.documentElement.scrollTop ||
+          document.body.scrollTop ||
+          0
+        );
+      }
+      if ("scrollTop" in (target as HTMLElement)) {
+        return (target as HTMLElement).scrollTop;
+      }
+      return window.scrollY || 0;
+    };
+
+    const handleScroll = (e: Event) => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentY = getScrollTop(e.target);
+          const delta = currentY - lastScrollYRef.current;
+
+          // 70px 이상 스크롤되었을 때 플로팅 헤더 활성화
+          if (currentY > 70) {
+            setIsFixed(true);
+            if (delta > 8) {
+              // 아래로 내릴 때: 플로팅 헤더 위로 사라짐
+              setHeaderVisible(false);
+            } else if (delta < -8) {
+              // 위로 올릴 때: 플로팅 헤더 위에서 나타남
+              setHeaderVisible(true);
+            }
+          } else {
+            // 최상단 근처에서는 플로팅 헤더 숨김 (원래 헤더가 화면에 있으므로)
+            setIsFixed(false);
+            setHeaderVisible(false);
+          }
+
+          lastScrollYRef.current = currentY;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    // window 및 하위 모든 스크롤 컨테이너(capture 단계)에서 스크롤 이벤트 감지
+    window.addEventListener("scroll", handleScroll, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll, { capture: true } as EventListenerOptions);
+    };
+  }, []);
+
   const isBusy = isLoading || isPullRefreshing;
 
+  // 화면 맨 위를 벗어났을 때 스크롤 방향에 따라 위에서 쓱 나타나는 플로팅 헤더 (Portal로 뷰포트 최상위 고정)
+  const floatingHeader =
+    mounted && isFixed && typeof document !== "undefined"
+      ? createPortal(
+          <aside
+            className={`catalog-floating-header ${headerVisible ? "is-visible" : "is-hidden"}`}
+            aria-hidden={!headerVisible}
+          >
+            <div className="catalog-floating-inner">
+              <div>
+                <p className="eyebrow">BROWSE BY CATEGORY</p>
+                <h2>카테고리별 영상</h2>
+              </div>
+              <button
+                type="button"
+                className="catalog-close"
+                onClick={onClose}
+                aria-label="피드로 돌아가기"
+              >
+                <ArrowLeft size={20} />
+              </button>
+            </div>
+          </aside>,
+          document.body,
+        )
+      : null;
+
   return (
-    <div className="catalog-shell">
-      <header className="catalog-header">
-        <div>
-          <p className="eyebrow">BROWSE BY CATEGORY</p>
-          <h2>카테고리별 영상</h2>
-        </div>
-        <button type="button" className="catalog-close" onClick={onClose} aria-label="피드로 돌아가기">
-          <ArrowLeft size={20} />
-        </button>
-      </header>
+    <>
+      {floatingHeader}
+      <div className="catalog-shell">
+        <header className="catalog-header">
+          <div>
+            <p className="eyebrow">BROWSE BY CATEGORY</p>
+            <h2>카테고리별 영상</h2>
+          </div>
+          <button type="button" className="catalog-close" onClick={onClose} aria-label="피드로 돌아가기">
+            <ArrowLeft size={20} />
+          </button>
+        </header>
 
       <div className="catalog-content">
         {isError && (
@@ -186,7 +281,8 @@ function FeedCatalogContent({
         )}
       </div>
     </div>
-  );
+  </>
+);
 }
 
 function CatalogCategoryRow({

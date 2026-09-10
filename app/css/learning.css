@@ -4129,6 +4129,71 @@
   background: transparent;
 }
 
+/* 스크롤 시 화면 뷰포트 상단에 슬라이드 인/아웃되는 플로팅 헤더 (Portal 렌더링) */
+.catalog-floating-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  width: 100%;
+  pointer-events: none;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.22s ease-out;
+  will-change: transform, opacity;
+  transform: translate3d(0, -100%, 0);
+  opacity: 0;
+}
+
+.catalog-floating-header.is-visible {
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.catalog-floating-header.is-hidden {
+  transform: translate3d(0, -100%, 0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.catalog-floating-inner {
+  width: min(100%, 760px);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: calc(10px + var(--safe-top, 0px)) calc(18px + var(--safe-right, 0px)) 12px calc(18px + var(--safe-left, 0px));
+  background: rgba(247, 245, 238, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(24, 30, 24, 0.08);
+  box-shadow: 0 4px 20px rgba(24, 30, 24, 0.08);
+  color: var(--ink);
+}
+
+.catalog-floating-inner h2 {
+  margin: 2px 0 0;
+  font: 700 20px/1.2 var(--font-display, inherit);
+  letter-spacing: -.03em;
+}
+
+@media (min-width: 760px) {
+  .catalog-floating-inner {
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalog-floating-header {
+    transition: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .catalog-shell {
     animation: none;

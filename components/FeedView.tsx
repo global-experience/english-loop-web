@@ -183,34 +183,6 @@ export function FeedView({
       setCatalogOpen(isCatalog);
     }
   }, [pathname]);
-
-  // 터치 스와이프 제스처 (카테고리 탭에서 오른쪽 스와이프 시 피드로 자연스럽게 복귀)
-  const touchRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
-
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const targetEl = e.target as HTMLElement | null;
-    const trackEl = targetEl?.closest?.(".catalog-track") as HTMLElement | null;
-    if (trackEl && trackEl.scrollLeft > 6 && touch.clientX > 45) {
-      touchRef.current.active = false;
-      return;
-    }
-    touchRef.current = { x: touch.clientX, y: touch.clientY, active: true };
-  }, []);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (!touchRef.current.active) return;
-    touchRef.current.active = false;
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - touchRef.current.x;
-    const deltaY = touch.clientY - touchRef.current.y;
-
-    if (deltaX > 45 && deltaX > Math.abs(deltaY) * 1.3) {
-      closeCatalog();
-    }
-  }, [closeCatalog]);
-
   const deepLinkHandled = useRef(false);
   /** 카탈로그에서 연 상세. 어느 줄에서 왔는지 함께 들고 있어야 세로 스와이프가 그 줄 안에서 돈다. */
   const [detail, setDetail] = useState<{ row: CatalogRow; index: number; origin: DOMRect | null } | null>(null);
@@ -965,8 +937,6 @@ export function FeedView({
       <section
         className={`feed-view feed-view-catalog ${catalogOpen ? "active" : "inactive"}`}
         aria-hidden={!catalogOpen}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
       >
         <FeedCatalog
           onClose={closeCatalog}
