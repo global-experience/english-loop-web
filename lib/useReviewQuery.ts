@@ -11,6 +11,16 @@ import type {
 
 export const CONTENT_RECORDS_PAGE_LIMIT = 10;
 export const LIBRARY_PAGE_LIMIT = 10;
+export const REVIEW_STALE_TIME = 1000 * 60 * 5; // 5 minutes
+
+export const reviewQueryKeys = {
+  all: ["review"] as const,
+  contents: () => ["review", "contents"] as const,
+  contentsView: (view: ContentListView, search: string) => ["review", "contents", view, search] as const,
+  library: () => ["review", "library"] as const,
+  libraryKind: (kind: LibraryKind, search: string, source: string, level: string, sort: string) =>
+    ["review", "library", kind, search, source, level, sort] as const,
+};
 
 export function useInfiniteContentRecordsQuery({
   view,
@@ -22,7 +32,7 @@ export function useInfiniteContentRecordsQuery({
   active: boolean;
 }) {
   return useInfiniteQuery<ContentListResponse>({
-    queryKey: ["review", "contents", view, search],
+    queryKey: reviewQueryKeys.contentsView(view, search),
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({
         view,
@@ -39,6 +49,7 @@ export function useInfiniteContentRecordsQuery({
       }
       return undefined;
     },
+    staleTime: REVIEW_STALE_TIME,
     enabled: active,
   });
 }
@@ -59,7 +70,7 @@ export function useInfiniteLibraryQuery({
   active: boolean;
 }) {
   return useInfiniteQuery<LibraryResponse>({
-    queryKey: ["review", "library", kind, search, source, level, sort],
+    queryKey: reviewQueryKeys.libraryKind(kind, search, source, level, sort),
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({
         kind,
@@ -79,6 +90,7 @@ export function useInfiniteLibraryQuery({
       }
       return undefined;
     },
+    staleTime: REVIEW_STALE_TIME,
     enabled: active,
   });
 }
@@ -88,13 +100,13 @@ export function useInvalidateReviewQueries() {
 
   return {
     invalidateContentRecords: () => {
-      void queryClient.invalidateQueries({ queryKey: ["review", "contents"] });
+      void queryClient.invalidateQueries({ queryKey: reviewQueryKeys.contents() });
     },
     invalidateLibrary: () => {
-      void queryClient.invalidateQueries({ queryKey: ["review", "library"] });
+      void queryClient.invalidateQueries({ queryKey: reviewQueryKeys.library() });
     },
     invalidateAll: () => {
-      void queryClient.invalidateQueries({ queryKey: ["review"] });
+      void queryClient.invalidateQueries({ queryKey: reviewQueryKeys.all });
     },
   };
 }

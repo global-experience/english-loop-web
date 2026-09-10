@@ -52,6 +52,7 @@ function LibraryPanelInner({
   const [removingVideoId, setRemovingVideoId] = useState("");
   const [actionError, setActionError] = useState("");
   const [playerTarget, setPlayerTarget] = useState<SubtitlePlayerTarget | null>(null);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
 
   const {
     data,
@@ -72,6 +73,23 @@ function LibraryPanelInner({
   });
 
   const { invalidateLibrary } = useInvalidateReviewQueries();
+
+  // Pull to refresh: trigger refetch and show skeleton during refresh
+  useEffect(() => {
+    if (!active) return;
+    const handlePull = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab: string; done?: () => void }>;
+      if (customEvent.detail?.tab === "review") {
+        setIsPullRefreshing(true);
+        void refetch().finally(() => {
+          setIsPullRefreshing(false);
+          customEvent.detail?.done?.();
+        });
+      }
+    };
+    window.addEventListener("loopine:pull-refresh", handlePull);
+    return () => window.removeEventListener("loopine:pull-refresh", handlePull);
+  }, [active, refetch]);
 
   const rawItems = useMemo(() => {
     if (!data?.pages) return [] as Array<SavedItem | SavedVideoRecord | SpeechAttemptRecord>;
@@ -142,7 +160,8 @@ function LibraryPanelInner({
 
   const firstPage = data?.pages[0];
   const showWordFilters = kind === "words" || kind === "sentences";
-  const showsSelectedKind = !firstPage?.kind || firstPage.kind === kind || isLoading;
+  const isBusy = isLoading || isPullRefreshing;
+  const showsSelectedKind = !firstPage?.kind || firstPage.kind === kind || isBusy;
 
   return (
     <div className="review-panel">
@@ -249,11 +268,12 @@ function LibraryPanelInner({
         </div>
       )}
 
-      {isLoading && <LibrarySkeleton kind={kind} />}
-      {isError && <PanelError message={error instanceof Error ? error.message : "보관함을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
+      {/* Pull-to-refresh 및 초기 로딩 시 스켈레톤 UI 노출 */}
+      {isBusy && <LibrarySkeleton kind={kind} />}
+      {isError && !isBusy && <PanelError message={error instanceof Error ? error.message : "보관함을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
       {actionError && <p className="review-inline-error" role="alert">{actionError}</p>}
 
-      {!isError && !isLoading && showsSelectedKind && !items.length && (
+      {!isError && !isBusy && showsSelectedKind && !items.length && (
         <PanelEmpty
           icon={kind === "videos" ? <Clapperboard size={24} /> : kind === "recordings" ? <Mic size={24} /> : kind === "sentences" ? <Quote size={24} /> : <Bookmark size={24} />}
           title={query || source || level ? "조건에 맞는 항목이 없어요." : "아직 보관된 항목이 없어요."}
@@ -267,7 +287,7 @@ function LibraryPanelInner({
         />
       )}
 
-      {!isError && !isLoading && showsSelectedKind && !!items.length && (kind === "words" || kind === "sentences") && (
+      {!isError && !isBusy && showsSelectedKind && !!items.length && (kind === "words" || kind === "sentences") && (
         <div key={kind} className="saved-item-list review-panel-scene review-content-enter">
           {(items as SavedItem[]).map((item, index) => (
             <SavedItemCard
@@ -301,7 +321,7 @@ function LibraryPanelInner({
         </div>
       )}
 
-      {!isError && !isLoading && showsSelectedKind && !!items.length && kind === "videos" && (
+      {!isError && !isBusy && showsSelectedKind && !!items.length && kind === "videos" && (
         <div key={kind} className="library-video-list review-panel-scene review-content-enter">
           {(items as SavedVideoRecord[]).map((video, index) => (
             <article className="library-video-card" key={`${video.id || video.content_id || 'video'}-${index}`}>
@@ -355,7 +375,7 @@ function LibraryPanelInner({
         </div>
       )}
 
-      {!isError && !isLoading && showsSelectedKind && !!items.length && kind === "recordings" && (
+      {!isError && !isBusy && showsSelectedKind && !!items.length && kind === "recordings" && (
         <div key={kind} className="recording-list review-panel-scene review-content-enter">
           {(items as SpeechAttemptRecord[]).map((recording, index) => (
             <RecordingCard

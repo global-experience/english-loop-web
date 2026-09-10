@@ -17,6 +17,8 @@ import { LibraryPanel } from "./review/LibraryPanel";
 import type { TodayRoutineItem } from "@/lib/types";
 import { ReviewQueuePanel } from "./review/ReviewQueuePanel";
 
+import { SafeQueryClientProvider } from "@/app/providers";
+
 /** Where the review tab hands control back to the learning tab. */
 export type ReviewLearningTarget = {
   contentId: string;
@@ -26,7 +28,7 @@ export type ReviewLearningTarget = {
   sourceLabel?: string | null;
 };
 
-export function ReviewView({
+function ReviewViewInner({
   active = true,
   openLearning,
   openTodaySignal = 0,
@@ -133,14 +135,18 @@ export function ReviewView({
     const handlePull = (e: Event) => {
       const customEvent = e as CustomEvent<{ tab: string; done?: () => void }>;
       if (customEvent.detail?.tab === "review") {
-        void loadQueue().finally(() => {
+        if (tab === "today") {
+          void loadQueue().finally(() => {
+            customEvent.detail?.done?.();
+          });
+        } else if (tab === "contents" && detailCard) {
           customEvent.detail?.done?.();
-        });
+        }
       }
     };
     window.addEventListener("loopine:pull-refresh", handlePull);
     return () => window.removeEventListener("loopine:pull-refresh", handlePull);
-  }, [loadQueue]);
+  }, [detailCard, loadQueue, tab]);
 
   useEffect(() => {
     if (!openTodaySignal) return;
@@ -295,6 +301,20 @@ export function ReviewView({
         )}
       </section>
     </div>
+  );
+}
+
+export function ReviewView(props: {
+  active?: boolean;
+  openLearning?: (target: ReviewLearningTarget) => void;
+  openTodaySignal?: number;
+  routineEntry?: TodayRoutineItem | null;
+  onRoutineCompleted?: () => Promise<void>;
+}) {
+  return (
+    <SafeQueryClientProvider>
+      <ReviewViewInner {...props} />
+    </SafeQueryClientProvider>
   );
 }
 

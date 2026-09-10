@@ -104,6 +104,7 @@ function ContentRecordsPanelInner({
   const [actionError, setActionError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ContentProgressCard | null>(null);
   const [deletingId, setDeletingId] = useState("");
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
 
   const {
     data,
@@ -118,10 +119,29 @@ function ContentRecordsPanelInner({
 
   const { invalidateContentRecords } = useInvalidateReviewQueries();
 
+  // Pull to refresh: trigger refetch and show skeleton during refresh
+  useEffect(() => {
+    if (!active) return;
+    const handlePull = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab: string; done?: () => void }>;
+      if (customEvent.detail?.tab === "review") {
+        setIsPullRefreshing(true);
+        void refetch().finally(() => {
+          setIsPullRefreshing(false);
+          customEvent.detail?.done?.();
+        });
+      }
+    };
+    window.addEventListener("loopine:pull-refresh", handlePull);
+    return () => window.removeEventListener("loopine:pull-refresh", handlePull);
+  }, [active, refetch]);
+
   const items = useMemo(
     () => data?.pages.flatMap((page) => page.items) || [],
     [data]
   );
+
+  const isBusy = isLoading || isPullRefreshing;
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -228,13 +248,14 @@ function ContentRecordsPanelInner({
         </div>
       </div>
 
-      {isLoading && <ContentRecordsSkeleton />}
-      {isError && <PanelError message={error instanceof Error ? error.message : "학습 기록을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
+      {/* Pull-to-refresh 및 초기 로딩 시 스켈레톤 UI 노출 */}
+      {isBusy && <ContentRecordsSkeleton />}
+      {isError && !isBusy && <PanelError message={error instanceof Error ? error.message : "학습 기록을 불러오지 못했습니다."} onRetry={() => void refetch()} />}
       {actionError && <p className="review-inline-error" role="alert">{actionError}</p>}
-      {!isError && !isLoading && !items.length && (
+      {!isError && !isBusy && !items.length && (
         <PanelEmpty icon={<Clapperboard size={26} />} title={emptyCopy.title} description={emptyCopy.description} />
       )}
-      {!isError && !isLoading && !!items.length && (
+      {!isError && !isBusy && !!items.length && (
         <div key={view} className="content-record-list review-panel-scene review-content-enter">
           {items.map((card, index) => (
             <ContentCard

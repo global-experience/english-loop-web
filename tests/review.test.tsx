@@ -490,4 +490,92 @@ describe("Recording playback states", () => {
     expect(await within(card).findByRole("button", { name: /일시정지/ })).toBeInTheDocument();
     expect(within(card).queryByText(/찾을 수 없음/)).not.toBeInTheDocument();
   });
+
+  it("triggers pull-to-refresh on ContentRecordsPanel, displays skeleton while refreshing, and calls done", async () => {
+    let resolveRefetch!: () => void;
+    mockApi(defaultHandler);
+    render(<ReviewView />);
+    await screen.findByRole("button", { name: /복습 시작/ });
+    fireEvent.click(screen.getByRole("tab", { name: /영상별 기록/ }));
+    expect(await screen.findByText("Daily English Conversation")).toBeInTheDocument();
+
+    vi.mocked(apiFetch).mockImplementation((path) => {
+      if (String(path).startsWith("/api/review/contents")) {
+        return new Promise((resolve) => {
+          resolveRefetch = () => resolve({ items: [contentCard, uploadCard], total: 2, view: "recent", as_of: "" });
+        });
+      }
+      return Promise.resolve(defaultHandler(String(path))) as never;
+    });
+
+    const doneMock = vi.fn();
+    window.dispatchEvent(
+      new CustomEvent("loopine:pull-refresh", { detail: { tab: "review", done: doneMock } })
+    );
+
+    expect(await screen.findByRole("status", { name: "영상별 학습 기록을 불러오는 중입니다" })).toBeInTheDocument();
+    resolveRefetch();
+    await waitFor(() => expect(doneMock).toHaveBeenCalled());
+    expect(await screen.findByText("Daily English Conversation")).toBeInTheDocument();
+  });
+
+  it("triggers pull-to-refresh on LibraryPanel, displays skeleton while refreshing, and calls done", async () => {
+    let resolveRefetch!: () => void;
+    mockApi(defaultHandler);
+    render(<ReviewView />);
+    await screen.findByRole("button", { name: /복습 시작/ });
+    fireEvent.click(screen.getByRole("tab", { name: /내 보관함/ }));
+    expect(await screen.findByText("keeping it simple")).toBeInTheDocument();
+
+    vi.mocked(apiFetch).mockImplementation((path) => {
+      if (String(path).startsWith("/api/review/library")) {
+        return new Promise((resolve) => {
+          resolveRefetch = () => resolve({
+            kind: "words",
+            items: [savedWord],
+            counts: { words: 1, sentences: 1 },
+            sources: [{ content_id: "content-1", title: "Daily English Conversation" }],
+            levels: ["B1"],
+          });
+        });
+      }
+      return Promise.resolve(defaultHandler(String(path))) as never;
+    });
+
+    const doneMock = vi.fn();
+    window.dispatchEvent(
+      new CustomEvent("loopine:pull-refresh", { detail: { tab: "review", done: doneMock } })
+    );
+
+    expect(await screen.findByRole("status", { name: "전체 단어를 불러오는 중입니다" })).toBeInTheDocument();
+    resolveRefetch();
+    await waitFor(() => expect(doneMock).toHaveBeenCalled());
+    expect(await screen.findByText("keeping it simple")).toBeInTheDocument();
+  });
+
+  it("triggers pull-to-refresh on ReviewQueuePanel, displays skeleton while refreshing, and calls done", async () => {
+    let resolveRefetch!: () => void;
+    mockApi(defaultHandler);
+    render(<ReviewView />);
+    expect(await screen.findByRole("button", { name: /복습 시작/ })).toBeInTheDocument();
+
+    vi.mocked(apiFetch).mockImplementation((path) => {
+      if (String(path).startsWith("/api/review/queue")) {
+        return new Promise((resolve) => {
+          resolveRefetch = () => resolve(queueResponse);
+        });
+      }
+      return Promise.resolve(defaultHandler(String(path))) as never;
+    });
+
+    const doneMock = vi.fn();
+    window.dispatchEvent(
+      new CustomEvent("loopine:pull-refresh", { detail: { tab: "review", done: doneMock } })
+    );
+
+    expect(await screen.findByRole("status", { name: "오늘의 복습 항목을 불러오는 중입니다" })).toBeInTheDocument();
+    resolveRefetch();
+    await waitFor(() => expect(doneMock).toHaveBeenCalled());
+    expect(await screen.findByRole("button", { name: /복습 시작/ })).toBeInTheDocument();
+  });
 });
