@@ -692,6 +692,164 @@
   color: white;
 }
 
+/* ── Routine Manager Skeleton Screen (옆 로딩 쉬머) ─────────────────── */
+.routine-manager-skeleton {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+}
+
+.routine-plan-switcher-skeleton {
+  pointer-events: none;
+}
+
+.routine-plan-tab-skeleton {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 58px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.routine-plan-tab-skeleton.active {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 14px rgba(24, 32, 29, 0.08);
+}
+
+.routine-plan-workspace-skeleton {
+  display: grid;
+  gap: 12px;
+}
+
+.routine-plan-toolbar-skeleton {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.36);
+  pointer-events: none;
+}
+
+.routine-toolbar-skeleton-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.routine-toolbar-skeleton-btn {
+  width: 86px;
+  height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.routine-card-list-skeleton {
+  display: grid;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.routine-card.routine-card-skeleton {
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.46);
+  overflow: hidden;
+}
+
+.routine-drag-icon-skeleton {
+  width: 52px;
+  min-height: 70px;
+  border-right: 1px solid rgba(24, 32, 29, 0.08);
+  border-radius: 22px 0 0 22px;
+  background: rgba(229, 225, 214, 0.45);
+  flex-shrink: 0;
+}
+
+.routine-card-body-skeleton {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 12px 0;
+}
+
+.routine-card-icon-skeleton {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  background: rgba(215, 255, 60, 0.45);
+  border: 1px solid rgba(215, 255, 60, 0.55);
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+.routine-card-copy-skeleton {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.routine-card-right-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.routine-card-pill-skeleton {
+  width: 58px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.routine-reset-button-skeleton {
+  justify-self: center;
+  width: 140px;
+  height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+/* Staggered lateral shimmer sweep across cards (옆 로딩) */
+.routine-card-list-skeleton .routine-card-skeleton:nth-child(1)::after { animation-delay: 0s; }
+.routine-card-list-skeleton .routine-card-skeleton:nth-child(2)::after { animation-delay: 0.14s; }
+.routine-card-list-skeleton .routine-card-skeleton:nth-child(3)::after { animation-delay: 0.28s; }
+.routine-card-list-skeleton .routine-card-skeleton:nth-child(4)::after { animation-delay: 0.42s; }
+
+/* Smooth fade & slide in for loaded routine board content */
+.routine-board-content-enter {
+  display: grid;
+  gap: 16px;
+  animation: routine-board-content-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes routine-board-content-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* /* Routine Modal Popup & Sheet (matching speech-sheet design) */
 .routine-modal-layer {
   position: fixed;
@@ -1219,6 +1377,35 @@
 
   .routine-card-right {
     display: none;
+  }
+
+  .routine-plan-toolbar-skeleton {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .routine-toolbar-skeleton-btn {
+    width: 100%;
+  }
+
+  .routine-card.routine-card-skeleton {
+    border-radius: 18px;
+  }
+
+  .routine-drag-icon-skeleton {
+    width: 48px;
+    min-height: 78px;
+    border-radius: 18px 0 0 18px;
+  }
+
+  .routine-card-body-skeleton {
+    gap: 9px;
+  }
+
+  .routine-card-icon-skeleton {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
   }
 
   .routine-mobile-order-actions {

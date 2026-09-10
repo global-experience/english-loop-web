@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { RoutineManagerView } from "@/components/RoutineManagerView";
 
+import { fetchRoutines } from "@/lib/routines";
+
 vi.mock("@/lib/routines", () => ({
   ACTIVITY_LABELS: {},
   DAY_LABELS: {},
@@ -63,4 +65,17 @@ describe("RoutineManagerView Swipe Gesture", () => {
 
     expect(onBack).not.toHaveBeenCalled();
   });
+
+  it("renders RoutineManagerSkeleton while routines are loading", () => {
+    vi.mocked(fetchRoutines).mockReturnValue(new Promise(() => {}));
+    render(<RoutineManagerView onBack={vi.fn()} onRefresh={vi.fn()} />);
+
+    expect(screen.getByRole("status", { name: "루틴을 불러오는 중입니다" })).toBeInTheDocument();
+    expect(screen.getByText("루틴을 불러오는 중입니다…")).toBeInTheDocument();
+    expect(document.querySelectorAll(".routine-card-skeleton").length).toBe(4);
+    expect(document.querySelectorAll(".routine-plan-tab-skeleton").length).toBe(2);
+    expect(document.querySelector(".routine-plan-toolbar-skeleton")).toBeInTheDocument();
+    expect(document.querySelector(".routine-reset-button-skeleton")).toBeInTheDocument();
+  });
 });
+

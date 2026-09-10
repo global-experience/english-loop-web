@@ -403,10 +403,16 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
         </p>
       )} */}
 
-      {!routines && !message && <p className="routine-board-empty">루틴을 불러오는 중입니다…</p>}
+      {!routines && !message && <RoutineManagerSkeleton />}
+
+      {!routines && message && (
+        <p className="routine-board-message" role="alert">
+          {message}
+        </p>
+      )}
 
       {completedSetup && routines && (
-        <>
+        <div className="routine-board-content-enter">
           <div className="routine-plan-switcher" role="tablist" aria-label="학습 계획 선택">
             {routines.plans.map((plan) => (
               <button
@@ -503,7 +509,7 @@ export function RoutineManagerView({ onBack, onRefresh }: Props) {
           )}
 
           <button type="button" className="routine-reset-button" onClick={() => void resetDefaults()}><RotateCcw size={17} /> 기본 루틴으로 초기화</button>
-        </>
+        </div>
       )}
 
       {editingItem && (
@@ -963,5 +969,66 @@ function RoutineItemEditorModal({
       </section>
     </div>,
     document.body
+  );
+}
+
+export function RoutineManagerSkeleton() {
+  return (
+    <div
+      className="routine-manager-skeleton"
+      role="status"
+      aria-live="polite"
+      aria-label="루틴을 불러오는 중입니다"
+      aria-busy="true"
+    >
+      <span className="sr-only">루틴을 불러오는 중입니다…</span>
+
+      {/* 1. Plan Switcher Tabs Skeleton */}
+      <div className="routine-plan-switcher routine-plan-switcher-skeleton" aria-hidden="true">
+        <div className="routine-plan-tab-skeleton skeleton-shimmer active">
+          <div className="report-skeleton-line w-60 h-sm" />
+          <div className="report-skeleton-line w-80 h-xs" style={{ marginTop: "6px" }} />
+        </div>
+        <div className="routine-plan-tab-skeleton skeleton-shimmer">
+          <div className="report-skeleton-line w-55 h-sm" />
+          <div className="report-skeleton-line w-75 h-xs" style={{ marginTop: "6px" }} />
+        </div>
+      </div>
+
+      {/* 2. Plan Workspace (Toolbar + Cards) Skeleton */}
+      <div className="routine-plan-workspace routine-plan-workspace-skeleton" aria-hidden="true">
+        <div className="routine-plan-toolbar routine-plan-toolbar-skeleton skeleton-shimmer">
+          <div className="routine-toolbar-skeleton-text">
+            <div className="report-skeleton-line w-35 h-md" />
+            <div className="report-skeleton-line w-90 h-xs" style={{ marginTop: "8px" }} />
+            <div className="report-skeleton-line w-65 h-xs" style={{ marginTop: "5px" }} />
+          </div>
+          <div className="routine-toolbar-skeleton-btn" />
+        </div>
+
+        <div className="routine-card-list routine-card-list-skeleton">
+          {[0, 1, 2, 3].map((idx) => (
+            <article className="routine-card routine-card-skeleton skeleton-shimmer" key={idx}>
+              <div className="routine-card-main">
+                <div className="routine-drag-icon-skeleton" />
+                <div className="routine-card-body-skeleton">
+                  <div className="routine-card-icon-skeleton" />
+                  <div className="routine-card-copy-skeleton">
+                    <div className="report-skeleton-line w-50 h-sm" />
+                    <div className="report-skeleton-line w-80 h-xs" style={{ marginTop: "6px" }} />
+                  </div>
+                  <div className="routine-card-right-skeleton">
+                    <div className="routine-card-pill-skeleton" />
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Reset Button Skeleton */}
+      <div className="routine-reset-button-skeleton skeleton-shimmer" aria-hidden="true" />
+    </div>
   );
 }
