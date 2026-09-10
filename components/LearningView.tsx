@@ -238,17 +238,19 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
       if (!result.ok) {
         const errorMsg = result.reason || "이 영상은 소유자의 설정으로 인해 다른 웹사이트에서 재생할 수 없습니다. 다른 영상을 선택해 주세요.";
         setError(errorMsg);
-        window.alert(errorMsg);
+        // window.alert(errorMsg);
         return;
       }
 
       youtubeStore.prepareVideo(value);
       onSelect({
         contentId: null,
-        entrySource: "direct",
+        entrySource: "library",
         youtubeUrl: value,
-        title: result.title || "YouTube 직접 학습",
-        sourceLabel: "YouTube URL",
+        title: result.title || "YouTube 영상",
+        sourceLabel: result.channelTitle
+          ? `YouTube · ${result.channelTitle}`
+          : "YouTube · 내 콘텐츠",
       });
     } catch (caught) {
       const errorMsg = caught instanceof Error ? caught.message : "영상을 확인할 수 없습니다.";

@@ -7,6 +7,8 @@ export type YouTubeValidationResult = {
   reason?: string;
   videoId?: string;
   title?: string;
+  channelTitle?: string;
+  durationSeconds?: number;
 };
 
 export function extractYouTubeVideoId(input: string): string | null {
@@ -176,6 +178,7 @@ export async function validateYouTubeVideo(urlOrId: string): Promise<YouTubeVali
       video_id: string;
       title: string;
       channel_title?: string;
+      duration_seconds?: number;
       embeddable: boolean;
     }>("/api/youtube/validate", {
       method: "POST",
@@ -203,6 +206,8 @@ export async function validateYouTubeVideo(urlOrId: string): Promise<YouTubeVali
       ok: true,
       videoId,
       title: data.title,
+      channelTitle: data.channel_title || undefined,
+      durationSeconds: data.duration_seconds || undefined,
     };
   } catch (caught) {
     const errorMsg = caught instanceof Error ? caught.message : "";

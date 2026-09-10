@@ -523,8 +523,8 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
               code === 101 || code === 150
                 ? "이 영상은 소유자의 설정으로 인해 다른 웹사이트에서 재생할 수 없습니다. 다른 영상을 선택해 주세요."
                 : code === 100
-                ? "영상을 찾을 수 없거나 비공개된 영상입니다."
-                : "영상을 재생할 수 없습니다. 다른 영상을 선택해 주세요.";
+                  ? "영상을 찾을 수 없거나 비공개된 영상입니다."
+                  : "영상을 재생할 수 없습니다. 다른 영상을 선택해 주세요.";
             if (typeof window !== "undefined") {
               window.alert(msg);
             }
