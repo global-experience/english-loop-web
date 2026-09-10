@@ -32,10 +32,15 @@ import {
 
 type TabDirection = "forward" | "back";
 
+import { SettingsSkeleton } from "@/components/SettingsSkeleton";
+
 const FeedView = dynamic(() => import("@/components/FeedView").then((mod) => mod.FeedView), { ssr: false });
 const ReviewView = dynamic(() => import("@/components/ReviewView").then((mod) => mod.ReviewView), { ssr: false });
 const ReportView = dynamic(() => import("@/components/ReportView").then((mod) => mod.ReportView), { ssr: false });
-const SettingsView = dynamic(() => import("@/components/SettingsView").then((mod) => mod.SettingsView), { ssr: false });
+const SettingsView = dynamic(() => import("@/components/SettingsView").then((mod) => mod.SettingsView), {
+  ssr: false,
+  loading: () => <SettingsSkeleton />,
+});
 
 const nav = [
   { id: "today" as const, label: "오늘", Icon: CalendarDays },
@@ -100,12 +105,12 @@ function isNativeRuntime() {
   return isNativeAppRuntime(capacitor, navigator.userAgent);
 }
 
-export default function Home() {
+export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } = {}) {
   const splash = useAppSplash();
   const restoredShell = useMemo(() => readAppShellSnapshot(), []);
   const restoredBootstrap = useMemo(() => readBootstrapSnapshot(), []);
   const initialRoute = useMemo(() => getInitialRoute(), []);
-  const initialTab = initialRoute?.tab || restoredShell?.activeTab || "today";
+  const initialTab = routeTab || initialRoute?.tab || restoredShell?.activeTab || "today";
   const [tab, setTab] = useState<AppTab>(initialTab);
   const [visitedTabs, setVisitedTabs] = useState<AppTab[]>(() =>
     Array.from(new Set([initialTab, ...(restoredShell?.visitedTabs || ["today"])]))
@@ -401,7 +406,7 @@ export default function Home() {
     switchTab("learn");
   };
 
-  if (!splash.ready || splash.visible || isUnauthorized || (loading && !restoredBootstrap && !user)) {
+  if (isUnauthorized || (!splash.ready || splash.visible)) {
     return <AppSplash fadingOut={splash.fadingOut && !isUnauthorized && (!loading || !!user)} />;
   }
 
@@ -479,7 +484,7 @@ export default function Home() {
               {paneTab === "learn" && (today ? <LearningView today={today} entry={learningEntry} setEntry={setLearningEntry} refresh={refresh} openReview={() => switchTab("review")} openNextRoutine={() => switchTab("today")} /> : bootstrapFallback)}
               {paneTab === "review" && <ReviewView active={active} openLearning={openLearningFromReview} openTodaySignal={reviewTodaySignal} routineEntry={reviewRoutineEntry} onRoutineCompleted={refresh} />}
               {paneTab === "report" && <ReportView active={active} />}
-              {paneTab === "settings" && (user ? <SettingsView key={settingsKey} user={user} onSaved={refresh} /> : bootstrapFallback)}
+              {paneTab === "settings" && <SettingsView key={settingsKey} user={user} onSaved={refresh} loading={loading && !user} />}
             </section>
           );
         })}

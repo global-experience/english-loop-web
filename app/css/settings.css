@@ -206,3 +206,125 @@
     transform: translateY(0);
   }
 }
+
+/* ── Settings Skeleton Screen UI (옆 로딩 쉬머) ─────────────────────── */
+.settings-skeleton {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+}
+
+.settings-form-skeleton {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-form-skeleton section {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.32);
+  overflow: hidden;
+}
+
+.settings-heading-num-skeleton {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  background: rgba(215, 255, 60, 0.45);
+  border: 1px solid rgba(215, 255, 60, 0.55);
+  flex-shrink: 0;
+}
+
+.settings-input-skeleton {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.settings-input-skeleton.textarea {
+  min-height: 76px;
+}
+
+.settings-btn-skeleton {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.settings-btn-skeleton.primary {
+  min-height: 50px;
+  background: linear-gradient(90deg, #101a16 0%, #1e2e27 50%, #101a16 100%);
+  background-size: 200% 100%;
+  border-color: rgba(24, 32, 29, 0.3);
+}
+
+.settings-note-skeleton {
+  min-height: 56px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(90deg, #dfdacd 0%, #f6f3eb 50%, #dfdacd 100%);
+  background-size: 200% 100%;
+  animation: report-shimmer-line 1.7s ease-in-out infinite;
+}
+
+.settings-tools-skeleton {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.32);
+  overflow: hidden;
+}
+
+.settings-tools-skeleton-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(229, 225, 214, 0.6);
+  flex-shrink: 0;
+}
+
+.settings-tools-skeleton-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Staggered lateral shimmer sweep across settings sections */
+.settings-form-skeleton section:nth-child(1)::after { animation-delay: 0s; }
+.settings-form-skeleton section:nth-child(2)::after { animation-delay: 0.12s; }
+.settings-form-skeleton section:nth-child(3)::after { animation-delay: 0.24s; }
+.settings-form-skeleton section:nth-child(4)::after { animation-delay: 0.36s; }
+.settings-tools-skeleton::after { animation-delay: 0.48s; }
+
+/* Smooth fade & slide in for loaded settings content */
+.settings-content-enter {
+  animation: settings-content-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes settings-content-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

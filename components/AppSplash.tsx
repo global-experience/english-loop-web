@@ -16,8 +16,12 @@ export function useAppSplash() {
       // 실제 앱 실행과 동시에 Render Free를 깨운다. 화면 전환은 이 요청을 기다리지 않는다.
       void fetch(`${apiBase}/health`, { cache: "no-store", credentials: "omit" }).catch(() => undefined);
     }
+    const pathname = (typeof window !== "undefined" && window.location?.pathname) ? window.location.pathname : "";
+    const pathSegment = pathname.replace(/^\/|\/$/g, "").split("/")[0] || "";
+    const isDirectTab = ["settings", "report", "learn", "feed", "review"].includes(pathSegment);
+
     try {
-      if (sessionStorage.getItem(SPLASH_SESSION_KEY) === "true") {
+      if (isDirectTab || sessionStorage.getItem(SPLASH_SESSION_KEY) === "true") {
         setState({ ready: true, visible: false, fadingOut: false });
         return;
       }

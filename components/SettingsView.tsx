@@ -8,9 +8,20 @@ import type { User } from "@/lib/types";
 import { isHapticsEnabled, setHapticsEnabled, triggerHapticImpact } from "@/lib/haptics";
 import { DEFAULT_LEARNING_PRESETS, readLearningPresets, saveLearningPresets, type LearningPresetOptions } from "@/lib/learningSession";
 import { usePortalReady } from "@/lib/useMobileUi";
+import { SettingsSkeleton } from "./SettingsSkeleton";
 
-export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Promise<void> }) {
+export function SettingsView({
+  user: initialUser,
+  onSaved,
+  loading: externalLoading = false,
+}: {
+  user: User | null;
+  onSaved: () => Promise<void>;
+  loading?: boolean;
+}) {
   const portalReady = usePortalReady();
+  const [user, setUser] = useState<User | null>(initialUser);
+  const [internalLoading, setInternalLoading] = useState<boolean>(!initialUser);
   const [usage, setUsage] = useState("확인 중");
   const [message, setMessage] = useState("");
   const [actionKey, setActionKey] = useState("");
@@ -19,10 +30,48 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
   const [learningPresets, setLearningPresetState] = useState<LearningPresetOptions>(DEFAULT_LEARNING_PRESETS);
 
   useEffect(() => {
+    if (initialUser) {
+      setUser(initialUser);
+      setInternalLoading(false);
+    }
+  }, [initialUser]);
+
+  useEffect(() => {
+    if (!initialUser && !user) {
+      setInternalLoading(true);
+      Promise.resolve(apiFetch<User>("/api/me"))
+        .then((data) => {
+          if (data) setUser(data);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          setInternalLoading(false);
+        });
+    }
+  }, [initialUser, user]);
+
+  useEffect(() => {
     setHapticsOn(isHapticsEnabled());
     setLearningPresetState(readLearningPresets());
     void navigator.storage?.estimate().then((estimate) => setUsage(`${formatBytes(estimate.usage || 0)} / ${formatBytes(estimate.quota || 0)}`));
   }, []);
+
+  useEffect(() => {
+    const handlePull = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tab: string; done?: () => void }>;
+      if (customEvent.detail?.tab === "settings") {
+        void onSaved().finally(() => {
+          customEvent.detail?.done?.();
+        });
+      }
+    };
+    window.addEventListener("loopine:pull-refresh", handlePull);
+    return () => window.removeEventListener("loopine:pull-refresh", handlePull);
+  }, [onSaved]);
+
+  if (!user || internalLoading || externalLoading) {
+    return <SettingsSkeleton />;
+  }
 
   function toggleHaptics() {
     const next = !hapticsOn;
@@ -88,7 +137,7 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
   }
   async function clearOffline() { if (!confirm("이 기기에 오프라인 저장한 콘텐츠를 모두 삭제할까요?")) return; navigator.serviceWorker.controller?.postMessage({ type: "CLEAR_OFFLINE_CONTENT" }); Object.keys(localStorage).filter((key) => key.startsWith("loopine:offline:")).forEach((key) => localStorage.removeItem(key)); setMessage("오프라인 콘텐츠를 삭제했어요."); }
 
-  return <div className="view-stack"><header className="view-title"><p className="eyebrow">SETTINGS</p><h2>계정과 데이터를<br />가볍게 정리하기.</h2></header>
+  return <div className="view-stack settings-content-enter"><header className="view-title"><p className="eyebrow">SETTINGS</p><h2>계정과 데이터를<br />가볍게 정리하기.</h2></header>
     <form className="settings-form" onSubmit={save}><section><div className="settings-heading"><span>01</span><div><h3>프로필과 목표</h3><p>학습 계획과 Custom GPT 컨텍스트에 사용됩니다.</p></div></div><label>이름<input name="display_name" defaultValue={user.display_name} required /></label><label>영어 수준<select name="english_level" defaultValue={user.english_level}>{["A1", "A2", "B1", "B2", "C1"].map((level) => <option key={level}>{level}</option>)}</select></label><label>학습 목표 (쉼표로 구분)<textarea name="goals" defaultValue={user.goals.join(", ")} /></label></section>
       <section><div className="settings-heading"><span>02</span><div><h3>ChatGPT 영어 코치</h3><p>일반 HTTPS Custom GPT 공유 링크를 등록하세요.</p></div></div><label>Custom GPT URL<input name="custom_gpt_url" type="url" defaultValue={user.custom_gpt_url || ""} placeholder="https://chatgpt.com/g/g-..." /></label><button type="button" className="secondary-button wide" onClick={() => void revealActionKey()}><KeyRound size={17} /> 내 Action 키 표시·복사</button><button type="button" className="secondary-button wide" onClick={() => void rotateActionKey()}><RefreshCw size={17} /> Action 키 재발급</button>{actionKey && <div className="action-key-panel"><code className="selectable-text">{actionKey}</code><small>이 키는 본인 GPT Builder의 Bearer 인증에만 사용하고 공유하지 마세요. 재발급하면 이전 키는 즉시 무효가 되니 Builder의 인증 값도 함께 바꿔주세요.</small></div>}<div className="security-note"><ShieldCheck /><p>음성 모드 중 Action 호출은 전제로 하지 않습니다. 텍스트 “오늘 수업 시작”과 “오늘 수업 저장”에서만 서버가 연결됩니다.</p></div></section>
       <section><div className="settings-heading"><span>03</span><div><h3>학습 재생 프리셋</h3><p>학습 워크스페이스에 표시할 값은 각각 3개로 고정됩니다.</p></div></div><label>반복 횟수 3개<div className="learning-preset-inputs">{learningPresets.repeats.map((value, index) => <input key={`repeat-${index}-${value}`} name={`repeat_${index}`} type="number" min="1" max="20" defaultValue={value} aria-label={`반복 횟수 ${index + 1}`} />)}</div></label><label>재생 배속 3개<div className="learning-preset-inputs">{learningPresets.speeds.map((value, index) => <input key={`speed-${index}-${value}`} name={`speed_${index}`} type="number" min="0.5" max="2" step="0.05" defaultValue={value} aria-label={`재생 배속 ${index + 1}`} />)}</div></label></section>
@@ -128,4 +177,7 @@ export function SettingsView({ user, onSaved }: { user: User; onSaved: () => Pro
   </div>;
 }
 
+export { SettingsSkeleton } from "./SettingsSkeleton";
+
 function formatBytes(bytes: number) { if (!bytes) return "0 B"; const units = ["B", "KB", "MB", "GB"]; const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1); return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`; }
+

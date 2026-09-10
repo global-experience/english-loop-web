@@ -65,4 +65,14 @@ describe("Home", () => {
     expect(screen.getByText("출근 프리셋")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "The main challenge was keeping it simple." })).toBeInTheDocument();
   });
+
+  it("renders SettingsSkeleton immediately when navigating directly to /settings", async () => {
+    window.history.replaceState({}, "", "/settings/");
+    apiFetchMock.mockImplementation(() => new Promise(() => {}));
+
+    render(<Home initialTab="settings" />);
+
+    expect(screen.getByRole("status", { name: "설정을 불러오는 중입니다" })).toBeInTheDocument();
+    expect(document.getElementById("panel-settings")).toHaveClass("tab-pane", "active");
+  });
 });
