@@ -14,6 +14,7 @@ import {
 } from "@/lib/learningSession";
 import { apiFetch } from "@/lib/api";
 import { youtubeStore } from "@/lib/youtubeStore";
+import { validateYouTubeVideo } from "@/lib/youtubeCheck";
 import { useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 import { useSheetDragToClose } from "@/lib/sheetDrag";
 import { YouTubePractice } from "./YouTubePractice";
@@ -162,6 +163,7 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
   const portalReady = usePortalReady();
   const [items, setItems] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
+  const [validating, setValidating] = useState(false);
   const [error, setError] = useState("");
   const [url, setUrl] = useState("");
 
@@ -223,18 +225,38 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
     prevHeightRef.current = currentHeight;
   }, [loading, uniqueItems.length]);
 
-  function submitYoutube(event: FormEvent) {
+  async function submitYoutube(event: FormEvent) {
     event.preventDefault();
     const value = url.trim();
-    if (!value) return;
-    youtubeStore.prepareVideo(value);
-    onSelect({
-      contentId: null,
-      entrySource: "direct",
-      youtubeUrl: value,
-      title: "YouTube 직접 학습",
-      sourceLabel: "YouTube URL",
-    });
+    if (!value || validating) return;
+
+    setValidating(true);
+    setError("");
+
+    try {
+      const result = await validateYouTubeVideo(value);
+      if (!result.ok) {
+        const errorMsg = result.reason || "이 영상은 소유자의 설정으로 인해 다른 웹사이트에서 재생할 수 없습니다. 다른 영상을 선택해 주세요.";
+        setError(errorMsg);
+        window.alert(errorMsg);
+        return;
+      }
+
+      youtubeStore.prepareVideo(value);
+      onSelect({
+        contentId: null,
+        entrySource: "direct",
+        youtubeUrl: value,
+        title: result.title || "YouTube 직접 학습",
+        sourceLabel: "YouTube URL",
+      });
+    } catch (caught) {
+      const errorMsg = caught instanceof Error ? caught.message : "영상을 확인할 수 없습니다.";
+      setError(errorMsg);
+      window.alert(errorMsg);
+    } finally {
+      setValidating(false);
+    }
   }
 
   if (!portalReady) return null;
@@ -251,8 +273,19 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
         <form className="youtube-url-form content-picker-url" onSubmit={submitYoutube}>
           <label className="sr-only" htmlFor="learning-youtube-url">YouTube URL</label>
           <Link2 size={17} />
-          <input id="learning-youtube-url" type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="YouTube URL을 붙여넣으세요" required />
-          <button type="submit"><Youtube size={16} /> 추가</button>
+          <input
+            id="learning-youtube-url"
+            type="url"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="YouTube URL을 붙여넣으세요"
+            disabled={validating}
+            required
+          />
+          <button type="submit" disabled={validating}>
+            {validating ? <LoaderCircle size={16} className="spin" /> : <Youtube size={16} />}
+            {validating ? "확인 중…" : "추가"}
+          </button>
         </form>
         <div className="content-picker-heading">
           <FolderOpen size={17} />

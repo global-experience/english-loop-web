@@ -513,7 +513,25 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
       // cc_load_policy: 0 / iv_load_policy: 3: 플레이어 내부 자막 및 안내 레이어 비활성화 (웹 앱 자체 자막 리스트 사용)
       // modestbranding: 1 / rel: 0: 유튜브 로고 및 추천 영상 노출 최소화
       playerVars: { controls: 0, cc_load_policy: 0, modestbranding: 1, rel: 0, playsinline: 1, iv_load_policy: 3 },
-      events: { onReady: () => setPlayerReady(true) },
+      events: {
+        onReady: () => setPlayerReady(true),
+        onError: (event: { data: number }) => {
+          const code = event.data;
+          if (code === 101 || code === 150 || code === 100 || code === 2 || code === 5) {
+            youtubeStore.stopActiveJob();
+            const msg =
+              code === 101 || code === 150
+                ? "이 영상은 소유자의 설정으로 인해 다른 웹사이트에서 재생할 수 없습니다. 다른 영상을 선택해 주세요."
+                : code === 100
+                ? "영상을 찾을 수 없거나 비공개된 영상입니다."
+                : "영상을 재생할 수 없습니다. 다른 영상을 선택해 주세요.";
+            if (typeof window !== "undefined") {
+              window.alert(msg);
+            }
+            onEndSession();
+          }
+        },
+      },
     });
     return () => {
       clearLoopTimers();

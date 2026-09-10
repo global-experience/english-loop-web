@@ -292,4 +292,44 @@ describe("YouTubePractice", () => {
       delete (window as unknown as { speechSynthesis?: unknown }).speechSynthesis;
     }
   });
+
+  it("handles player error 101/150 by stopping active job, alerting user, and calling onEndSession", async () => {
+    const alertMock = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onEndSession = vi.fn();
+    const stopActiveJobSpy = vi.spyOn(youtubeStore, "stopActiveJob");
+
+    let capturedOnError: ((event: { data: number }) => void) | undefined;
+    window.YT = {
+      Player: vi.fn((_element, options) => {
+        capturedOnError = options.events?.onError;
+        options.events?.onReady?.();
+        return player;
+      }) as unknown as NonNullable<typeof window.YT>["Player"],
+    };
+
+    render(
+      <YouTubePractice
+        entry={entry}
+        presets={DEFAULT_LEARNING_PRESETS}
+        onChangeContent={vi.fn()}
+        onEndSession={onEndSession}
+        onSessionEntryChange={vi.fn()}
+        onOpenReview={vi.fn()}
+        onNextRoutine={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(capturedOnError).toBeDefined());
+
+    // Simulate YouTube iframe player reporting error 150 (embed disabled)
+    capturedOnError!({ data: 150 });
+
+    expect(stopActiveJobSpy).toHaveBeenCalled();
+    expect(alertMock).toHaveBeenCalledWith(expect.stringContaining("소유자의 설정으로 인해 다른 웹사이트에서 재생할 수 없습니다"));
+    expect(onEndSession).toHaveBeenCalled();
+
+    alertMock.mockRestore();
+    stopActiveJobSpy.mockRestore();
+  });
 });
+
