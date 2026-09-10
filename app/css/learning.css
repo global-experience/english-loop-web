@@ -4936,26 +4936,35 @@
 
 /* ── Full-screen wrapper ─────────────────────────────────── */
 .onboarding-screen {
-  display: grid;
-  place-items: center;
-  min-height: 100dvh;
-  padding: calc(24px + var(--safe-top, 0px)) 20px calc(24px + var(--safe-bottom, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100dvh;
+  box-sizing: border-box;
+  padding: calc(20px + var(--safe-top, 0px)) 20px calc(20px + var(--safe-bottom, 0px));
   background: var(--paper, #f4f5f0);
   animation: ob-fade-in .35s ease both;
+  overflow: hidden;
 }
 
 /* ── Card ────────────────────────────────────────────────── */
 .onboarding-card {
+  display: flex;
+  flex-direction: column;
   width: min(100%, 560px);
+  max-height: 100%;
+  box-sizing: border-box;
   padding: 28px 24px 24px;
   border-radius: 26px;
   background: var(--surface, #fff);
   box-shadow: 0 18px 50px rgba(23, 32, 27, .1);
   animation: ob-fade-up .5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow: hidden;
 }
 
 /* ── Eyebrow badge ───────────────────────────────────────── */
 .onboarding-card .eyebrow {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -4964,6 +4973,7 @@
 
 /* ── Headline ────────────────────────────────────────────── */
 .onboarding-card h1 {
+  flex-shrink: 0;
   margin: 10px 0 0;
   font: 700 26px/1.28 var(--font-display, inherit);
   letter-spacing: -.035em;
@@ -4972,6 +4982,7 @@
 
 /* ── Lead copy ───────────────────────────────────────────── */
 .onboarding-lead {
+  flex-shrink: 0;
   margin: 12px 0 0;
   color: var(--muted);
   font-size: 13.5px;
@@ -4981,15 +4992,80 @@
 
 /* ── Chip grid ───────────────────────────────────────────── */
 .onboarding-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 22px;
+  margin-top: 20px;
+  padding: 4px 6px 6px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line, #dfe4dc) transparent;
+}
+
+.onboarding-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.onboarding-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.onboarding-grid::-webkit-scrollbar-thumb {
+  background: var(--line, #dfe4dc);
+  border-radius: 999px;
 }
 
 @media (max-width: 420px) {
+  .onboarding-screen {
+    padding: calc(14px + var(--safe-top, 0px)) 16px calc(14px + var(--safe-bottom, 0px));
+  }
+
+  .onboarding-card {
+    padding: 22px 18px 18px;
+    border-radius: 22px;
+  }
+
+  .onboarding-card h1 {
+    font-size: 23px;
+  }
+
   .onboarding-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-height: 680px) {
+  .onboarding-screen {
+    padding: calc(10px + var(--safe-top, 0px)) 14px calc(10px + var(--safe-bottom, 0px));
+  }
+
+  .onboarding-card {
+    padding: 18px 16px 16px;
+    border-radius: 20px;
+  }
+
+  .onboarding-card h1 {
+    font-size: 20px;
+    margin-top: 6px;
+  }
+
+  .onboarding-lead {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .onboarding-grid {
+    margin-top: 12px;
+    gap: 8px;
+  }
+
+  .onboarding-actions {
+    margin-top: 12px;
   }
 }
 
@@ -5075,10 +5151,11 @@
 
 /* ── Actions row ─────────────────────────────────────────── */
 .onboarding-actions {
+  flex-shrink: 0;
   display: grid;
   justify-items: center;
   gap: 8px;
-  margin-top: 22px;
+  margin-top: 18px;
   animation: ob-fade-up .45s .82s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -5101,6 +5178,7 @@
 /* ── Empty / Error states ────────────────────────────────── */
 .onboarding-empty,
 .onboarding-error {
+  flex-shrink: 0;
   margin: 16px 0 0;
   font-size: 12.5px;
   text-align: center;
@@ -5114,9 +5192,13 @@
   color: var(--red, #a43e32);
 }
 
-/* ── Settings variant — 이미 화면에 있으므로 입장 애니메이션 제거 ── */
+/* ── Settings variant — 이미 화면에 있으므로 입장 애니메이션 및 고정 높이/스크롤 제약 해제 ── */
 .onboarding-settings .onboarding-grid {
+  flex: none;
+  min-height: auto;
+  overflow-y: visible;
   margin-top: 14px;
+  padding: 0;
 }
 
 .onboarding-settings .onboarding-chip {
