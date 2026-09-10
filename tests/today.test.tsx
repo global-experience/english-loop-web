@@ -42,6 +42,7 @@ function renderToday(props: Partial<Parameters<typeof TodayView>[0]> = {}) {
 
 beforeEach(() => {
   vi.mocked(apiFetch).mockReset();
+  sessionStorage.clear();
   // 09:00 KST puts the day in the morning-commute slot.
   vi.setSystemTime(new Date("2026-08-23T00:00:00Z"));
 });

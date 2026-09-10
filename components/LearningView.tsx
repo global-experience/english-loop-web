@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BookOpen, CalendarClock, Clock3, FolderOpen, Link2, LoaderCircle, Play, Plus, X, Youtube } from "lucide-react";
 import type { Content, TodayData } from "@/lib/types";
@@ -70,11 +70,6 @@ export function LearningView({ today, entry, setEntry, refresh, openReview, open
 
   return (
     <div className="learning-workspace-shell">
-      {/* <div className="learning-workspace-tools">
-        <button type="button" className="secondary-button" onClick={() => setRoutineManagerOpen(true)}>
-          <CalendarClock size={17} /> 학습 루틴 관리
-        </button>
-      </div> */}
       {(!entry || (!entry.content && !entry.youtubeUrl)) && (
         <section className="learning-launchpad">
           <div className="learning-launch-copy">
@@ -151,12 +146,63 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
   const [error, setError] = useState("");
   const [url, setUrl] = useState("");
 
+  const sheetNodeRef = useRef<HTMLElement | null>(null);
+  const prevHeightRef = useRef<number>(0);
+  const isInitialMount = useRef(true);
+
+  const setCombinedRef = useCallback((node: HTMLElement | null) => {
+    sheetNodeRef.current = node;
+    sheetRef(node);
+  }, [sheetRef]);
+
   useEffect(() => {
     void apiFetch<{ items: Content[] }>("/api/contents?page_size=100")
       .then((data) => setItems(data.items))
       .catch((caught) => setError(caught instanceof Error ? caught.message : "콘텐츠를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
   }, []);
+
+  const todayContents = today.plan?.activities.filter((activity) => activity.content).map((activity) => activity.content!) || [];
+  const uniqueItems = [...todayContents, ...items].filter((content, index, list) => list.findIndex((item) => item.id === content.id) === index);
+
+  useLayoutEffect(() => {
+    const el = sheetNodeRef.current;
+    if (!el) return;
+
+    const currentHeight = el.getBoundingClientRect().height;
+
+    if (isInitialMount.current) {
+      if (currentHeight > 0) {
+        isInitialMount.current = false;
+        prevHeightRef.current = currentHeight;
+      }
+      return;
+    }
+
+    if (
+      prevHeightRef.current > 0 &&
+      currentHeight > 0 &&
+      Math.abs(prevHeightRef.current - currentHeight) > 6
+    ) {
+      const fromHeight = prevHeightRef.current;
+      const toHeight = currentHeight;
+
+      if (typeof el.animate === "function") {
+        el.animate(
+          [
+            { height: `${fromHeight}px`, overflow: "hidden" },
+            { height: `${toHeight}px`, overflow: "hidden" },
+          ],
+          {
+            duration: 360,
+            easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          }
+        );
+      }
+    }
+
+    prevHeightRef.current = currentHeight;
+  }, [loading, uniqueItems.length]);
 
   function submitYoutube(event: FormEvent) {
     event.preventDefault();
@@ -172,14 +218,11 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
     });
   }
 
-  const todayContents = today.plan?.activities.filter((activity) => activity.content).map((activity) => activity.content!) || [];
-  const uniqueItems = [...todayContents, ...items].filter((content, index, list) => list.findIndex((item) => item.id === content.id) === index);
-
   if (!portalReady) return null;
 
   return createPortal(
     <div className={`content-picker-layer ${mobile ? "mobile" : "desktop"}`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={sheetRef} className={`content-picker${sheetClassName}`} role="dialog" aria-modal={mobile} aria-labelledby="content-picker-title">
+      <section ref={setCombinedRef} className={`content-picker${sheetClassName}`} role="dialog" aria-modal={mobile} aria-labelledby="content-picker-title">
         {mobile && (
           <div className="content-picker-grabber" {...handleProps}>
             <div className="content-picker-handle" aria-hidden="true" />
@@ -192,26 +235,45 @@ function ContentPicker({ today, onClose, onSelect }: { today: TodayData; onClose
           <input id="learning-youtube-url" type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="YouTube URL을 붙여넣으세요" required />
           <button type="submit"><Youtube size={16} /> 추가</button>
         </form>
-        <div className="content-picker-heading"><FolderOpen size={17} /><strong>내 콘텐츠</strong><span>{uniqueItems.length}개</span></div>
-        {loading && <div className="content-picker-loading"><LoaderCircle className="spin" />불러오는 중…</div>}
-        {error && <p className="youtube-error">{error}</p>}
-        <div className="content-picker-list">
-          {uniqueItems.map((content) => (
-            <button key={content.id} onClick={() => onSelect({
-              contentId: content.id,
-              entrySource: "library",
-              youtubeUrl: content.source_type === "YOUTUBE" ? content.source_url : null,
-              title: content.title,
-              sourceLabel: content.source_type === "YOUTUBE" ? "YouTube · 내 콘텐츠" : "내 콘텐츠",
-              content,
-            })}>
-              <span className={content.source_type === "YOUTUBE" ? "youtube" : "library"}>{content.source_type === "YOUTUBE" ? <Youtube /> : <BookOpen />}</span>
-              <div><strong>{content.title}</strong><small>{content.topic} · {content.duration_seconds ? `${Math.ceil(content.duration_seconds / 60)}분` : "길이 미정"}</small></div>
-              <Play size={16} />
-            </button>
-          ))}
-          {!loading && !uniqueItems.length && <p className="muted-copy">저장한 콘텐츠가 없습니다. 위에 YouTube URL을 추가해 바로 시작할 수 있어요.</p>}
+        <div className="content-picker-heading">
+          <FolderOpen size={17} />
+          <strong>내 콘텐츠</strong>
+          <span>{loading ? "불러오는 중…" : `${uniqueItems.length}개`}</span>
         </div>
+        {error && <p className="youtube-error">{error}</p>}
+        {loading && (
+          <div className="content-picker-skeleton-group" aria-busy="true" aria-label="콘텐츠 목록을 불러오는 중입니다">
+            {[0, 1, 2].map((idx) => (
+              <div className="content-picker-skeleton-item skeleton-shimmer" key={idx} aria-hidden="true">
+                <div className="content-picker-skeleton-icon" />
+                <div className="content-picker-skeleton-text">
+                  <div className="report-skeleton-line w-80 h-sm" />
+                  <div className="report-skeleton-line w-45 h-xs" style={{ marginTop: "6px" }} />
+                </div>
+                <div className="content-picker-skeleton-play" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && (
+          <div className="content-picker-list">
+            {uniqueItems.map((content) => (
+              <button key={content.id} onClick={() => onSelect({
+                contentId: content.id,
+                entrySource: "library",
+                youtubeUrl: content.source_type === "YOUTUBE" ? content.source_url : null,
+                title: content.title,
+                sourceLabel: content.source_type === "YOUTUBE" ? "YouTube · 내 콘텐츠" : "내 콘텐츠",
+                content,
+              })}>
+                <span className={content.source_type === "YOUTUBE" ? "youtube" : "library"}>{content.source_type === "YOUTUBE" ? <Youtube /> : <BookOpen />}</span>
+                <div><strong>{content.title}</strong><small>{content.topic} · {content.duration_seconds ? `${Math.ceil(content.duration_seconds / 60)}분` : "길이 미정"}</small></div>
+                <Play size={16} />
+              </button>
+            ))}
+            {!uniqueItems.length && <p className="muted-copy">저장한 콘텐츠가 없습니다. 위에 YouTube URL을 추가해 바로 시작할 수 있어요.</p>}
+          </div>
+        )}
       </section>
     </div>,
     document.body
