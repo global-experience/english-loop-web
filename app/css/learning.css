@@ -4195,7 +4195,7 @@
   gap: 12px;
   padding: 2px 4px 6px;
   overflow-x: auto;
-  scroll-snap-type: x proximity;
+  /* scroll-snap-type: x proximity; */
   scrollbar-width: none;
 }
 
