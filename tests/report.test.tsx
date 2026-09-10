@@ -87,5 +87,40 @@ describe("ReportView", () => {
     expect(screen.getByText("33.3%")).toBeInTheDocument();
     expect(screen.queryByTestId("report-skeleton")).not.toBeInTheDocument();
   });
+
+  it("refetches data and calls done callback on pull-to-refresh event", async () => {
+    render(<ReportView />);
+    expect(await screen.findByText(report.summary_ko)).toBeInTheDocument();
+
+    apiFetchMock.mockClear();
+
+    const doneMock = vi.fn();
+    window.dispatchEvent(
+      new CustomEvent("loopine:pull-refresh", { detail: { tab: "report", done: doneMock } })
+    );
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/analytics/weekly?days=7");
+    });
+    await waitFor(() => {
+      expect(doneMock).toHaveBeenCalled();
+    });
+  });
+
+  it("does not trigger pull-to-refresh when the event is for a different tab", async () => {
+    render(<ReportView />);
+    expect(await screen.findByText(report.summary_ko)).toBeInTheDocument();
+
+    apiFetchMock.mockClear();
+
+    const doneMock = vi.fn();
+    window.dispatchEvent(
+      new CustomEvent("loopine:pull-refresh", { detail: { tab: "feed", done: doneMock } })
+    );
+
+    expect(doneMock).not.toHaveBeenCalled();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
 });
+
 

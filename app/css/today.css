@@ -296,19 +296,51 @@
   overflow: hidden;
 }
 
-.today-carousel-skeleton span {
-  aspect-ratio: 16 / 9;
-  border-radius: 18px;
-  background: linear-gradient(100deg, #e8e4d9 30%, #f1eee5 50%, #e8e4d9 70%);
-  background-size: 220% 100%;
-  animation: today-shimmer 1.3s linear infinite;
+.today-video-card-skeleton-body {
+  display: grid;
+  gap: 8px;
+  width: 100%;
 }
 
-@keyframes today-shimmer {
-  to {
-    background-position: -120% 0;
-  }
+.today-video-thumb.skeleton-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  background: #e4dfd3;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
 }
+
+.skeleton-play-icon {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(216, 239, 103, 0.45);
+}
+
+.skeleton-duration-pill {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 32px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(24, 32, 29, 0.18);
+}
+
+.today-skeleton-text-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Staggered lateral shimmer sweep for carousel cards */
+.today-carousel-skeleton .skeleton-shimmer:nth-child(1)::after,
+.today-carousel-skeleton .skeleton-shimmer:nth-child(2)::after { animation-delay: 0s; }
+.today-carousel-skeleton .skeleton-shimmer:nth-child(3)::after { animation-delay: 0.16s; }
+.today-carousel-skeleton .skeleton-shimmer:nth-child(4)::after { animation-delay: 0.32s; }
+
 
 /* ── review strip ────────────────────────────────────────────────────── */
 .today-review-strip {

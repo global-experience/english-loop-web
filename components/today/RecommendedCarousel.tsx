@@ -135,7 +135,22 @@ export function RecommendedCarousel({
 
       {loading && !items.length && (
         <div className="today-carousel-skeleton" role="status" aria-live="polite">
-          <span /><span /><span className="sr-only">추천 영상을 불러오는 중…</span>
+          <span className="sr-only">추천 영상을 불러오는 중…</span>
+          {[0, 1, 2].map((idx) => (
+            <article className="today-video-card skeleton-shimmer" key={idx} aria-hidden="true">
+              <div className="today-video-card-skeleton-body">
+                <div className="today-video-thumb skeleton-thumb">
+                  <div className="skeleton-play-icon" />
+                  <div className="skeleton-duration-pill" />
+                </div>
+                <div className="today-skeleton-text-group">
+                  <div className="report-skeleton-line w-90 h-sm" style={{ marginTop: "2px" }} />
+                  <div className="report-skeleton-line w-60 h-sm" style={{ marginTop: "5px" }} />
+                  <div className="report-skeleton-line w-40 h-xs" style={{ marginTop: "6px" }} />
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       )}
 
