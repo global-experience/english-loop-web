@@ -97,6 +97,8 @@ declare global {
     };
     LoopineNativeTranslation?: NativeTranslationBridge;
     LoopineNativeTranslationHost?: AndroidTranslationHost;
+    /** 재생 정밀도 실측. 콘솔에서 `window.__loopineTiming` 으로 읽는다. */
+    __loopineTiming?: PlaybackTimingSample[];
   }
 }
 
@@ -150,10 +152,45 @@ function formatTime(seconds: number) {
   return `${minutes}:${remainder.toString().padStart(2, "0")}`;
 }
 
+/**
+ * 실제 재생기가 세그먼트 창을 얼마나 지키는지 잰다.
+ *
+ * `seekLanding` 은 seekTo 뒤 첫 프레임의 currentTime − start (키프레임에 걸리면
+ * 음수·양수로 튄다), `stopOvershoot` 는 pause 직후 currentTime − end (폴링 주기
+ * + 정지 명령 지연). 이 둘을 모르면 자막 정렬을 아무리 고쳐도 "뒤 대사가
+ * 들린다" 가 모델 탓인지 재생기 탓인지 가를 수 없다. 기기별로 다르므로 실기기
+ * 콘솔에서 읽는다 — 폴링 주기를 줄였다고 해결됐다고 보지 않기 위한 장치다.
+ */
+export type PlaybackTimingSample = {
+  segmentId: string;
+  playbackRate: number;
+  seekLanding: number | null;
+  stopOvershoot: number | null;
+  at: number;
+};
+
+const TIMING_SAMPLE_LIMIT = 200;
+
+export function recordPlaybackTiming(sample: PlaybackTimingSample) {
+  if (typeof window === "undefined") return;
+  const samples = (window.__loopineTiming ||= []);
+  samples.push(sample);
+  if (samples.length > TIMING_SAMPLE_LIMIT) samples.splice(0, samples.length - TIMING_SAMPLE_LIMIT);
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[loopine timing]", sample);
+  }
+}
+
 export function effectiveSegmentEnd(segments: TranscriptSegment[], index: number) {
   const segment = segments[index];
   if (!segment) return 0;
 
+  // 발화 경계가 있으면 서버가 이웃 간격까지 보고 재생 창을 확정한 것이다.
+  // 여기서 단어 수로 다시 늘리면 그 정책을 무효로 만들고, 뒤 대사가 들린다.
+  if (segment.speech_end != null) return segment.end;
+
+  // ── legacy: 발화 경계가 없는 옛 캐시. 퍼블리셔 자막의 큐 길이가 실제 발화보다
+  //    짧게 신고되던 문제를 단어 수로 보정한다. 새 결과에는 적용하지 않는다.
   const wordCount = segment.text.trim().split(/\s+/).filter(Boolean).length;
   const estimatedDuration = Math.max(1.2, Math.min(12, wordCount / 2.4 + 0.45));
   const reportedDuration = Math.max(0, segment.end - segment.start);
@@ -596,9 +633,13 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
     player.setPlaybackRate(currentRate);
     player.seekTo(segment.start, true);
     player.playVideo();
+    let seekLanding: number | null = null;
 
     loopTimerRef.current = setInterval(() => {
-      if (transitioningRef.current || player.getCurrentTime() < segmentEnd + 0.05) return;
+      const now = player.getCurrentTime();
+      // seek 가 어디에 내려앉았는지는 첫 틱에서만 알 수 있다.
+      if (seekLanding === null && now >= segment.start - 1) seekLanding = Math.round((now - segment.start) * 1000) / 1000;
+      if (transitioningRef.current || now < segmentEnd + 0.05) return;
       const nextCount = completedRef.current + 1;
       completedRef.current = nextCount;
       setCompletedRepeats(nextCount);
@@ -606,6 +647,13 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
       if (nextCount >= repeatTarget) {
         clearLoopTimers();
         player.pauseVideo();
+        recordPlaybackTiming({
+          segmentId: segment.id,
+          playbackRate: currentRate,
+          seekLanding,
+          stopOvershoot: Math.round((player.getCurrentTime() - segmentEnd) * 1000) / 1000,
+          at: Date.now(),
+        });
         setIsLooping(false);
         setLoopPaused(false);
         setPracticedLines((current) => new Set(current).add(segment.id));

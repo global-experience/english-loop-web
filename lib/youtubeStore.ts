@@ -6,9 +6,19 @@ import { apiFetch } from "@/lib/api";
 export type TranscriptSegment = {
   id: string;
   text: string;
+  /** 재생 창. 서버 정책(playback_windows)이 발화 경계 바깥에 여유를 더한 값. */
   start: number;
   duration: number;
   end: number;
+  /**
+   * 실제 발화 경계. 새 파이프라인(transcript_schema 2) 결과에만 있다.
+   * 이 값이 있으면 재생 창은 서버가 확정한 것이고, 프런트가 다시 늘리지 않는다.
+   */
+  speech_start?: number;
+  speech_end?: number;
+  /** 단어 배열 안의 [첫 단어, 끝 단어] 위치. 서버 캐시에만 단어가 있어 지금은 진단용. */
+  word_span?: [number, number];
+  timing_source?: string;
   scene?: number;
   translation?: string;
 };

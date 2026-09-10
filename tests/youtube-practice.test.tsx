@@ -120,6 +120,25 @@ describe("YouTubePractice", () => {
     expect(effectiveSegmentEnd(segments, 0)).toBeLessThan(7.96);
   });
 
+  it("trusts the server playback window when speech bounds are present", () => {
+    // 같은 짧은 창이지만 발화 경계가 있다 = 서버가 이웃 간격까지 보고 확정한 값.
+    // 여기서 단어 수로 다시 늘리면 다음 대사(7.96)까지 파고들어 뒤 대사가 들린다.
+    const segments = [
+      {
+        id: "a".repeat(64),
+        text: "Was first broadcast on the BBC Learning English website in October 2014.",
+        start: 2.45,
+        end: 3.9,
+        duration: 1.45,
+        speech_start: 2.6,
+        speech_end: 3.7,
+      },
+      { id: "b".repeat(64), text: "For more English language learning programmes.", start: 7.81, end: 9.46, duration: 1.65 },
+    ];
+
+    expect(effectiveSegmentEnd(segments, 0)).toBe(3.9);
+  });
+
   it("detects useful grammar chunks without an AI request", () => {
     expect(findGrammarChunks("I have to leave as soon as the meeting ends.")).toEqual([
       { text: "have to", label: "have to", meaning: "~해야 한다 · 의무/필요" },
