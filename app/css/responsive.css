@@ -117,6 +117,7 @@
   }
 
   .login-card {
+    align-self: center;
     padding: calc(50px + var(--safe-top)) calc(50px + var(--safe-right)) calc(50px + var(--safe-bottom)) calc(50px + var(--safe-left));
   }
 
