@@ -259,11 +259,11 @@ html.splash-active body {
 
 .login-card {
   display: grid;
-  align-self: center;
+  align-self: start;
   gap: 17px;
   width: min(100%, 480px);
-  margin: auto;
-  padding: 30px calc(24px + var(--safe-right)) var(--safe-bottom) calc(24px + var(--safe-left));
+  margin: 0 auto;
+  padding: 30px calc(24px + var(--safe-right)) calc(50px + var(--safe-bottom)) calc(24px + var(--safe-left));
   animation: login-card-rise 0.7s 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
