@@ -81,7 +81,7 @@ describe("ContentPicker video submission upfront check", () => {
 
     render(
       <LearningView
-        today={mockToday}
+        today={today}
         entry={null}
         setEntry={setEntry}
         refresh={vi.fn().mockResolvedValue(undefined)}
