@@ -238,7 +238,8 @@ function useMobileTranslationUi() {
   return { mobile, platform };
 }
 
-export function YouTubePractice({ entry, presets, onChangeContent, onEndSession, onSessionEntryChange, onOpenReview, onNextRoutine, onRefresh = async () => undefined }: {
+export function YouTubePractice({ active = true, entry, presets, onChangeContent, onEndSession, onSessionEntryChange, onOpenReview, onNextRoutine, onRefresh = async () => undefined }: {
+  active?: boolean;
   entry: LearningSessionEntry;
   presets: LearningPresetOptions;
   onChangeContent: () => void;
@@ -742,6 +743,43 @@ export function YouTubePractice({ entry, presets, onChangeContent, onEndSession,
       true
     );
   }
+
+  // 키보드 단축키 (PC/데스크톱): 왼쪽/오른쪽 키로 이전 자막/다음 자막 이동
+  useEffect(() => {
+    if (!active) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest("dialog, [role='dialog'], .content-picker-layer, .speech-sheet-backdrop"))
+      ) {
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        if (!transcript?.segments.length) return;
+        e.preventDefault();
+        const prevIndex = Math.max(0, selectedIndex - 1);
+        if (prevIndex !== selectedIndex) {
+          selectSegment(prevIndex, true, true);
+        }
+      } else if (e.key === "ArrowRight") {
+        if (!transcript?.segments.length) return;
+        e.preventDefault();
+        const nextIndex = Math.min(transcript.segments.length - 1, selectedIndex + 1);
+        if (nextIndex !== selectedIndex) {
+          selectSegment(nextIndex, true, true);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [active, transcript?.segments.length, selectedIndex]);
 
   async function saveSelectedExpression() {
     const segment = transcript?.segments[selectedIndex];

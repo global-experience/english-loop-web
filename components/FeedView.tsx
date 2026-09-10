@@ -616,6 +616,35 @@ export function FeedView({
     itemsRef.current = items;
   }, [items]);
 
+  // 키보드 단축키 (PC/데스크톱): 위/아래 키로 이전 영상/다음 영상 이동
+  useEffect(() => {
+    if (!active || catalogOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest("dialog, [role='dialog']"))
+      ) {
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        scrollToVideo(activeIndexRef.current - 1);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        scrollToVideo(activeIndexRef.current + 1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [active, catalogOpen, items.length]);
+
   // Restore scroll position to active video instantly when returning to feed tab
   useEffect(() => {
     if (!active) return;
@@ -939,7 +968,7 @@ export function FeedView({
         aria-hidden={!catalogOpen}
       >
         <FeedCatalog
-          active={active && catalogOpen}
+          active={active && catalogOpen && !detail}
           onClose={closeCatalog}
           onOpenVideo={(video, row, origin) => {
             const index = row.items.findIndex((item) => item.id === video.id);

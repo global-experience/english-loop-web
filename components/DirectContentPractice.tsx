@@ -14,7 +14,8 @@ function formatTime(ms: number | null) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function DirectContentPractice({ entry, presets, onChangeContent, onEndSession, onRefresh, onOpenReview, onNextRoutine }: {
+export function DirectContentPractice({ active = true, entry, presets, onChangeContent, onEndSession, onRefresh, onOpenReview, onNextRoutine }: {
+  active?: boolean;
   entry: LearningSessionEntry;
   presets: LearningPresetOptions;
   onChangeContent: () => void;
@@ -89,6 +90,37 @@ export function DirectContentPractice({ entry, presets, onChangeContent, onEndSe
     });
     if (play) void startLoop(bounded);
   }
+
+  // 키보드 단축키 (PC/데스크톱): 왼쪽/오른쪽 키로 이전 자막/다음 자막 이동
+  useEffect(() => {
+    if (!active) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest("dialog, [role='dialog'], .content-picker-layer, .speech-sheet-backdrop"))
+      ) {
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        if (!content.segments.length) return;
+        e.preventDefault();
+        selectLine(Math.max(0, index - 1), true, true);
+      } else if (e.key === "ArrowRight") {
+        if (!content.segments.length) return;
+        e.preventDefault();
+        selectLine(Math.min(content.segments.length - 1, index + 1), true, true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [active, content.segments.length, index]);
 
   async function startLoop(targetIndex = index, slow = false) {
     const line = content.segments[targetIndex];

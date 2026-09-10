@@ -120,6 +120,7 @@ export function LearningView({ active = true, today, entry, setEntry, refresh, o
 
       {entry && (entry.youtubeUrl || entry.content?.source_type === "YOUTUBE") && (
         <YouTubePractice
+          active={active}
           entry={entry}
           presets={presets}
           onChangeContent={() => setPickerOpen(true)}
@@ -133,6 +134,7 @@ export function LearningView({ active = true, today, entry, setEntry, refresh, o
 
       {entry && !entry.youtubeUrl && entry.content && entry.content.source_type !== "YOUTUBE" && (
         <DirectContentPractice
+          active={active}
           entry={entry}
           presets={presets}
           onChangeContent={() => setPickerOpen(true)}
