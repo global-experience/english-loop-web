@@ -939,6 +939,7 @@ export function FeedView({
         aria-hidden={!catalogOpen}
       >
         <FeedCatalog
+          active={active && catalogOpen}
           onClose={closeCatalog}
           onOpenVideo={(video, row, origin) => {
             const index = row.items.findIndex((item) => item.id === video.id);

@@ -22,6 +22,7 @@ function durationLabel(seconds: number) {
 }
 
 export function FeedCatalog(props: {
+  active?: boolean;
   onOpenVideo: (video: FeedVideo, row: CatalogRow, origin: DOMRect | null) => void;
   onClose: () => void;
 }) {
@@ -33,9 +34,11 @@ export function FeedCatalog(props: {
 }
 
 function FeedCatalogContent({
+  active = true,
   onOpenVideo,
   onClose,
 }: {
+  active?: boolean;
   onOpenVideo: (video: FeedVideo, row: CatalogRow, origin: DOMRect | null) => void;
   onClose: () => void;
 }) {
@@ -139,6 +142,7 @@ function FeedCatalogContent({
   }, [queryClient]);
 
   // 스크롤 방향 감지 (스크롤을 내리면 헤더 숨김, 위로 올리면 헤더 플로팅 표시)
+  // 오직 active(피드 탭의 카테고리 화면이 열려있는 상태)일 때만 작동
   const [mounted, setMounted] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
   const [headerVisible, setHeaderVisible] = useState(false);
@@ -148,7 +152,25 @@ function FeedCatalogContent({
     setMounted(true);
   }, []);
 
+  // 탭 전환 또는 카테고리 뷰 닫힘 시 플로팅 헤더 상태 즉시 초기화 및 DOM 잔여물 정리
   useEffect(() => {
+    if (!active) {
+      setIsFixed(false);
+      setHeaderVisible(false);
+      if (typeof document !== "undefined") {
+        document.querySelectorAll(".catalog-floating-header").forEach((el) => el.remove());
+      }
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.querySelectorAll(".catalog-floating-header").forEach((el) => el.remove());
+      }
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) return;
+
     let ticking = false;
 
     const getScrollTop = (target: EventTarget | null) => {
@@ -201,13 +223,14 @@ function FeedCatalogContent({
     return () => {
       window.removeEventListener("scroll", handleScroll, { capture: true } as EventListenerOptions);
     };
-  }, []);
+  }, [active]);
 
   const isBusy = isLoading || isPullRefreshing;
 
   // 화면 맨 위를 벗어났을 때 스크롤 방향에 따라 위에서 쓱 나타나는 플로팅 헤더 (Portal로 뷰포트 최상위 고정)
+  // 오직 active(피드 탭의 카테고리 화면)일 때만 렌더링
   const floatingHeader =
-    mounted && isFixed && typeof document !== "undefined"
+    mounted && active && isFixed && typeof document !== "undefined"
       ? createPortal(
           <aside
             className={`catalog-floating-header ${headerVisible ? "is-visible" : "is-hidden"}`}
