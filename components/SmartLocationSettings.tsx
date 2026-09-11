@@ -82,6 +82,7 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   const [permissionIssue, setPermissionIssueState] = useState<PermissionIssue>(readPermissionIssue);
   const [permissionDialog, setPermissionDialog] = useState<PermissionIssue>(null);
   const [permissionSettingsOpened, setPermissionSettingsOpened] = useState(false);
+  const [activationPending, setActivationPending] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("집");
   const [newAddress, setNewAddress] = useState("");
@@ -156,15 +157,10 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
       setStatus("스마트 위치 알림은 Loopine iOS·Android 앱에서 사용할 수 있어요.");
       return;
     }
-    if (!isActive && places.length === 0) {
-      setExpanded(true);
-      setAdding(true);
-      setStatus("알림에 사용할 장소를 먼저 추가해주세요.");
-      return;
-    }
     setBusy("toggle");
     try {
       if (isActive) {
+        setActivationPending(false);
         const next = { ...settings, enabled: false };
         setSettings(next);
         saveSmartReminderSettings(next);
@@ -179,12 +175,25 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
 
       const notificationState = await requestNativeNotificationPermission(true);
       if (notificationState !== "granted") {
+        setActivationPending(false);
         const disabled = { ...settings, enabled: false };
         setSettings(disabled);
         saveSmartReminderSettings(disabled);
         setPermissionIssue("notification");
         setPermissionDialog("notification");
         setStatus(notificationState === "unavailable" ? "알림 기능을 사용할 수 없습니다." : "알림 권한이 필요합니다.");
+        return;
+      }
+
+      if (places.length === 0) {
+        const disabled = { ...settings, enabled: false };
+        setSettings(disabled);
+        saveSmartReminderSettings(disabled);
+        setPermissionIssue(null);
+        setPermissionSettingsOpened(false);
+        setActivationPending(true);
+        setAdding(true);
+        setStatus("알림 권한을 확인했어요. 이제 알림에 사용할 장소를 추가해주세요.");
         return;
       }
 
@@ -230,6 +239,7 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
       if (permissionIssue === "notification" || !settings.enabled) {
         const notificationState = await requestNativeNotificationPermission(false);
         if (notificationState !== "granted") {
+          setActivationPending(false);
           const disabled = { ...settings, enabled: false };
           setSettings(disabled);
           saveSmartReminderSettings(disabled);
@@ -237,6 +247,18 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
           setPermissionSettingsOpened(false);
           setPermissionDialog("notification");
           setStatus("알림 권한이 아직 허용되지 않았습니다.");
+          return;
+        }
+        if (places.length === 0) {
+          const disabled = { ...settings, enabled: false };
+          setSettings(disabled);
+          saveSmartReminderSettings(disabled);
+          setPermissionIssue(null);
+          setPermissionSettingsOpened(false);
+          setPermissionDialog(null);
+          setActivationPending(true);
+          setAdding(true);
+          setStatus("알림 권한을 확인했어요. 이제 알림에 사용할 장소를 추가해주세요.");
           return;
         }
         nextSettings = { ...settings, enabled: true };
@@ -329,6 +351,53 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
     };
   }, [native, permissionSettingsOpened]);
 
+  async function finishPlaceSave(next: SmartReminderSettings, savedMessage: string) {
+    setSettings(next);
+    setAdding(false);
+
+    if (!activationPending) {
+      await refreshMonitoring(next);
+      setStatus(savedMessage);
+      return;
+    }
+
+    if (!payload) {
+      setActivationPending(false);
+      setStatus(`${savedMessage} 루틴 정보를 불러온 뒤 ‘사용하기’를 눌러주세요.`);
+      return;
+    }
+
+    const enabled = { ...next, enabled: true };
+    setSettings(enabled);
+    saveSmartReminderSettings(enabled);
+    setActivationPending(false);
+    setPermissionIssue(null);
+
+    const result = await syncNativeRoutineReminders(payload, { requestPermission: false });
+    if (result === "scheduled") {
+      setPermissionSettingsOpened(false);
+      setStatus(`${savedMessage} 스마트 위치 알림도 바로 켰어요.`);
+      return;
+    }
+    if (result === "location-denied") {
+      setPermissionIssue("location");
+      setPermissionDialog("location");
+      setStatus(`${savedMessage} 위치 권한을 허용하면 스마트 알림이 시작됩니다.`);
+      return;
+    }
+
+    const disabled = { ...enabled, enabled: false };
+    setSettings(disabled);
+    saveSmartReminderSettings(disabled);
+    if (result === "denied") {
+      setPermissionIssue("notification");
+      setPermissionDialog("notification");
+      setStatus(`${savedMessage} 알림 권한을 다시 확인해주세요.`);
+    } else {
+      setStatus(`${savedMessage} 모바일 앱을 최신 빌드로 업데이트한 뒤 다시 시도해주세요.`);
+    }
+  }
+
   async function capture(input: { id?: string; name: string; addressLabel?: string; radiusMeters: number }) {
     if (permissionIssue === "location" && !permissionSettingsOpened) {
       setPermissionDialog("location");
@@ -339,13 +408,10 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
     setStatus("현재 위치를 확인하고 있어요…");
     try {
       const next = await saveCurrentLocationAsPlace(input);
-      setSettings(next);
-      setAdding(false);
       if (editingPlace && input.id && editingPlace.id === input.id) {
         setEditingPlace(next.places[input.id] ?? null);
       }
-      await refreshMonitoring(next);
-      setStatus(`${input.name.trim() || "새 장소"}을(를) 반경 ${input.radiusMeters || 500}m로 저장했어요.`);
+      await finishPlaceSave(next, `${input.name.trim() || "새 장소"}을(를) 반경 ${input.radiusMeters || 500}m로 저장했어요.`);
     } catch (caught) {
       if (/permission|denied|권한/i.test(caught instanceof Error ? caught.message : String(caught || ""))) {
         setPermissionIssue("location");
@@ -383,14 +449,11 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
     if (!mapDraft) return;
     try {
       const next = savePlaceCoordinates({ ...mapDraft, ...selection });
-      setSettings(next);
-      setAdding(false);
       setMapDraft(null);
       if (editingPlace && mapDraft.id && editingPlace.id === mapDraft.id) {
         setEditingPlace(next.places[mapDraft.id] ?? null);
       }
-      setStatus(`${mapDraft.name.trim() || "새 장소"} 위치를 지도에서 저장했어요.`);
-      void refreshMonitoring(next);
+      void finishPlaceSave(next, `${mapDraft.name.trim() || "새 장소"} 위치를 지도에서 저장했어요.`);
     } catch (caught) {
       setStatus(friendlyError(caught));
     }
@@ -411,14 +474,11 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   function selectMapLocationForDraft(draft: MapDraft, selection: MapPlaceSelection) {
     try {
       const next = savePlaceCoordinates({ ...draft, ...selection });
-      setSettings(next);
-      setAdding(false);
       setMapDraft(null);
       if (editingPlace && draft.id && editingPlace.id === draft.id) {
         setEditingPlace(next.places[draft.id] ?? null);
       }
-      setStatus(`${draft.name.trim() || "새 장소"} 위치를 지도에서 저장했어요.`);
-      void refreshMonitoring(next);
+      void finishPlaceSave(next, `${draft.name.trim() || "새 장소"} 위치를 지도에서 저장했어요.`);
     } catch (caught) {
       setStatus(friendlyError(caught));
     }
@@ -486,7 +546,7 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
                   <label>주소 또는 메모 (선택)<input value={newAddress} maxLength={100} onChange={(event) => setNewAddress(event.target.value)} placeholder="예: 성수동 사무실" /></label>
                   <label>감지 반경<input type="number" min="80" max="2000" step="50" value={newRadius} onChange={(event) => setNewRadius(Number(event.target.value))} /><span>m</span></label>
                   <div className="smart-place-new-actions">
-                    <button type="button" onClick={() => setAdding(false)}>취소</button>
+                    <button type="button" onClick={() => { setAdding(false); setActivationPending(false); }}>취소</button>
                     <button type="button" disabled={!newName.trim()} onClick={() => void openMapPicker({ name: newName, addressLabel: newAddress || undefined, radiusMeters: newRadius })}><MapPin size={15} /> 지도에서 선택</button>
                     <button type="button" className="primary" disabled={Boolean(busy) || !newName.trim()} onClick={() => void capture({ name: newName, addressLabel: newAddress, radiusMeters: newRadius })}>
                       {busy === "add" ? <LoaderCircle className="spin" size={15} /> : <LocateFixed size={15} />} 현재 위치로 추가

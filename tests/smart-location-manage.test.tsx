@@ -2,7 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SmartLocationSettings } from "@/components/SmartLocationSettings";
-import { openNativePermissionSettings, requestNativeNotificationPermission, saveSmartReminderSettings, syncNativeRoutineReminders } from "@/lib/nativeReminders";
+import { openNativePermissionSettings, requestNativeNotificationPermission, saveCurrentLocationAsPlace, saveSmartReminderSettings, syncNativeRoutineReminders } from "@/lib/nativeReminders";
 
 vi.mock("@/lib/routines", () => ({
   fetchRoutines: vi.fn().mockResolvedValue({ plans: [], timezone: "Asia/Seoul" }),
@@ -15,6 +15,7 @@ vi.mock("@/lib/nativeReminders", async (importOriginal) => {
     configureSmartLocationMonitoring: vi.fn().mockResolvedValue(undefined),
     openNativePermissionSettings: vi.fn().mockResolvedValue(true),
     requestNativeNotificationPermission: vi.fn().mockResolvedValue("granted"),
+    saveCurrentLocationAsPlace: vi.fn(),
     stopSmartLocationMonitoring: vi.fn().mockResolvedValue(undefined),
     syncNativeRoutineReminders: vi.fn().mockResolvedValue("scheduled"),
   };
@@ -85,6 +86,46 @@ describe("SmartLocationSettings accordion, edit popup, and delete confirmation p
     expect(collapseContainer).toHaveClass("expanded");
   });
 
+  it("requests notification permission first and activates automatically after the first place is saved", async () => {
+    saveSmartReminderSettings({ enabled: false, places: {}, inside: {}, triggered: {} });
+    vi.mocked(saveCurrentLocationAsPlace).mockResolvedValue({
+      enabled: false,
+      places: {
+        "place-home": {
+          id: "place-home",
+          name: "집",
+          radiusMeters: 500,
+          latitude: 37.55,
+          longitude: 126.92,
+          createdAt: "2026-09-11T00:00:00.000Z",
+          updatedAt: "2026-09-11T00:00:00.000Z",
+        },
+      },
+      inside: {},
+      triggered: {},
+    });
+    render(<SmartLocationSettings variant="full" payload={{ plans: [], timezone: "Asia/Seoul" }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "사용하기" }));
+
+    await waitFor(() => expect(requestNativeNotificationPermission).toHaveBeenCalledWith(true));
+    expect(await screen.findByText("알림 권한을 확인했어요. 이제 알림에 사용할 장소를 추가해주세요.")).toBeInTheDocument();
+    expect(screen.getByLabelText("장소 이름")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "사용하기" })).toBeInTheDocument();
+    expect(syncNativeRoutineReminders).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /현재 위치로 추가/ }));
+
+    await waitFor(() => {
+      expect(syncNativeRoutineReminders).toHaveBeenCalledWith(
+        { plans: [], timezone: "Asia/Seoul" },
+        { requestPermission: false },
+      );
+      expect(screen.getByRole("button", { name: "사용 중 · 끄기" })).toBeInTheDocument();
+      expect(screen.getByText(/스마트 위치 알림도 바로 켰어요/)).toBeInTheDocument();
+    });
+  });
+
   it("shows a notification permission dialog and opens system settings after denial", async () => {
     vi.mocked(requestNativeNotificationPermission).mockResolvedValueOnce("denied");
     render(<SmartLocationSettings variant="full" payload={{ plans: [], timezone: "Asia/Seoul" }} />);
@@ -98,12 +139,12 @@ describe("SmartLocationSettings accordion, edit popup, and delete confirmation p
 
     await waitFor(() => expect(openNativePermissionSettings).toHaveBeenCalledWith("notification"));
     expect(screen.queryByRole("dialog", { name: "알림 권한이 필요해요" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "권한 적용 확인" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "사용하기" })).toBeInTheDocument();
 
     window.dispatchEvent(new CustomEvent("loopine:native-app-resumed"));
     await waitFor(() => {
       expect(syncNativeRoutineReminders).toHaveBeenCalledTimes(1);
-      expect(screen.queryByRole("button", { name: "권한 적용 확인" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "사용 중 · 끄기" })).toBeInTheDocument();
       expect(screen.getByText("권한을 확인했고 스마트 위치 알림을 다시 준비했어요.")).toBeInTheDocument();
     });
   });
