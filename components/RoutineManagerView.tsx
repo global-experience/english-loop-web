@@ -722,7 +722,7 @@ function RoutineItemEditorModal({
   const [smartPlaces, setSmartPlaces] = useState(() => Object.values(getSmartReminderSettings().places));
   const [notificationOffset, setNotificationOffset] = useState(item.notification.offsetMinutes || 0);
   const [fallbackToTime, setFallbackToTime] = useState(item.notification.timeCompanionEnabled === true);
-  const [locationWindowMinutes, setLocationWindowMinutes] = useState(item.notification.locationWindowMinutes || 180);
+  const [locationWindowMinutes] = useState(item.notification.locationWindowMinutes || 180);
   const [notificationError, setNotificationError] = useState("");
   const [repeatOptions, setRepeatOptions] = useState<number[]>(item.config.repeatOptions);
   const [speedOptions, setSpeedOptions] = useState<number[]>(item.config.speedOptions);
@@ -1087,20 +1087,11 @@ function RoutineItemEditorModal({
                     >
                       {fallbackToTime ? <Check size={14} /> : null} 설정 시간에도 함께 알림
                     </button>
-                    <div className="routine-field-group">
-                      <label htmlFor="routine-location-window">루틴 시간 기준 감지 범위 (분)</label>
-                      <input
-                        id="routine-location-window"
-                        className="routine-field-input"
-                        type="number"
-                        min="30"
-                        max="360"
-                        step="30"
-                        value={locationWindowMinutes}
-                        onChange={(event) => setLocationWindowMinutes(Number(event.target.value))}
-                      />
-                    </div>
-                    <p>{fallbackToTime ? "장소 진입·이탈 알림과 별도로 설정 시간에도 한 번 알려드려요. " : "현재는 장소 진입·이탈이 감지될 때만 알려드려요. "}해당 시간 범위 밖의 출입은 학습 알림으로 처리하지 않습니다.</p>
+                    <p>
+                      {fallbackToTime
+                        ? "선택한 장소의 진입·이탈을 감지하면 알림하고, 설정 시간에도 별도로 한 번 알려드려요."
+                        : "설정 시간과 관계없이, 선택한 장소의 진입·이탈이 기기에서 감지될 때만 알려드려요."}
+                    </p>
                   </div>
                 )}
               </div>

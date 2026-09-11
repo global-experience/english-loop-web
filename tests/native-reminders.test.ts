@@ -177,20 +177,21 @@ describe("smart location transition hysteresis", () => {
 describe("smart location runtime diagnostics", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("records accepted native samples and the current inside/outside decision", async () => {
-    let locationCallback: ((location?: { latitude: number; longitude: number; accuracy?: number }, error?: { code?: string; message?: string }) => void) | undefined;
+  it("migrates an old continuous watcher to native OS geofencing", async () => {
     const removeWatcher = vi.fn().mockResolvedValue(undefined);
-    const addWatcher = vi.fn().mockImplementation((_options, callback) => {
-      locationCallback = callback;
-      return Promise.resolve("diagnostics-watcher");
-    });
+    const addWatcher = vi.fn();
+    const sync = vi.fn().mockReturnValue(JSON.stringify({ status: "monitoring", registeredCount: 1 }));
+    const stop = vi.fn();
     const runtimeWindow = window as Window & {
       Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> };
+      LoopineNativeGeofencingHost?: { sync: (payload: string) => string; stop: () => void };
     };
     runtimeWindow.Capacitor = {
       isNativePlatform: () => true,
       Plugins: { BackgroundGeolocation: { addWatcher, removeWatcher } },
     };
+    runtimeWindow.LoopineNativeGeofencingHost = { sync, stop };
+    window.localStorage.setItem("loopine:smart-location-watcher:v1", "legacy-watcher");
     saveSmartReminderSettings({
       enabled: true,
       places: {
@@ -207,35 +208,59 @@ describe("smart location runtime diagnostics", () => {
       triggered: {},
     });
 
-    await expect(configureSmartLocationMonitoring({ timezone: "Asia/Seoul", plans: [] })).resolves.toBe("monitoring");
-    locationCallback?.({ latitude: 37.5, longitude: 127, accuracy: 18 });
-    await vi.waitFor(() => expect(getSmartLocationDiagnostics().lastAcceptedAt).toBeTruthy());
+    const locationItem = item({
+      notification: {
+        enabled: true,
+        offsetMinutes: 0,
+        trigger: "place_exit",
+        locationId: "office",
+        fallbackToTime: false,
+        timeCompanionEnabled: false,
+        locationWindowMinutes: 180,
+      },
+    });
+    await expect(configureSmartLocationMonitoring(payload(locationItem))).resolves.toBe("monitoring");
 
     expect(getSmartLocationDiagnostics()).toMatchObject({
       state: "monitoring",
-      lastAccuracyMeters: 18,
-      places: { office: { inside: true } },
+      mode: "geofence",
+      registeredCount: 1,
+    });
+    expect(removeWatcher).toHaveBeenCalledWith({ id: "legacy-watcher" });
+    expect(addWatcher).not.toHaveBeenCalled();
+    const nativePayload = JSON.parse(sync.mock.calls[0][0]);
+    expect(nativePayload.routines[0]).toMatchObject({ placeId: "office", transition: "exit" });
+    window.dispatchEvent(new CustomEvent("loopine:native-geofence-status", {
+      detail: {
+        state: "monitoring",
+        registeredCount: 1,
+        lastTransition: "exit",
+        placeId: "office",
+        lastEventAt: "2026-09-11T10:00:00.000Z",
+      },
+    }));
+    expect(getSmartLocationDiagnostics()).toMatchObject({
+      lastTransition: "exit",
+      lastPlaceId: "office",
+      lastEventAt: "2026-09-11T10:00:00.000Z",
     });
 
     await stopSmartLocationMonitoring();
+    expect(stop).toHaveBeenCalled();
+    delete runtimeWindow.LoopineNativeGeofencingHost;
     delete runtimeWindow.Capacitor;
   });
 
-  it("exposes low-accuracy samples instead of silently using them", async () => {
-    let locationCallback: ((location?: { latitude: number; longitude: number; accuracy?: number }, error?: { code?: string; message?: string }) => void) | undefined;
+  it("never restarts continuous tracking on an old native shell", async () => {
+    const addWatcher = vi.fn();
+    const removeWatcher = vi.fn().mockResolvedValue(undefined);
     const runtimeWindow = window as Window & {
       Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> };
     };
     runtimeWindow.Capacitor = {
       isNativePlatform: () => true,
       Plugins: {
-        BackgroundGeolocation: {
-          addWatcher: vi.fn().mockImplementation((_options, callback) => {
-            locationCallback = callback;
-            return Promise.resolve("accuracy-watcher");
-          }),
-          removeWatcher: vi.fn().mockResolvedValue(undefined),
-        },
+        BackgroundGeolocation: { addWatcher, removeWatcher },
       },
     };
     saveSmartReminderSettings({
@@ -245,12 +270,9 @@ describe("smart location runtime diagnostics", () => {
       triggered: {},
     });
 
-    await configureSmartLocationMonitoring({ timezone: "Asia/Seoul", plans: [] });
-    locationCallback?.({ latitude: 37.5, longitude: 127, accuracy: 420 });
-    await vi.waitFor(() => expect(getSmartLocationDiagnostics().lastIgnoredReason).toContain("420m"));
-
-    expect(getSmartLocationDiagnostics().lastAcceptedAt).toBeUndefined();
-    await stopSmartLocationMonitoring();
+    await expect(configureSmartLocationMonitoring({ timezone: "Asia/Seoul", plans: [] })).resolves.toBe("unavailable");
+    expect(addWatcher).not.toHaveBeenCalled();
+    expect(getSmartLocationDiagnostics()).toMatchObject({ state: "unavailable" });
     delete runtimeWindow.Capacitor;
   });
 });

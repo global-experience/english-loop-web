@@ -112,7 +112,7 @@ describe("smart reminder routine guide", () => {
 
     expect(screen.getByLabelText("알림 장소")).toHaveValue("office");
     expect(screen.getByRole("button", { name: "설정 시간에도 함께 알림" })).not.toHaveClass("selected");
-    expect(screen.getByText(/장소 진입·이탈이 감지될 때만/)).toBeInTheDocument();
+    expect(screen.getByText(/설정 시간과 관계없이/)).toBeInTheDocument();
   });
 
   it("creates a routine item when the first plan is empty, then opens the same guide", async () => {

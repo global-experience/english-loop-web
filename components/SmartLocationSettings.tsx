@@ -74,7 +74,7 @@ function friendlyError(caught: unknown) {
 
 function diagnosticStateLabel(diagnostics: SmartLocationDiagnostics, enabled: boolean) {
   if (!enabled || diagnostics.state === "disabled") return "감지 꺼짐";
-  if (diagnostics.state === "monitoring") return diagnostics.lastAcceptedAt ? "위치 감지 정상" : "첫 위치 확인 대기 중";
+  if (diagnostics.state === "monitoring") return diagnostics.mode === "geofence" ? "위치 감지 정상" : "위치 감지 정상";
   if (diagnostics.state === "starting") return "위치 감지 시작 중";
   if (diagnostics.state === "denied") return "위치 권한 필요";
   if (diagnostics.state === "unavailable") return "위치 감지 사용 불가";
@@ -118,7 +118,7 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   useBodyScrollLock(Boolean(editingPlace || deleteTarget || permissionDialog));
 
   const places = useMemo(() => Object.values(settings.places).sort((a, b) => a.name.localeCompare(b.name, "ko")), [settings]);
-  const isActive = settings.enabled && permissionIssue !== "notification";
+  const isActive = settings.enabled && permissionIssue === null;
 
   useEffect(() => {
     if (!native) return;
@@ -593,26 +593,39 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
               <summary>
                 <span className={`smart-location-diagnostic-dot ${diagnostics.state}`} aria-hidden="true" />
                 <strong>{diagnosticStateLabel(diagnostics, isActive)}</strong>
-                <small>마지막 유효 위치 {relativeDiagnosticTime(diagnostics.lastAcceptedAt)}</small>
+                <small>
+                  {diagnostics.mode === "geofence"
+                    ? `마지막 경계 이벤트 ${relativeDiagnosticTime(diagnostics.lastEventAt)}`
+                    : `마지막 유효 위치 ${relativeDiagnosticTime(diagnostics.lastAcceptedAt)}`}
+                </small>
               </summary>
               <div>
-                <p>
-                  마지막 수신 {relativeDiagnosticTime(diagnostics.lastSampleAt)}
-                  {diagnostics.lastAccuracyMeters != null ? ` · 정확도 약 ${Math.round(diagnostics.lastAccuracyMeters)}m` : ""}
-                </p>
-                {diagnostics.lastIgnoredReason && <p className="warning">{diagnostics.lastIgnoredReason}</p>}
-                {diagnostics.lastError && <p className="warning">{diagnostics.lastError}</p>}
-                {places.map((place) => {
-                  const result = diagnostics.places[place.id];
-                  return (
-                    <p key={place.id}>
-                      {result
-                        ? `${place.name}: ${result.inside ? "반경 안" : "반경 밖"} · 약 ${Math.round(result.distanceMeters)}m`
-                        : `${place.name}: 아직 판정 전`}
+                {diagnostics.mode === "geofence" ? (
+                  <>
+                    <p>등록된 감지 영역 {diagnostics.registeredCount ?? 0}개</p>
+                    {diagnostics.lastTransition && (
+                      <p>
+                        마지막 이벤트: {places.find((place) => place.id === diagnostics.lastPlaceId)?.name || "등록 장소"}
+                        {diagnostics.lastTransition === "enter" ? " 진입" : " 이탈"}
+                      </p>
+                    )}
+                    {!diagnostics.lastTransition && diagnostics.initialState && (
+                      <p>초기 장소 상태: {diagnostics.initialState === "inside" ? "반경 내부" : diagnostics.initialState === "outside" ? "반경 밖" : "확인 중"}</p>
+                    )}
+                    {diagnostics.lastIgnoredReason && <p>마지막 처리: {diagnostics.lastIgnoredReason}</p>}
+                    {diagnostics.lastError && <p className="warning">{diagnostics.lastError}</p>}
+                    <small>좌표를 계속 조회하지 않고, iOS·Android가 등록 장소의 진입·이탈만 알려줍니다.</small>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      마지막 수신 {relativeDiagnosticTime(diagnostics.lastSampleAt)}
+                      {diagnostics.lastAccuracyMeters != null ? ` · 정확도 약 ${Math.round(diagnostics.lastAccuracyMeters)}m` : ""}
                     </p>
-                  );
-                })}
-                <small>500m 반경은 GPS 흔들림을 막기 위해 진입 약 480m, 이탈 약 550m에서 확정합니다.</small>
+                    {diagnostics.lastIgnoredReason && <p className="warning">{diagnostics.lastIgnoredReason}</p>}
+                    {diagnostics.lastError && <p className="warning">{diagnostics.lastError}</p>}
+                  </>
+                )}
               </div>
             </details>
             {status && <p className="smart-location-status" role="status">{status}</p>}

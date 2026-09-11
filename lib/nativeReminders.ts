@@ -67,6 +67,11 @@ type NativeBackgroundGeolocation = {
   openSettings?: () => Promise<void>;
 };
 
+type NativeGeofencing = {
+  sync?: (payload: string) => string | void;
+  stop?: () => string | void;
+};
+
 type CapacitorWindow = Window & {
   Capacitor?: {
     isNativePlatform?: () => boolean;
@@ -78,6 +83,8 @@ type CapacitorWindow = Window & {
   LoopineNativePermissionHost?: {
     openSettings?: (kind: "notification" | "location") => void;
   };
+  LoopineNativeGeofencing?: NativeGeofencing;
+  LoopineNativeGeofencingHost?: NativeGeofencing;
 };
 
 export type SmartPlace = {
@@ -100,7 +107,13 @@ export type SmartReminderSettings = {
 
 export type SmartLocationDiagnostics = {
   state: "idle" | "starting" | "monitoring" | "disabled" | "denied" | "unavailable" | "error";
+  mode?: "geofence";
   updatedAt: string;
+  registeredCount?: number;
+  lastTransition?: "enter" | "exit";
+  initialState?: "inside" | "outside" | "unknown";
+  lastPlaceId?: string;
+  lastEventAt?: string;
   lastSampleAt?: string;
   lastAcceptedAt?: string;
   lastAccuracyMeters?: number | null;
@@ -136,6 +149,7 @@ const DEFAULT_DIAGNOSTICS: SmartLocationDiagnostics = {
 };
 
 let actionListener: ListenerHandle | null = null;
+let nativeGeofenceStatusListening = false;
 let activeWatcherId: string | null = null;
 let latestPayload: RoutinePayload | null = null;
 let currentLocationRequest: Promise<NativeLocation> | null = null;
@@ -153,6 +167,81 @@ function localNotifications(): NativeLocalNotifications | null {
 
 function backgroundGeolocation(): NativeBackgroundGeolocation | null {
   return (nativePlugins()?.BackgroundGeolocation as NativeBackgroundGeolocation | undefined) || null;
+}
+
+function nativeGeofencing(): NativeGeofencing | null {
+  if (typeof window === "undefined") return null;
+  const target = window as CapacitorWindow;
+  return target.LoopineNativeGeofencing || target.LoopineNativeGeofencingHost || null;
+}
+
+function ensureNativeGeofenceStatusListener() {
+  if (typeof window === "undefined" || nativeGeofenceStatusListening) return;
+  nativeGeofenceStatusListening = true;
+  window.addEventListener("loopine:native-geofence-status", (event) => {
+    const detail = (event as CustomEvent<{
+      state?: SmartLocationDiagnostics["state"];
+      message?: string;
+      registeredCount?: number;
+      lastTransition?: "enter" | "exit";
+      initialState?: "inside" | "outside" | "unknown";
+      placeId?: string;
+      lastEventAt?: string;
+      lastIgnoredReason?: string;
+    }>).detail || {};
+    updateSmartLocationDiagnostics({
+      mode: "geofence",
+      state: detail.state || "monitoring",
+      registeredCount: detail.registeredCount,
+      lastTransition: detail.lastTransition,
+      initialState: detail.initialState,
+      lastPlaceId: detail.placeId,
+      lastEventAt: detail.lastEventAt,
+      lastIgnoredReason: detail.lastIgnoredReason || undefined,
+      lastError: detail.message,
+    });
+    if (detail.state === "denied" || detail.state === "error") {
+      window.dispatchEvent(new CustomEvent("loopine:smart-reminder-error", { detail }));
+    }
+  });
+  window.addEventListener("loopine:native-routine-notification", (event) => {
+    openRoutineFromNotification((event as CustomEvent<Record<string, unknown>>).detail);
+  });
+}
+
+function nativeGeofencePayload(payload: RoutinePayload, settings: SmartReminderSettings) {
+  return JSON.stringify({
+    schemaVersion: 1,
+    timezone: payload.timezone,
+    places: Object.values(settings.places).map((place) => ({
+      id: place.id,
+      name: place.name,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      radiusMeters: place.radiusMeters,
+    })),
+    routines: payload.plans.flatMap((plan) => plan.is_active ? plan.items : [])
+      .filter((item) => item.is_active && item.notification?.enabled && item.notification.trigger !== "time")
+      .map((item) => {
+        const notification = normalizedNotification(item);
+        const legacyPlaceId = notification.trigger === "home_exit" ? "home"
+          : notification.trigger === "work_enter" || notification.trigger === "work_exit" ? "work" : null;
+        const transition = notification.trigger === "place_enter" || notification.trigger === "work_enter" ? "enter" : "exit";
+        return {
+          routineId: item.routine_id,
+          routineItemId: item.id,
+          name: item.name,
+          placeId: notification.locationId || legacyPlaceId,
+          transition,
+          daysOfWeek: item.days_of_week,
+          startTime: item.start_time,
+          locationWindowMinutes: notification.locationWindowMinutes,
+          title: notification.title,
+          body: notification.body,
+        };
+      })
+      .filter((item) => item.placeId),
+  });
 }
 
 function hash32(value: string) {
@@ -404,6 +493,7 @@ async function handleNotificationAction(event: { actionId?: string; notification
 }
 
 export async function initializeNativeReminderRuntime() {
+  ensureNativeGeofenceStatusListener();
   const plugin = localNotifications();
   if (!plugin) return false;
   await plugin.registerActionTypes?.({
@@ -494,119 +584,6 @@ export function evaluateSmartPlace(
   return { inside, transition, distanceMeters };
 }
 
-function minutesFromRoutineTime(item: RoutineItem, now: Date) {
-  const { hour, minute } = parseTime(item.start_time);
-  const target = hour * 60 + minute;
-  const current = now.getHours() * 60 + now.getMinutes();
-  const absolute = Math.abs(target - current);
-  return Math.min(absolute, 24 * 60 - absolute);
-}
-
-async function fireLocationTransition(transition: "enter" | "exit", placeId: string, now: Date) {
-  const payload = latestPayload;
-  const plugin = localNotifications();
-  if (!payload || !plugin?.schedule) return;
-  const settings = getSmartReminderSettings();
-  const localDate = localDateKey(now);
-  const weekday = loopineWeekday(now);
-  const items = payload.plans.flatMap((plan) => plan.is_active ? plan.items : []);
-  const place = settings.places[placeId];
-  if (!place) return;
-
-  for (const item of items) {
-    const notification = normalizedNotification(item);
-    const legacyMatch = notification.trigger === "home_exit" && placeId === "home" && transition === "exit"
-      || notification.trigger === "work_enter" && placeId === "work" && transition === "enter"
-      || notification.trigger === "work_exit" && placeId === "work" && transition === "exit";
-    const placeMatch = notification.trigger === `place_${transition}` && notification.locationId === placeId;
-    const triggerKey = `${item.id}:${localDate}:${notification.trigger}`;
-    if (
-      !item.is_active
-      || !notification.enabled
-      || (!legacyMatch && !placeMatch)
-      || !item.days_of_week.includes(weekday)
-      || settings.triggered[triggerKey]
-      || minutesFromRoutineTime(item, now) > notification.locationWindowMinutes
-    ) continue;
-
-    await cancelRoutineReminderOccurrence(item.id, localDate);
-    const locationBody = transition === "enter"
-      ? `${place.name}에 도착했어요. 잠깐 오늘 표현을 확인해볼까요?`
-      : `${place.name}에서 나온 지금, 오늘 학습 루프를 이어가볼까요?`;
-    await plugin.schedule({
-      notifications: [{
-        id: notificationId(item.id, localDate, `location:${placeId}:${transition}`),
-        title: notification.title,
-        body: !item.notification.body || item.notification.body === "오늘 루틴을 이어갈 시간이에요."
-          ? locationBody
-          : item.notification.body,
-        schedule: { at: new Date(Date.now() + 750) },
-        actionTypeId: ACTION_TYPE_ID,
-        extra: {
-          loopineKind: "routine-location",
-          schemaVersion: 1,
-          routineId: item.routine_id,
-          routineItemId: item.id,
-          localDate,
-          entrySource: "notification",
-          locationTrigger: `place_${transition}`,
-          locationId: place.id,
-        },
-      }],
-    });
-    settings.triggered[triggerKey] = Date.now();
-  }
-  saveSmartReminderSettings(settings);
-}
-
-async function processLocation(location: NativeLocation) {
-  const sampleAt = new Date(location.time || Date.now()).toISOString();
-  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) {
-    updateSmartLocationDiagnostics({
-      lastSampleAt: sampleAt,
-      lastIgnoredReason: "위치 좌표가 올바르지 않아 무시했어요.",
-    });
-    return;
-  }
-  if (location.accuracy != null && location.accuracy > 250) {
-    updateSmartLocationDiagnostics({
-      lastSampleAt: sampleAt,
-      lastAccuracyMeters: location.accuracy,
-      lastIgnoredReason: `정확도가 낮아(${Math.round(location.accuracy)}m) 판정에서 제외했어요.`,
-    });
-    return;
-  }
-  const settings = getSmartReminderSettings();
-  if (!settings.enabled) return;
-  const transitions: Array<{ transition: "enter" | "exit"; placeId: string }> = [];
-  const placeDiagnostics = { ...getSmartLocationDiagnostics().places };
-
-  for (const [placeId, place] of Object.entries(settings.places)) {
-    const previous = settings.inside[placeId];
-    const result = evaluateSmartPlace(place, location, previous);
-    settings.inside[placeId] = result.inside;
-    if (result.transition) transitions.push({ transition: result.transition, placeId });
-    placeDiagnostics[placeId] = {
-      distanceMeters: result.distanceMeters,
-      inside: result.inside,
-      evaluatedAt: sampleAt,
-      transition: result.transition,
-    };
-  }
-
-  saveSmartReminderSettings(settings);
-  updateSmartLocationDiagnostics({
-    state: "monitoring",
-    lastSampleAt: sampleAt,
-    lastAcceptedAt: sampleAt,
-    lastAccuracyMeters: location.accuracy ?? null,
-    lastIgnoredReason: undefined,
-    lastError: undefined,
-    places: placeDiagnostics,
-  });
-  for (const event of transitions) await fireLocationTransition(event.transition, event.placeId, new Date());
-}
-
 async function removeStoredWatcher(plugin: NativeBackgroundGeolocation) {
   const stored = activeWatcherId || (typeof window !== "undefined" ? window.localStorage.getItem(WATCHER_KEY) : null);
   if (!stored || !plugin.removeWatcher) return;
@@ -620,91 +597,82 @@ async function removeStoredWatcher(plugin: NativeBackgroundGeolocation) {
 }
 
 export async function configureSmartLocationMonitoring(payload?: RoutinePayload) {
+  ensureNativeGeofenceStatusListener();
   if (payload) latestPayload = payload;
   const settings = getSmartReminderSettings();
   const plugin = backgroundGeolocation();
-  if (!plugin?.addWatcher || !plugin.removeWatcher) {
-    updateSmartLocationDiagnostics({ state: "unavailable", lastError: "위치 감지 플러그인을 사용할 수 없어요." });
-    return "unavailable" as const;
-  }
-  if (!settings.enabled || Object.keys(settings.places).length === 0) {
-    await removeStoredWatcher(plugin);
-    updateSmartLocationDiagnostics({ state: "disabled", lastError: undefined });
-    return "disabled" as const;
-  }
-  if (activeWatcherId) {
-    updateSmartLocationDiagnostics({ state: "monitoring", lastError: undefined });
-    return "monitoring" as const;
+  const geofencing = nativeGeofencing();
+
+  // New native builds use event-driven OS geofences. Always tear down a watcher
+  // left behind by an older web build so iOS no longer shows continuous location use.
+  if (plugin?.removeWatcher) await removeStoredWatcher(plugin);
+
+  if (geofencing?.sync && geofencing.stop) {
+    if (!settings.enabled || Object.keys(settings.places).length === 0) {
+      geofencing.stop();
+      updateSmartLocationDiagnostics({ state: "disabled", mode: "geofence", registeredCount: 0, lastError: undefined });
+      return "disabled" as const;
+    }
+    if (!latestPayload) {
+      updateSmartLocationDiagnostics({ state: "error", lastError: "루틴 정보를 불러오지 못했어요." });
+      return "unavailable" as const;
+    }
+      updateSmartLocationDiagnostics({ state: "starting", mode: "geofence", lastError: undefined });
+    try {
+      const rawResult = geofencing.sync(nativeGeofencePayload(latestPayload, settings));
+      const result = typeof rawResult === "string"
+        ? JSON.parse(rawResult) as {
+            status?: string;
+            message?: string;
+            registeredCount?: number;
+            lastTransition?: "enter" | "exit" | "";
+            placeId?: string;
+            lastEventAt?: string;
+            lastIgnoredReason?: string;
+          }
+        : null;
+      if (result?.status === "denied") {
+        updateSmartLocationDiagnostics({ state: "denied", lastError: result.message || "항상 위치 권한이 필요해요." });
+        return "denied" as const;
+      }
+      if (result?.status === "starting") {
+        updateSmartLocationDiagnostics({
+          state: "starting",
+          mode: "geofence",
+          registeredCount: 0,
+          lastError: result.message || "백그라운드 진입·이탈 감지를 위해 위치 권한을 ‘항상’으로 허용해주세요.",
+        });
+        return "denied" as const;
+      }
+      if (result?.status === "error") throw new Error(result.message || "지오펜스를 등록하지 못했어요.");
+      updateSmartLocationDiagnostics({
+        state: "monitoring",
+        mode: "geofence",
+        registeredCount: typeof result?.registeredCount === "number" ? result.registeredCount : undefined,
+        lastTransition: result?.lastTransition || undefined,
+        lastPlaceId: result?.placeId || undefined,
+        lastEventAt: result?.lastEventAt || undefined,
+        lastIgnoredReason: result?.lastIgnoredReason || undefined,
+        lastError: undefined,
+      });
+      return "monitoring" as const;
+    } catch (caught) {
+      updateSmartLocationDiagnostics({ state: "error", lastError: caught instanceof Error ? caught.message : String(caught) });
+      return "unavailable" as const;
+    }
   }
 
-  await removeStoredWatcher(plugin);
-  updateSmartLocationDiagnostics({ state: "starting", lastError: undefined });
-  try {
-    let watcherIdForCallback = "";
-    let watcherMustStop = false;
-    let errorReported = false;
-    const stopRejectedWatcher = () => {
-      watcherMustStop = true;
-      if (!watcherIdForCallback) return;
-      const rejectedId = watcherIdForCallback;
-      watcherIdForCallback = "";
-      if (activeWatcherId === rejectedId) activeWatcherId = null;
-      window.localStorage.removeItem(WATCHER_KEY);
-      try {
-        void Promise.resolve(plugin.removeWatcher?.({ id: rejectedId })).catch(() => undefined);
-      } catch {
-        // The native bridge can close while the permission dialog is being dismissed.
-      }
-    };
-    const watcherId = await Promise.resolve(plugin.addWatcher({
-      backgroundTitle: "Loopine 스마트 루틴",
-      backgroundMessage: "출퇴근 루틴을 감지하기 위해 위치를 확인하고 있어요.",
-      requestPermissions: true,
-      stale: false,
-      distanceFilter: 75,
-    }, (location, error) => {
-      if (error) {
-        const denied = /NOT_AUTHORIZED|permission|denied/i.test(`${error.code || ""} ${error.message || ""}`);
-        updateSmartLocationDiagnostics({
-          state: denied ? "denied" : "error",
-          lastError: error.message || error.code || "위치 감지 중 오류가 발생했어요.",
-        });
-        if (denied) {
-          stopRejectedWatcher();
-        }
-        if (!errorReported) {
-          errorReported = true;
-          window.dispatchEvent(new CustomEvent("loopine:smart-reminder-error", { detail: error }));
-        }
-        return;
-      }
-      if (location) void processLocation(location);
-    }));
-    if (!watcherId) throw new Error("위치 감시를 시작하지 못했습니다. 앱을 다시 실행해주세요.");
-    watcherIdForCallback = watcherId;
-    if (watcherMustStop) {
-      try {
-        await Promise.resolve(plugin.removeWatcher({ id: watcherId }));
-      } catch {
-        // The denied watcher has already stopped on the native side.
-      }
-      return "denied" as const;
-    }
-    activeWatcherId = watcherId;
-    window.localStorage.setItem(WATCHER_KEY, activeWatcherId);
-    updateSmartLocationDiagnostics({ state: "monitoring", lastError: undefined });
-    return "monitoring" as const;
-  } catch (caught) {
-    updateSmartLocationDiagnostics({
-      state: /NOT_AUTHORIZED|permission|denied/i.test(caught instanceof Error ? caught.message : String(caught)) ? "denied" : "error",
-      lastError: caught instanceof Error ? caught.message : String(caught || "위치 감지를 시작하지 못했어요."),
-    });
-    window.dispatchEvent(new CustomEvent("loopine:smart-reminder-error", { detail: caught }));
-    return "denied" as const;
-  }
+  // Do not restart continuous tracking on an old shell. The user must install
+  // the native build that contains the geofencing bridge.
+  updateSmartLocationDiagnostics({
+    state: "unavailable",
+    lastError: "저전력 위치 감지가 포함된 최신 Loopine 앱으로 업데이트해주세요.",
+  });
+  return "unavailable" as const;
 }
 
 export async function stopSmartLocationMonitoring() {
+  nativeGeofencing()?.stop?.();
   const plugin = backgroundGeolocation();
   if (plugin) await removeStoredWatcher(plugin);
   updateSmartLocationDiagnostics({ state: "disabled", lastError: undefined });
