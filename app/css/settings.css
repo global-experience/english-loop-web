@@ -1231,13 +1231,25 @@
     transition: all .15s ease;
   }
 
-  .smart-place-modal-btn-group button.secondary-button {
+  .smart-place-modal-btn-group button.secondary-button,
+  .smart-place-modal-cancel {
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, .7);
     color: var(--ink);
+    min-height: 42px;
+    padding: 0 18px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s ease;
   }
 
-  .smart-place-modal-btn-group button.secondary-button:hover {
+  .smart-place-modal-btn-group button.secondary-button:hover,
+  .smart-place-modal-cancel:hover {
     background: #fff;
     border-color: var(--ink);
   }
@@ -1390,7 +1402,8 @@
       gap: 10px;
     }
 
-    .smart-place-delete-trigger {
+    .smart-place-delete-trigger,
+    .smart-place-modal-cancel {
       width: 100%;
       justify-content: center;
       min-height: 46px;

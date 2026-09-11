@@ -106,16 +106,13 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   const [permissionSettingsOpened, setPermissionSettingsOpened] = useState(false);
   const [activationPending, setActivationPending] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState("집");
-  const [newAddress, setNewAddress] = useState("");
-  const [newRadius, setNewRadius] = useState(500);
   const [mapDraft, setMapDraft] = useState<MapDraft | null>(null);
   const [editingPlace, setEditingPlace] = useState<SmartPlace | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SmartPlace | null>(null);
   const retryPermissionRef = useRef<() => void>(() => undefined);
   const leftForSystemSettingsRef = useRef(false);
 
-  useBodyScrollLock(Boolean(editingPlace || deleteTarget || permissionDialog));
+  useBodyScrollLock(Boolean(adding || editingPlace || deleteTarget || permissionDialog));
 
   const places = useMemo(() => Object.values(settings.places).sort((a, b) => a.name.localeCompare(b.name, "ko")), [settings]);
   const isActive = settings.enabled && permissionIssue === null;
@@ -569,24 +566,9 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
               {!places.length && <p className="smart-place-empty"><MapPin size={18} /> 아직 등록된 장소가 없어요.</p>}
             </div>
 
-            {adding ? (
-              <div className="smart-place-new-slide">
-                <div className="smart-place-new">
-                  <label>장소 이름<input value={newName} maxLength={30} onChange={(event) => setNewName(event.target.value)} placeholder="예: 집, 회사, 헬스장" /></label>
-                  <label>주소 또는 메모 (선택)<input value={newAddress} maxLength={100} onChange={(event) => setNewAddress(event.target.value)} placeholder="예: 성수동 사무실" /></label>
-                  <label>감지 반경<input type="number" min="80" max="2000" step="50" value={newRadius} onChange={(event) => setNewRadius(Number(event.target.value))} /><span>m</span></label>
-                  <div className="smart-place-new-actions">
-                    <button type="button" onClick={() => { setAdding(false); setActivationPending(false); }}>취소</button>
-                    <button type="button" disabled={!newName.trim()} onClick={() => void openMapPicker({ name: newName, addressLabel: newAddress || undefined, radiusMeters: newRadius })}><MapPin size={15} /> 지도에서 선택</button>
-                    <button type="button" className="primary" disabled={Boolean(busy) || !newName.trim()} onClick={() => void capture({ name: newName, addressLabel: newAddress, radiusMeters: newRadius })}>
-                      {busy === "add" ? <LoaderCircle className="spin" size={15} /> : <LocateFixed size={15} />} 현재 위치로 추가
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <button type="button" className="smart-place-add" onClick={() => setAdding(true)}><Plus size={16} /> 장소 추가</button>
-            )}
+            <button type="button" className="smart-place-add" onClick={() => setAdding(true)}>
+              <Plus size={16} /> 장소 추가
+            </button>
 
             <p className="smart-location-privacy"><ShieldCheck size={15} /> 장소별 기본 반경은 500m이며 80~2,000m 사이에서 조정할 수 있습니다.</p>
             <details className="smart-location-diagnostics">
@@ -645,6 +627,16 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
       </div>
 
       {mapDraft && <MapPlacePicker initial={mapDraft} onClose={() => setMapDraft(null)} onSelect={selectMapLocation} />}
+
+      {adding && portalReady && createPortal(
+        <SmartPlaceAddModal
+          busy={busy}
+          onClose={() => { setAdding(false); setActivationPending(false); }}
+          onCapture={(draft) => void capture(draft)}
+          onMapPick={(draft) => void openMapPicker(draft)}
+        />,
+        document.body
+      )}
 
       {editingPlace && portalReady && createPortal(
         <SmartPlaceEditModal
@@ -981,6 +973,169 @@ function SmartPlaceEditModal({
               onClick={handleSave}
             >
               저장
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function SmartPlaceAddModal({
+  busy,
+  onClose,
+  onCapture,
+  onMapPick,
+}: {
+  busy: string;
+  onClose: () => void;
+  onCapture: (draft: { name: string; addressLabel?: string; radiusMeters: number }) => void;
+  onMapPick: (draft: { name: string; addressLabel?: string; radiusMeters: number }) => void;
+}) {
+  const [name, setName] = useState("집");
+  const [addressLabel, setAddressLabel] = useState("");
+  const [radiusMeters, setRadiusMeters] = useState(500);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const draft = {
+    name: name.trim(),
+    addressLabel: addressLabel.trim() || undefined,
+    radiusMeters: Number(radiusMeters) || 500,
+  };
+
+  return (
+    <div
+      className="smart-place-modal-layer"
+      role="presentation"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <section
+        className="smart-place-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="smart-place-add-title"
+      >
+        <header className="smart-place-modal-header">
+          <div>
+            <p>SMART LOCATION</p>
+            <h2 id="smart-place-add-title">새 장소 추가</h2>
+          </div>
+          <button
+            type="button"
+            className="smart-place-modal-close"
+            onClick={onClose}
+            aria-label="닫기"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="smart-place-modal-body">
+          <div className="smart-place-modal-field">
+            <label htmlFor="add-place-name">장소 이름</label>
+            <input
+              id="add-place-name"
+              className="smart-place-modal-input"
+              value={name}
+              maxLength={30}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="예: 집, 회사, 헬스장"
+            />
+            <div className="smart-place-chips" aria-label="추천 장소 이름">
+              {NAME_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className={`smart-place-chip ${name === preset ? "active" : ""}`}
+                  onClick={() => setName(preset)}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="smart-place-modal-field">
+            <label htmlFor="add-place-address">주소 또는 메모 (선택)</label>
+            <input
+              id="add-place-address"
+              className="smart-place-modal-input"
+              value={addressLabel}
+              maxLength={100}
+              onChange={(e) => setAddressLabel(e.target.value)}
+              placeholder="예: 성수동 사무실, 101동"
+            />
+          </div>
+
+          <div className="smart-place-modal-field">
+            <label htmlFor="add-place-radius">감지 반경 (m)</label>
+            <div className="smart-place-radius-row">
+              <input
+                id="add-place-radius"
+                type="number"
+                min={80}
+                max={2000}
+                step={50}
+                className="smart-place-modal-input"
+                value={radiusMeters}
+                onChange={(e) => setRadiusMeters(Number(e.target.value))}
+              />
+              <span className="smart-place-radius-unit">m</span>
+            </div>
+            <div className="smart-place-chips" aria-label="추천 반경">
+              {RADIUS_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className={`smart-place-chip ${radiusMeters === preset ? "active" : ""}`}
+                  onClick={() => setRadiusMeters(preset)}
+                >
+                  {preset}m{preset === 500 ? " (기본)" : ""}
+                </button>
+              ))}
+            </div>
+            <p className="smart-place-modal-help">
+              반경 안으로 들어가거나 나올 때 알림이 동작합니다. 기본 500m를 권장해요.
+            </p>
+          </div>
+        </div>
+
+        <footer className="smart-place-modal-footer">
+          <button
+            type="button"
+            className="secondary-button smart-place-modal-cancel"
+            onClick={onClose}
+          >
+            취소
+          </button>
+          <div className="smart-place-modal-btn-group">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={!name.trim()}
+              onClick={() => onMapPick(draft)}
+            >
+              <MapPin size={15} /> 지도에서 선택
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              disabled={Boolean(busy) || !name.trim()}
+              onClick={() => onCapture(draft)}
+            >
+              {busy === "add" ? (
+                <LoaderCircle className="spin" size={15} />
+              ) : (
+                <LocateFixed size={15} />
+              )}
+              현재 위치로 추가
             </button>
           </div>
         </footer>

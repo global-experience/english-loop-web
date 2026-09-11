@@ -358,4 +358,80 @@ describe("SmartLocationSettings accordion, edit popup, and delete confirmation p
       expect(document.querySelector(".smart-location-active-badge")).toBeInTheDocument();
     });
   });
+
+  it("opens add modal with default values ('집', 500m) and allows closing via cancel", async () => {
+    window.scrollTo = vi.fn();
+    render(<SmartLocationSettings variant="full" payload={{ plans: [], timezone: "Asia/Seoul" }} />);
+
+    const addBtn = screen.getByRole("button", { name: "장소 추가" });
+    fireEvent.click(addBtn);
+
+    expect(screen.getByText("새 장소 추가")).toBeInTheDocument();
+    const nameInput = screen.getByLabelText("장소 이름");
+    const radiusInput = screen.getByLabelText("감지 반경 (m)");
+    expect(nameInput).toHaveValue("집");
+    expect(radiusInput).toHaveValue(500);
+
+    // Cancel closes the modal
+    const cancelBtn = screen.getByRole("button", { name: "취소" });
+    fireEvent.click(cancelBtn);
+
+    expect(screen.queryByText("새 장소 추가")).not.toBeInTheDocument();
+  });
+
+  it("selects NAME_PRESETS and RADIUS_PRESETS in add modal and saves current location", async () => {
+    window.scrollTo = vi.fn();
+    vi.mocked(saveCurrentLocationAsPlace).mockResolvedValue({
+      enabled: false,
+      places: {
+        "place-gym": {
+          id: "place-gym",
+          name: "헬스장",
+          addressLabel: "역삼동 피트니스",
+          radiusMeters: 1000,
+          latitude: 37.5,
+          longitude: 127.04,
+          createdAt: "2026-09-11T00:00:00.000Z",
+          updatedAt: "2026-09-11T00:00:00.000Z",
+        },
+      },
+      inside: {},
+      triggered: {},
+    });
+
+    render(<SmartLocationSettings variant="full" payload={{ plans: [], timezone: "Asia/Seoul" }} />);
+
+    const addBtn = screen.getByRole("button", { name: "장소 추가" });
+    fireEvent.click(addBtn);
+
+    expect(screen.getByText("새 장소 추가")).toBeInTheDocument();
+
+    // Click "헬스장" preset chip
+    const gymChip = screen.getByRole("button", { name: "헬스장" });
+    fireEvent.click(gymChip);
+    expect(screen.getByLabelText("장소 이름")).toHaveValue("헬스장");
+
+    // Click "1000m" preset chip
+    const radius1000Chip = screen.getByRole("button", { name: "1000m" });
+    fireEvent.click(radius1000Chip);
+    expect(screen.getByLabelText("감지 반경 (m)")).toHaveValue(1000);
+
+    // Enter address memo
+    const addressInput = screen.getByLabelText("주소 또는 메모 (선택)");
+    fireEvent.change(addressInput, { target: { value: "역삼동 피트니스" } });
+
+    // Submit with "현재 위치로 추가"
+    const submitBtn = screen.getByRole("button", { name: /현재 위치로 추가/ });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(saveCurrentLocationAsPlace).toHaveBeenCalledWith({
+        name: "헬스장",
+        addressLabel: "역삼동 피트니스",
+        radiusMeters: 1000,
+      });
+      expect(screen.queryByText("새 장소 추가")).not.toBeInTheDocument();
+    });
+  });
 });
+
