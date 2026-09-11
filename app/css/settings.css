@@ -450,9 +450,82 @@
 }
 
 .smart-place-new {
+  overflow: hidden;
   padding: 13px;
   border: 1px dashed #b7bd97;
   border-radius: 16px;
+  background: rgba(216, 239, 103, 0.05);
+  transform-origin: top center;
+  animation: smart-place-new-in 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: max-height, opacity, transform;
+}
+
+@keyframes smart-place-new-in {
+  0% {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: -4px;
+    border-color: transparent;
+    transform: translateY(-10px) scale(0.97);
+  }
+
+  50% {
+    border-color: rgba(183, 189, 151, 0.5);
+  }
+
+  100% {
+    opacity: 1;
+    max-height: 480px;
+    padding-top: 13px;
+    padding-bottom: 13px;
+    margin-top: 0;
+    border-color: #b7bd97;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.smart-place-new > label:nth-of-type(1) {
+  animation: smart-place-item-in 0.28s 0.06s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.smart-place-new > label:nth-of-type(2) {
+  animation: smart-place-item-in 0.28s 0.11s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.smart-place-new > label:nth-of-type(3) {
+  animation: smart-place-item-in 0.28s 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.smart-place-new > .smart-place-new-actions {
+  animation: smart-place-item-in 0.28s 0.19s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes smart-place-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    max-height: 480px;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .smart-place-new label span {
@@ -470,6 +543,19 @@
 .smart-place-add {
   justify-self: start;
   border-style: dashed;
+  animation: smart-place-add-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes smart-place-add-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .smart-place-empty,
