@@ -6,9 +6,15 @@ import { ArrowRight, LockKeyhole, UserPlus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { AppSplash, useAppSplash } from "@/components/AppSplash";
-import { hideNativeSplashScreen } from "@/lib/nativeRuntime";
+import { hideNativeSplashScreen, isNativeAppRuntime } from "@/lib/nativeRuntime";
 
 type AuthMode = "login" | "register";
+
+function isNativeRuntime() {
+  if (typeof window === "undefined") return false;
+  const capacitor = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return isNativeAppRuntime(capacitor, navigator.userAgent);
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -126,7 +132,9 @@ export default function LoginPage() {
     } finally { setBusy(false); }
   }
 
-  if (!splash.ready || splash.visible) return <AppSplash fadingOut={splash.fadingOut} />;
+  if (!isNativeRuntime() && (!splash.ready || splash.visible)) {
+    return <AppSplash fadingOut={splash.fadingOut} />;
+  }
 
   const AuthIcon = mode === "login" ? LockKeyhole : UserPlus;
   return (

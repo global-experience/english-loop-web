@@ -216,18 +216,21 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   }, [refresh]);
 
   useEffect(() => {
+    if (isUnauthorized) return;
     if (!loading || user) {
       void hideNativeSplashScreen(300);
     }
-  }, [loading, user]);
+  }, [loading, user, isUnauthorized]);
 
   useEffect(() => {
     // 안전 타임아웃: 네트워크 지연 시에도 최대 1.5초 후에는 네이티브 스플래시 해제
     const timer = window.setTimeout(() => {
-      void hideNativeSplashScreen(300);
+      if (!isUnauthorized) {
+        void hideNativeSplashScreen(300);
+      }
     }, 1500);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [isUnauthorized]);
 
   useEffect(() => {
     if (!today?.routine || !isNativeRuntime()) return;
@@ -498,6 +501,9 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   };
 
   if (isUnauthorized || (!splash.ready || splash.visible)) {
+    if (isNativeRuntime()) {
+      return <div style={{ minHeight: "100dvh", background: "#18201d" }} />;
+    }
     return <AppSplash fadingOut={splash.fadingOut && !isUnauthorized && (!loading || !!user)} />;
   }
 
