@@ -89,7 +89,8 @@ export function defaultRoutineItem(routineId: string, sortOrder: number): Partia
       enabled: false,
       offsetMinutes: 0,
       trigger: "time",
-      fallbackToTime: true,
+      fallbackToTime: false,
+      timeCompanionEnabled: false,
       locationWindowMinutes: 180,
     },
   };

@@ -1585,6 +1585,16 @@ input[type="time"].routine-field-input::-webkit-calendar-picker-indicator:hover 
   line-height: 1.45;
 }
 
+.routine-field-select.invalid {
+  border-color: #e87755;
+  box-shadow: 0 0 0 2px rgba(232, 119, 85, .15);
+}
+
+.routine-field-error {
+  color: #ff9a7d !important;
+  font-weight: 800;
+}
+
 @media (max-width: 680px) {
   .routine-smart-location-heading {
     grid-template-columns: auto minmax(0, 1fr);

@@ -88,6 +88,7 @@ export type RoutineNotification = {
   trigger?: "time" | "place_enter" | "place_exit" | "home_exit" | "work_enter" | "work_exit";
   locationId?: string | null;
   fallbackToTime?: boolean;
+  timeCompanionEnabled?: boolean;
   locationWindowMinutes?: number;
   title?: string | null;
   body?: string | null;

@@ -10,6 +10,7 @@ const ACTION_SNOOZE = "SNOOZE_10";
 const ACTION_SKIP = "SKIP_TODAY";
 const SETTINGS_KEY = "loopine:smart-location-reminders:v1";
 const WATCHER_KEY = "loopine:smart-location-watcher:v1";
+const DIAGNOSTICS_KEY = "loopine:smart-location-diagnostics:v1";
 const MAX_PENDING_REMINDERS = 48;
 const DEFAULT_HORIZON_DAYS = 14;
 
@@ -97,6 +98,22 @@ export type SmartReminderSettings = {
   triggered: Record<string, number>;
 };
 
+export type SmartLocationDiagnostics = {
+  state: "idle" | "starting" | "monitoring" | "disabled" | "denied" | "unavailable" | "error";
+  updatedAt: string;
+  lastSampleAt?: string;
+  lastAcceptedAt?: string;
+  lastAccuracyMeters?: number | null;
+  lastIgnoredReason?: string;
+  lastError?: string;
+  places: Record<string, {
+    distanceMeters: number;
+    inside: boolean;
+    evaluatedAt: string;
+    transition?: "enter" | "exit";
+  }>;
+};
+
 export type RoutineReminderOccurrence = {
   key: string;
   id: number;
@@ -110,6 +127,12 @@ const DEFAULT_SMART_SETTINGS: SmartReminderSettings = {
   places: {},
   inside: {},
   triggered: {},
+};
+
+const DEFAULT_DIAGNOSTICS: SmartLocationDiagnostics = {
+  state: "idle",
+  updatedAt: new Date(0).toISOString(),
+  places: {},
 };
 
 let actionListener: ListenerHandle | null = null;
@@ -169,12 +192,38 @@ function normalizedNotification(item: RoutineItem) {
     enabled: item.notification?.enabled === true,
     offsetMinutes: Number(item.notification?.offsetMinutes || 0),
     trigger: item.notification?.trigger || "time",
-    fallbackToTime: item.notification?.fallbackToTime !== false,
+    // `fallbackToTime` used to default to true, so old records cannot tell an
+    // intentional companion alert from the legacy default. Only the new,
+    // explicit field may schedule a clock notification for a location trigger.
+    fallbackToTime: item.notification?.timeCompanionEnabled === true,
     locationWindowMinutes: Number(item.notification?.locationWindowMinutes || 180),
     locationId: item.notification?.locationId || null,
     title: item.notification?.title || `Loopine · ${item.name}`,
     body: item.notification?.body || "오늘 루틴을 이어갈 시간이에요.",
   };
+}
+
+export function getSmartLocationDiagnostics(): SmartLocationDiagnostics {
+  if (typeof window === "undefined") return structuredClone(DEFAULT_DIAGNOSTICS);
+  try {
+    const value = JSON.parse(window.localStorage.getItem(DIAGNOSTICS_KEY) || "null") as SmartLocationDiagnostics | null;
+    return value?.state && value.places ? value : structuredClone(DEFAULT_DIAGNOSTICS);
+  } catch {
+    return structuredClone(DEFAULT_DIAGNOSTICS);
+  }
+}
+
+function updateSmartLocationDiagnostics(patch: Partial<SmartLocationDiagnostics>) {
+  if (typeof window === "undefined") return;
+  const current = getSmartLocationDiagnostics();
+  const next: SmartLocationDiagnostics = {
+    ...current,
+    ...patch,
+    places: patch.places ?? current.places,
+    updatedAt: new Date().toISOString(),
+  };
+  window.localStorage.setItem(DIAGNOSTICS_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent("loopine:smart-location-diagnostics-updated", { detail: next }));
 }
 
 function completedTodayItemIds(payload: RoutinePayload) {
@@ -511,20 +560,50 @@ async function fireLocationTransition(transition: "enter" | "exit", placeId: str
 }
 
 async function processLocation(location: NativeLocation) {
-  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return;
-  if (location.accuracy != null && location.accuracy > 250) return;
+  const sampleAt = new Date(location.time || Date.now()).toISOString();
+  if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) {
+    updateSmartLocationDiagnostics({
+      lastSampleAt: sampleAt,
+      lastIgnoredReason: "위치 좌표가 올바르지 않아 무시했어요.",
+    });
+    return;
+  }
+  if (location.accuracy != null && location.accuracy > 250) {
+    updateSmartLocationDiagnostics({
+      lastSampleAt: sampleAt,
+      lastAccuracyMeters: location.accuracy,
+      lastIgnoredReason: `정확도가 낮아(${Math.round(location.accuracy)}m) 판정에서 제외했어요.`,
+    });
+    return;
+  }
   const settings = getSmartReminderSettings();
   if (!settings.enabled) return;
   const transitions: Array<{ transition: "enter" | "exit"; placeId: string }> = [];
+  const placeDiagnostics = { ...getSmartLocationDiagnostics().places };
 
   for (const [placeId, place] of Object.entries(settings.places)) {
     const previous = settings.inside[placeId];
     const result = evaluateSmartPlace(place, location, previous);
     settings.inside[placeId] = result.inside;
     if (result.transition) transitions.push({ transition: result.transition, placeId });
+    placeDiagnostics[placeId] = {
+      distanceMeters: result.distanceMeters,
+      inside: result.inside,
+      evaluatedAt: sampleAt,
+      transition: result.transition,
+    };
   }
 
   saveSmartReminderSettings(settings);
+  updateSmartLocationDiagnostics({
+    state: "monitoring",
+    lastSampleAt: sampleAt,
+    lastAcceptedAt: sampleAt,
+    lastAccuracyMeters: location.accuracy ?? null,
+    lastIgnoredReason: undefined,
+    lastError: undefined,
+    places: placeDiagnostics,
+  });
   for (const event of transitions) await fireLocationTransition(event.transition, event.placeId, new Date());
 }
 
@@ -544,14 +623,22 @@ export async function configureSmartLocationMonitoring(payload?: RoutinePayload)
   if (payload) latestPayload = payload;
   const settings = getSmartReminderSettings();
   const plugin = backgroundGeolocation();
-  if (!plugin?.addWatcher || !plugin.removeWatcher) return "unavailable" as const;
+  if (!plugin?.addWatcher || !plugin.removeWatcher) {
+    updateSmartLocationDiagnostics({ state: "unavailable", lastError: "위치 감지 플러그인을 사용할 수 없어요." });
+    return "unavailable" as const;
+  }
   if (!settings.enabled || Object.keys(settings.places).length === 0) {
     await removeStoredWatcher(plugin);
+    updateSmartLocationDiagnostics({ state: "disabled", lastError: undefined });
     return "disabled" as const;
   }
-  if (activeWatcherId) return "monitoring" as const;
+  if (activeWatcherId) {
+    updateSmartLocationDiagnostics({ state: "monitoring", lastError: undefined });
+    return "monitoring" as const;
+  }
 
   await removeStoredWatcher(plugin);
+  updateSmartLocationDiagnostics({ state: "starting", lastError: undefined });
   try {
     let watcherIdForCallback = "";
     let watcherMustStop = false;
@@ -577,7 +664,12 @@ export async function configureSmartLocationMonitoring(payload?: RoutinePayload)
       distanceFilter: 75,
     }, (location, error) => {
       if (error) {
-        if (/NOT_AUTHORIZED|permission|denied/i.test(`${error.code || ""} ${error.message || ""}`)) {
+        const denied = /NOT_AUTHORIZED|permission|denied/i.test(`${error.code || ""} ${error.message || ""}`);
+        updateSmartLocationDiagnostics({
+          state: denied ? "denied" : "error",
+          lastError: error.message || error.code || "위치 감지 중 오류가 발생했어요.",
+        });
+        if (denied) {
           stopRejectedWatcher();
         }
         if (!errorReported) {
@@ -600,8 +692,13 @@ export async function configureSmartLocationMonitoring(payload?: RoutinePayload)
     }
     activeWatcherId = watcherId;
     window.localStorage.setItem(WATCHER_KEY, activeWatcherId);
+    updateSmartLocationDiagnostics({ state: "monitoring", lastError: undefined });
     return "monitoring" as const;
   } catch (caught) {
+    updateSmartLocationDiagnostics({
+      state: /NOT_AUTHORIZED|permission|denied/i.test(caught instanceof Error ? caught.message : String(caught)) ? "denied" : "error",
+      lastError: caught instanceof Error ? caught.message : String(caught || "위치 감지를 시작하지 못했어요."),
+    });
     window.dispatchEvent(new CustomEvent("loopine:smart-reminder-error", { detail: caught }));
     return "denied" as const;
   }
@@ -610,6 +707,7 @@ export async function configureSmartLocationMonitoring(payload?: RoutinePayload)
 export async function stopSmartLocationMonitoring() {
   const plugin = backgroundGeolocation();
   if (plugin) await removeStoredWatcher(plugin);
+  updateSmartLocationDiagnostics({ state: "disabled", lastError: undefined });
 }
 
 function requestCurrentLocation(): Promise<NativeLocation> {

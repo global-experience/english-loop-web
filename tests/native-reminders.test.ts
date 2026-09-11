@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildRoutineReminderOccurrences, evaluateSmartPlace, getSmartReminderSettings, openNativeLocationSettings, openNativePermissionSettings, saveCurrentLocationAsPlace, savePlaceCoordinates } from "@/lib/nativeReminders";
+import { buildRoutineReminderOccurrences, configureSmartLocationMonitoring, evaluateSmartPlace, getSmartLocationDiagnostics, getSmartReminderSettings, openNativeLocationSettings, openNativePermissionSettings, saveCurrentLocationAsPlace, savePlaceCoordinates, saveSmartReminderSettings, stopSmartLocationMonitoring } from "@/lib/nativeReminders";
 import type { RoutineItem, RoutinePayload } from "@/lib/types";
 
 function item(patch: Partial<RoutineItem> = {}): RoutineItem {
@@ -86,6 +86,32 @@ describe("native routine reminder schedule", () => {
     expect(buildRoutineReminderOccurrences(payload(routineItem), now, 0)).toHaveLength(0);
   });
 
+  it("does not treat the legacy true default as an intentional time companion", () => {
+    const now = new Date(2026, 8, 7, 6, 0, 0);
+    const routineItem = item({
+      notification: { enabled: true, offsetMinutes: 0, trigger: "place_exit", locationId: "office", fallbackToTime: true, locationWindowMinutes: 180 },
+    });
+
+    expect(buildRoutineReminderOccurrences(payload(routineItem), now, 0)).toHaveLength(0);
+  });
+
+  it("adds a time alert only when the new companion option is explicitly enabled", () => {
+    const now = new Date(2026, 8, 7, 6, 0, 0);
+    const routineItem = item({
+      notification: {
+        enabled: true,
+        offsetMinutes: 0,
+        trigger: "place_exit",
+        locationId: "office",
+        fallbackToTime: true,
+        timeCompanionEnabled: true,
+        locationWindowMinutes: 180,
+      },
+    });
+
+    expect(buildRoutineReminderOccurrences(payload(routineItem), now, 0)).toHaveLength(1);
+  });
+
   it("does not reschedule a completed occurrence", () => {
     const now = new Date(2026, 8, 7, 6, 0, 0);
     const routineItem = item();
@@ -145,6 +171,87 @@ describe("smart location transition hysteresis", () => {
     expect(boundaryNoise.transition).toBeUndefined();
     expect(inside.inside).toBe(true);
     expect(inside.transition).toBe("enter");
+  });
+});
+
+describe("smart location runtime diagnostics", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("records accepted native samples and the current inside/outside decision", async () => {
+    let locationCallback: ((location?: { latitude: number; longitude: number; accuracy?: number }, error?: { code?: string; message?: string }) => void) | undefined;
+    const removeWatcher = vi.fn().mockResolvedValue(undefined);
+    const addWatcher = vi.fn().mockImplementation((_options, callback) => {
+      locationCallback = callback;
+      return Promise.resolve("diagnostics-watcher");
+    });
+    const runtimeWindow = window as Window & {
+      Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> };
+    };
+    runtimeWindow.Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: { BackgroundGeolocation: { addWatcher, removeWatcher } },
+    };
+    saveSmartReminderSettings({
+      enabled: true,
+      places: {
+        office: {
+          id: "office",
+          name: "회사",
+          latitude: 37.5,
+          longitude: 127,
+          radiusMeters: 500,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      inside: {},
+      triggered: {},
+    });
+
+    await expect(configureSmartLocationMonitoring({ timezone: "Asia/Seoul", plans: [] })).resolves.toBe("monitoring");
+    locationCallback?.({ latitude: 37.5, longitude: 127, accuracy: 18 });
+    await vi.waitFor(() => expect(getSmartLocationDiagnostics().lastAcceptedAt).toBeTruthy());
+
+    expect(getSmartLocationDiagnostics()).toMatchObject({
+      state: "monitoring",
+      lastAccuracyMeters: 18,
+      places: { office: { inside: true } },
+    });
+
+    await stopSmartLocationMonitoring();
+    delete runtimeWindow.Capacitor;
+  });
+
+  it("exposes low-accuracy samples instead of silently using them", async () => {
+    let locationCallback: ((location?: { latitude: number; longitude: number; accuracy?: number }, error?: { code?: string; message?: string }) => void) | undefined;
+    const runtimeWindow = window as Window & {
+      Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> };
+    };
+    runtimeWindow.Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: {
+        BackgroundGeolocation: {
+          addWatcher: vi.fn().mockImplementation((_options, callback) => {
+            locationCallback = callback;
+            return Promise.resolve("accuracy-watcher");
+          }),
+          removeWatcher: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    };
+    saveSmartReminderSettings({
+      enabled: true,
+      places: { office: { id: "office", name: "회사", latitude: 37.5, longitude: 127, radiusMeters: 500, updatedAt: new Date().toISOString() } },
+      inside: {},
+      triggered: {},
+    });
+
+    await configureSmartLocationMonitoring({ timezone: "Asia/Seoul", plans: [] });
+    locationCallback?.({ latitude: 37.5, longitude: 127, accuracy: 420 });
+    await vi.waitFor(() => expect(getSmartLocationDiagnostics().lastIgnoredReason).toContain("420m"));
+
+    expect(getSmartLocationDiagnostics().lastAcceptedAt).toBeUndefined();
+    await stopSmartLocationMonitoring();
+    delete runtimeWindow.Capacitor;
   });
 });
 

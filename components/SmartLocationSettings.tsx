@@ -19,6 +19,7 @@ import { fetchRoutines } from "@/lib/routines";
 import type { RoutinePayload } from "@/lib/types";
 import {
   configureSmartLocationMonitoring,
+  getSmartLocationDiagnostics,
   getSmartReminderSettings,
   openNativePermissionSettings,
   requestNativeNotificationPermission,
@@ -30,6 +31,7 @@ import {
   syncNativeRoutineReminders,
   updateSmartPlace,
   type SmartPlace,
+  type SmartLocationDiagnostics,
   type SmartReminderSettings,
 } from "@/lib/nativeReminders";
 import { presentNativePlacePicker, type NativePlacePickerSelection as MapPlaceSelection } from "@/lib/nativePlacePicker";
@@ -70,10 +72,30 @@ function friendlyError(caught: unknown) {
   return "현재 위치를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
 }
 
+function diagnosticStateLabel(diagnostics: SmartLocationDiagnostics, enabled: boolean) {
+  if (!enabled || diagnostics.state === "disabled") return "감지 꺼짐";
+  if (diagnostics.state === "monitoring") return diagnostics.lastAcceptedAt ? "위치 감지 정상" : "첫 위치 확인 대기 중";
+  if (diagnostics.state === "starting") return "위치 감지 시작 중";
+  if (diagnostics.state === "denied") return "위치 권한 필요";
+  if (diagnostics.state === "unavailable") return "위치 감지 사용 불가";
+  if (diagnostics.state === "error") return "위치 감지 오류";
+  return "위치 감지 대기 중";
+}
+
+function relativeDiagnosticTime(value?: string) {
+  if (!value) return "아직 없음";
+  const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
+  if (elapsed < 60_000) return "방금 전";
+  if (elapsed < 60 * 60_000) return `${Math.floor(elapsed / 60_000)}분 전`;
+  if (elapsed < 24 * 60 * 60_000) return `${Math.floor(elapsed / (60 * 60_000))}시간 전`;
+  return `${Math.floor(elapsed / (24 * 60 * 60_000))}일 전`;
+}
+
 export function SmartLocationSettings({ payload: initialPayload, variant = "full" }: Props) {
   const { native } = useMobileUi();
   const portalReady = usePortalReady();
   const [settings, setSettings] = useState<SmartReminderSettings>(() => getSmartReminderSettings());
+  const [diagnostics, setDiagnostics] = useState<SmartLocationDiagnostics>(() => getSmartLocationDiagnostics());
   const [initiallyEnabled] = useState(() => getSmartReminderSettings().enabled && readPermissionIssue() !== "notification");
   const [payload, setPayload] = useState<RoutinePayload | undefined>(initialPayload);
   const [expanded, setExpanded] = useState(variant === "full");
@@ -114,6 +136,13 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
     const refresh = () => setSettings(getSmartReminderSettings());
     window.addEventListener("loopine:smart-reminders-updated", refresh);
     return () => window.removeEventListener("loopine:smart-reminders-updated", refresh);
+  }, [native]);
+
+  useEffect(() => {
+    if (!native) return;
+    const refresh = () => setDiagnostics(getSmartLocationDiagnostics());
+    window.addEventListener("loopine:smart-location-diagnostics-updated", refresh);
+    return () => window.removeEventListener("loopine:smart-location-diagnostics-updated", refresh);
   }, [native]);
 
   useEffect(() => {
@@ -560,6 +589,32 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
             )}
 
             <p className="smart-location-privacy"><ShieldCheck size={15} /> 장소별 기본 반경은 500m이며 80~2,000m 사이에서 조정할 수 있습니다.</p>
+            <details className="smart-location-diagnostics">
+              <summary>
+                <span className={`smart-location-diagnostic-dot ${diagnostics.state}`} aria-hidden="true" />
+                <strong>{diagnosticStateLabel(diagnostics, isActive)}</strong>
+                <small>마지막 유효 위치 {relativeDiagnosticTime(diagnostics.lastAcceptedAt)}</small>
+              </summary>
+              <div>
+                <p>
+                  마지막 수신 {relativeDiagnosticTime(diagnostics.lastSampleAt)}
+                  {diagnostics.lastAccuracyMeters != null ? ` · 정확도 약 ${Math.round(diagnostics.lastAccuracyMeters)}m` : ""}
+                </p>
+                {diagnostics.lastIgnoredReason && <p className="warning">{diagnostics.lastIgnoredReason}</p>}
+                {diagnostics.lastError && <p className="warning">{diagnostics.lastError}</p>}
+                {places.map((place) => {
+                  const result = diagnostics.places[place.id];
+                  return (
+                    <p key={place.id}>
+                      {result
+                        ? `${place.name}: ${result.inside ? "반경 안" : "반경 밖"} · 약 ${Math.round(result.distanceMeters)}m`
+                        : `${place.name}: 아직 판정 전`}
+                    </p>
+                  );
+                })}
+                <small>500m 반경은 GPS 흔들림을 막기 위해 진입 약 480m, 이탈 약 550m에서 확정합니다.</small>
+              </div>
+            </details>
             {status && <p className="smart-location-status" role="status">{status}</p>}
             {/* {permissionIssue && (
               <button

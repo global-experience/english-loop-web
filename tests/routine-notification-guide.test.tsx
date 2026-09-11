@@ -75,6 +75,7 @@ describe("smart reminder routine guide", () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
     delete (window as RuntimeWindow).Capacitor;
   });
 
@@ -92,6 +93,26 @@ describe("smart reminder routine guide", () => {
     expect(screen.getByLabelText("알림 실행 조건")).toBeInTheDocument();
 
     await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" }));
+  });
+
+  it("makes a newly selected location trigger location-only and selects an available place", async () => {
+    window.localStorage.setItem("loopine:smart-location-reminders:v1", JSON.stringify({
+      enabled: true,
+      places: {
+        office: { id: "office", name: "회사", latitude: 37.5, longitude: 127, radiusMeters: 500, updatedAt: new Date().toISOString() },
+      },
+      inside: {},
+      triggered: {},
+    }));
+    render(<RoutineManagerView onBack={vi.fn()} onRefresh={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "가이드 시작" }));
+    fireEvent.click(await screen.findByRole("button", { name: /가이드 보기/ }));
+
+    fireEvent.change(await screen.findByLabelText("알림 실행 조건"), { target: { value: "place_exit" } });
+
+    expect(screen.getByLabelText("알림 장소")).toHaveValue("office");
+    expect(screen.getByRole("button", { name: "설정 시간에도 함께 알림" })).not.toHaveClass("selected");
+    expect(screen.getByText(/장소 진입·이탈이 감지될 때만/)).toBeInTheDocument();
   });
 
   it("creates a routine item when the first plan is empty, then opens the same guide", async () => {

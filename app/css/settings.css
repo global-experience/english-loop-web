@@ -532,6 +532,68 @@
   line-height: 1.5;
 }
 
+.smart-location-diagnostics {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .42);
+}
+
+.smart-location-diagnostics summary {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 10px;
+}
+
+.smart-location-diagnostics summary::-webkit-details-marker {
+  display: none;
+}
+
+.smart-location-diagnostics summary small {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.smart-location-diagnostic-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9b9d96;
+}
+
+.smart-location-diagnostic-dot.monitoring {
+  background: var(--acid);
+  box-shadow: 0 0 0 4px rgba(217, 247, 68, .2);
+}
+
+.smart-location-diagnostic-dot.denied,
+.smart-location-diagnostic-dot.error {
+  background: #e87755;
+}
+
+.smart-location-diagnostics > div {
+  display: grid;
+  gap: 5px;
+  padding: 0 12px 12px 28px;
+}
+
+.smart-location-diagnostics p,
+.smart-location-diagnostics > div > small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.smart-location-diagnostics p.warning {
+  color: #a9462f;
+}
+
 .smart-place-empty,
 .smart-location-privacy {
   display: flex;

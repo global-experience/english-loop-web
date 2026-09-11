@@ -721,8 +721,9 @@ function RoutineItemEditorModal({
   const [notificationLocationId, setNotificationLocationId] = useState(initialLocationId);
   const [smartPlaces, setSmartPlaces] = useState(() => Object.values(getSmartReminderSettings().places));
   const [notificationOffset, setNotificationOffset] = useState(item.notification.offsetMinutes || 0);
-  const [fallbackToTime, setFallbackToTime] = useState(item.notification.fallbackToTime !== false);
+  const [fallbackToTime, setFallbackToTime] = useState(item.notification.timeCompanionEnabled === true);
   const [locationWindowMinutes, setLocationWindowMinutes] = useState(item.notification.locationWindowMinutes || 180);
+  const [notificationError, setNotificationError] = useState("");
   const [repeatOptions, setRepeatOptions] = useState<number[]>(item.config.repeatOptions);
   const [speedOptions, setSpeedOptions] = useState<number[]>(item.config.speedOptions);
   const [defaultRepeat, setDefaultRepeat] = useState(item.config.defaultRepeat);
@@ -759,6 +760,13 @@ function RoutineItemEditorModal({
 
   async function handleFormSubmit(event: FormEvent) {
     event.preventDefault();
+    if (native && notificationEnabled && notificationTrigger !== "time" && !notificationLocationId) {
+      setNotificationError("장소 알림을 받으려면 알림 장소를 선택해주세요.");
+      notificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => document.getElementById("routine-notification-location")?.focus(), 320);
+      return;
+    }
+    setNotificationError("");
     await onSave({
       name: name.trim() || item.name,
       icon: selectedIcon,
@@ -791,6 +799,7 @@ function RoutineItemEditorModal({
         locationId: native ? (notificationTrigger === "time" ? null : notificationLocationId || null) : item.notification.locationId,
         offsetMinutes: Number(notificationOffset) || 0,
         fallbackToTime: native ? fallbackToTime : item.notification.fallbackToTime,
+        timeCompanionEnabled: native ? fallbackToTime : item.notification.timeCompanionEnabled,
         locationWindowMinutes: native ? Number(locationWindowMinutes) || 180 : item.notification.locationWindowMinutes,
       },
     });
@@ -1019,7 +1028,15 @@ function RoutineItemEditorModal({
                       id="routine-notification-trigger"
                       className="routine-field-select"
                       value={notificationTrigger}
-                      onChange={(event) => setNotificationTrigger(event.target.value as typeof notificationTrigger)}
+                      onChange={(event) => {
+                        const next = event.target.value as typeof notificationTrigger;
+                        setNotificationTrigger(next);
+                        setNotificationError("");
+                        if (next !== "time") {
+                          setFallbackToTime(false);
+                          setNotificationLocationId((current) => current || smartPlaces[0]?.id || "");
+                        }
+                      }}
                     >
                       <option value="time">설정한 시간</option>
                       {/* Native geofencing choices must not appear in desktop/mobile web or PWA. */}
@@ -1044,24 +1061,31 @@ function RoutineItemEditorModal({
                 {native && notificationTrigger !== "time" && (
                   <div className="routine-location-trigger-options">
                     <div className="routine-field-group">
-                      <label htmlFor="routine-notification-location">알림 장소 (선택)</label>
+                      <label htmlFor="routine-notification-location">알림 장소</label>
                       <select
                         id="routine-notification-location"
-                        className="routine-field-select"
+                        className={`routine-field-select${notificationError ? " invalid" : ""}`}
                         value={notificationLocationId}
-                        onChange={(event) => setNotificationLocationId(event.target.value)}
+                        required
+                        aria-invalid={Boolean(notificationError)}
+                        aria-describedby={notificationError ? "routine-notification-location-error" : undefined}
+                        onChange={(event) => {
+                          setNotificationLocationId(event.target.value);
+                          setNotificationError("");
+                        }}
                       >
-                        <option value="">장소를 선택하지 않음</option>
+                        <option value="">장소 선택</option>
                         {smartPlaces.map((place) => <option key={place.id} value={place.id}>{place.name} · 반경 {place.radiusMeters}m</option>)}
                       </select>
-                      <small>{smartPlaces.length ? "장소는 설정 탭에서 추가·수정할 수 있어요." : "설정 탭에서 먼저 집·회사 등의 장소를 추가해주세요."}</small>
+                      {notificationError && <small id="routine-notification-location-error" className="routine-field-error" role="alert">{notificationError}</small>}
+                      <small>{smartPlaces.length ? "장소는 이 페이지의 스마트 위치 알림에서 추가·수정할 수 있어요." : "먼저 스마트 위치 알림에서 집·회사 등의 장소를 추가해주세요."}</small>
                     </div>
                     <button
                       type="button"
                       className={`routine-toggle-btn ${fallbackToTime ? "selected" : ""}`}
                       onClick={() => setFallbackToTime((current) => !current)}
                     >
-                      {fallbackToTime ? <Check size={14} /> : null} 위치를 못 잡으면 시간 알림
+                      {fallbackToTime ? <Check size={14} /> : null} 설정 시간에도 함께 알림
                     </button>
                     <div className="routine-field-group">
                       <label htmlFor="routine-location-window">루틴 시간 기준 감지 범위 (분)</label>
@@ -1076,7 +1100,7 @@ function RoutineItemEditorModal({
                         onChange={(event) => setLocationWindowMinutes(Number(event.target.value))}
                       />
                     </div>
-                    <p>해당 시간 범위 밖의 출입은 학습 알림으로 처리하지 않아 반복 알림을 줄입니다.</p>
+                    <p>{fallbackToTime ? "장소 진입·이탈 알림과 별도로 설정 시간에도 한 번 알려드려요. " : "현재는 장소 진입·이탈이 감지될 때만 알려드려요. "}해당 시간 범위 밖의 출입은 학습 알림으로 처리하지 않습니다.</p>
                   </div>
                 )}
               </div>
