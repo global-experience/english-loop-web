@@ -80,6 +80,7 @@ export type SmartPlace = {
   latitude: number;
   longitude: number;
   radiusMeters: number;
+  createdAt?: string;
   updatedAt: string;
 };
 
