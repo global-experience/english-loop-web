@@ -5,6 +5,7 @@ import { MouseEvent as ReactMouseEvent, TouchEvent, useCallback, useEffect, useM
 import { createPortal } from "react-dom";
 import { Bookmark, ChevronLeft, ChevronRight, Eye, EyeOff, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Sparkles, Volume2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { cancelRoutineReminderOccurrence } from "@/lib/nativeReminders";
 import { isMobileDeviceRuntime, isNativeAppRuntime } from "@/lib/nativeRuntime";
 import { useYouTubeStore, youtubeStore } from "@/lib/youtubeStore";
 import type { TranscriptSegment } from "@/lib/youtubeStore";
@@ -846,6 +847,7 @@ export function YouTubePractice({ active = true, entry, presets, onChangeContent
     const now = Date.now();
     if (now - translateClickRef.current < 500) return;
     translateClickRef.current = now;
+    setSpeechOpen(false);
     const position = panelPosition(event);
     const nativeBridge = mobileTranslationUi ? getNativeTranslationBridge() : undefined;
     const nativePayload = (translation = "", loading = false, error = "") => ({
@@ -962,6 +964,7 @@ export function YouTubePractice({ active = true, entry, presets, onChangeContent
         actual_minutes: entry.routineSnapshot?.estimated_minutes || 0,
       }),
     }).then(async () => {
+      await cancelRoutineReminderOccurrence(entry.routineItemId!);
       setSessionMessage(`${routineProgress.label} 목표 ${routineProgress.target}개를 달성해 오늘 루틴을 완료했어요.`);
       await onRefresh();
     }).catch(() => {
@@ -988,6 +991,7 @@ export function YouTubePractice({ active = true, entry, presets, onChangeContent
           missing_words: Array.from(missingWords),
         }),
       });
+      if (entry.routineItemId) await cancelRoutineReminderOccurrence(entry.routineItemId);
       await onRefresh();
       if (next === "review") onOpenReview();
       else if (next === "routine") onNextRoutine();
@@ -1126,7 +1130,7 @@ export function YouTubePractice({ active = true, entry, presets, onChangeContent
         {!loading && transcript && selected && (
           <>
             <div className={`youtube-shadowing sentence-swipe-stage ${nextLineHint ? "show-next-hint" : ""}`} onTouchStart={(event) => { touchStartRef.current = event.touches[0].clientX; }} onTouchEnd={handleSentenceSwipeEnd}>
-              <div className="selected-line-meta"><p className="eyebrow">LINE {selectedIndex + 1} / {transcript.segments.length} · {formatTime(selected.start)}</p><button className="record-inline-button" onClick={() => setSpeechOpen(true)}><Mic size={16} /> 녹음</button></div>
+              <div className="selected-line-meta"><p className="eyebrow">LINE {selectedIndex + 1} / {transcript.segments.length} · {formatTime(selected.start)}</p><button className="record-inline-button" onClick={() => { setTranslationPanel(null); setSpeechOpen(true); }}><Mic size={16} /> 녹음</button></div>
               <h3
                 className={`selectable-text ${!showTranscriptText ? "blurred-text" : ""}`}
                 data-segment-id={selected.id}
@@ -1144,7 +1148,7 @@ export function YouTubePractice({ active = true, entry, presets, onChangeContent
                   : nextLineHint ? "반복 완료 · 옆으로 밀어 다음 문장으로 이동하세요." : "재생을 누르면 이 자막 구간만 반복합니다."}
               </p>
               <div className="current-sentence-tools">
-                <button type="button" onClick={(event) => void requestSegmentTranslation(selected, event)} aria-haspopup="dialog"><Languages size={15} /> 번역 보기</button>
+                <button type="button" onClick={(event) => { setSpeechOpen(false); void requestSegmentTranslation(selected, event); }} aria-haspopup="dialog"><Languages size={15} /> 번역 보기</button>
                 <button
                   type="button"
                   className={savedLines.has(selected.id) ? "saved" : ""}

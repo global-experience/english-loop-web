@@ -978,6 +978,9 @@
   flex-direction: column;
   gap: 16px;
   margin-top: 14px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Form Sections */
@@ -989,6 +992,9 @@
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .routine-form-section h3 {
@@ -1008,6 +1014,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .routine-field-group label {
@@ -1019,6 +1029,10 @@
 .routine-field-row {
   display: grid;
   gap: 12px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .routine-field-row.grid-2 {
@@ -1033,14 +1047,19 @@
 
   .routine-field-row.grid-2,
   .routine-field-row.grid-3 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 .routine-field-input,
 .routine-field-select {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   height: 42px;
+  line-height: 40px;
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 13px;
@@ -1049,6 +1068,52 @@
   font-size: 13px;
   font-weight: 600;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="time"].routine-field-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 42px;
+  line-height: 40px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  text-align: center;
+  vertical-align: middle;
+}
+
+input[type="time"].routine-field-input::-webkit-date-and-time-value {
+  min-height: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 40px;
+}
+
+input[type="time"].routine-field-input::-webkit-datetime-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0;
+}
+
+input[type="time"].routine-field-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+input[type="time"].routine-field-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 .routine-field-select option {
@@ -1258,6 +1323,224 @@
   background: rgba(255, 255, 255, .36);
   font-size: 10px;
   font-weight: 850;
+}
+
+/* ── Smart time + location reminders ───────────────────────────────────── */
+.routine-smart-location {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, .52);
+  box-shadow: 0 12px 32px rgba(21, 31, 27, .06);
+}
+
+.routine-smart-location-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+}
+
+.routine-smart-location-heading>span {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--acid);
+}
+
+.routine-smart-location-heading .eyebrow {
+  margin: 0 0 3px;
+  font-size: 9px;
+}
+
+.routine-smart-location-heading h3 {
+  margin: 0;
+  font: 780 17px var(--font-display);
+  color: var(--ink);
+}
+
+.routine-smart-location-heading p:not(.eyebrow) {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.routine-smart-toggle {
+  min-width: 78px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--cream);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.routine-smart-toggle.active {
+  color: #fff;
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.routine-smart-radius {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.routine-smart-radius select {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--cream);
+  font: inherit;
+}
+
+.routine-smart-places {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.routine-smart-places article {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--surface);
+}
+
+.routine-smart-place-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink);
+  background: rgba(24, 32, 29, .08);
+}
+
+.routine-smart-places article>div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.routine-smart-places strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.routine-smart-places small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routine-smart-places button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.routine-smart-places button.remove {
+  width: 34px;
+  padding: 0;
+  color: #9e3f30;
+}
+
+.routine-smart-privacy,
+.routine-smart-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.routine-smart-privacy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.routine-smart-status {
+  padding: 9px 11px;
+  border-radius: 11px;
+  color: var(--ink);
+  background: rgba(216, 239, 103, .34);
+}
+
+.routine-notification-options {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+}
+
+.routine-location-trigger-options {
+  display: grid;
+  grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
+  align-items: end;
+  gap: 10px;
+}
+
+.routine-location-trigger-options>p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: rgba(255, 255, 255, .48);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 680px) {
+  .routine-smart-location-heading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .routine-smart-toggle {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .routine-smart-places {
+    grid-template-columns: 1fr;
+  }
+
+  .routine-location-trigger-options {
+    grid-template-columns: 1fr;
+  }
+
+  .routine-location-trigger-options>p {
+    grid-column: auto;
+  }
 }
 
 /* ── Common Confirm / Delete Modal & Bottom Sheet ───────────────────────── */
@@ -2642,6 +2925,7 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+
   .youtube-shadowing h3.blurred-text:hover,
   .selectable-text.blurred-text:hover {
     opacity: 1;
@@ -4023,6 +4307,7 @@
 .segmented button.active {
   color: white;
   background: var(--ink);
+  transition: all .25s ease;
 }
 
 .speech-storage-warning {
@@ -4139,7 +4424,7 @@
   width: 100%;
   pointer-events: none;
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.22s ease-out;
+    opacity 0.22s ease-out;
   will-change: transform, opacity;
   transform: translate3d(0, -100%, 0);
   opacity: 0;
@@ -4993,29 +5278,63 @@
     margin: 4px 0 4px;
   }
 }
+
 /* ══════════════════ 관심 주제 (온보딩·설정) ══════════════════ */
 
 /* ── Onboarding animations ───────────────────────────────── */
 @keyframes ob-fade-up {
-  from { opacity: 0; transform: translateY(22px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes ob-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes ob-chip-pop {
-  0%   { transform: scale(.96); opacity: 0; }
-  60%  { transform: scale(1.03); }
-  100% { transform: scale(1);   opacity: 1; }
+  0% {
+    transform: scale(.96);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes ob-check-in {
-  0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
-  60%  { transform: scale(1.25) rotate(5deg); opacity: 1; }
-  100% { transform: scale(1) rotate(0deg);   opacity: 1; }
+  0% {
+    transform: scale(0) rotate(-20deg);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.25) rotate(5deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
 }
 
 /* ── Loading ─────────────────────────────────────────────── */
@@ -5179,18 +5498,53 @@
 }
 
 /* 최대 12개 칩까지 stagger. 그 이상은 마지막 delay 유지 */
-.onboarding-chip:nth-child(1)  { animation-delay: .32s; }
-.onboarding-chip:nth-child(2)  { animation-delay: .37s; }
-.onboarding-chip:nth-child(3)  { animation-delay: .42s; }
-.onboarding-chip:nth-child(4)  { animation-delay: .47s; }
-.onboarding-chip:nth-child(5)  { animation-delay: .52s; }
-.onboarding-chip:nth-child(6)  { animation-delay: .57s; }
-.onboarding-chip:nth-child(7)  { animation-delay: .62s; }
-.onboarding-chip:nth-child(8)  { animation-delay: .67s; }
-.onboarding-chip:nth-child(9)  { animation-delay: .70s; }
-.onboarding-chip:nth-child(10) { animation-delay: .73s; }
-.onboarding-chip:nth-child(11) { animation-delay: .76s; }
-.onboarding-chip:nth-child(n+12) { animation-delay: .78s; }
+.onboarding-chip:nth-child(1) {
+  animation-delay: .32s;
+}
+
+.onboarding-chip:nth-child(2) {
+  animation-delay: .37s;
+}
+
+.onboarding-chip:nth-child(3) {
+  animation-delay: .42s;
+}
+
+.onboarding-chip:nth-child(4) {
+  animation-delay: .47s;
+}
+
+.onboarding-chip:nth-child(5) {
+  animation-delay: .52s;
+}
+
+.onboarding-chip:nth-child(6) {
+  animation-delay: .57s;
+}
+
+.onboarding-chip:nth-child(7) {
+  animation-delay: .62s;
+}
+
+.onboarding-chip:nth-child(8) {
+  animation-delay: .67s;
+}
+
+.onboarding-chip:nth-child(9) {
+  animation-delay: .70s;
+}
+
+.onboarding-chip:nth-child(10) {
+  animation-delay: .73s;
+}
+
+.onboarding-chip:nth-child(11) {
+  animation-delay: .76s;
+}
+
+.onboarding-chip:nth-child(n+12) {
+  animation-delay: .78s;
+}
 
 @media (hover: hover) and (pointer: fine) {
   .onboarding-chip:hover {

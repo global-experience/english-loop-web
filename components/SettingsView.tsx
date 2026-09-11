@@ -10,6 +10,7 @@ import { isHapticsEnabled, setHapticsEnabled, triggerHapticImpact } from "@/lib/
 import { DEFAULT_LEARNING_PRESETS, readLearningPresets, saveLearningPresets, type LearningPresetOptions } from "@/lib/learningSession";
 import { usePortalReady } from "@/lib/useMobileUi";
 import { SettingsSkeleton } from "./SettingsSkeleton";
+import { SmartLocationSettings } from "./SmartLocationSettings";
 
 export function SettingsView({
   user: initialUser,
@@ -145,6 +146,7 @@ export function SettingsView({
       <section><div className="settings-heading"><span>04</span><div><h3>시간과 녹음 정책</h3><p>학습 녹음 오디오는 기기에 저장하고 서버에는 STT 비교 기록만 저장합니다.</p></div></div><label>하루 기본 학습 시간<input name="daily_minutes" type="number" min="30" max="240" defaultValue={user.daily_minutes} /></label><label>학습 기록 보관일<input name="recording_retention_days" type="number" min="0" max="365" defaultValue={user.recording_retention_days} /></label></section>
       {/* <section><div className="settings-heading"><span>04</span><div><h3>앱 반응 및 햅틱</h3><p>버튼 터치 및 탭 전환 시 진동/햅틱 반응을 제어합니다.</p></div></div><button type="button" className="secondary-button wide" onClick={toggleHaptics} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ display: "flex", alignItems: "center", gap: "8px" }}><Vibrate size={17}/> 터치 햅틱 반응</span><strong>{hapticsOn ? "켜짐 ON" : "꺼짐 OFF"}</strong></button></section> */}
       {message && <p className="save-message" role="status">{message}</p>}<button className="primary-button wide"><Save size={18} /> 설정 저장</button></form>
+    <SmartLocationSettings variant="full" />
     <section className="settings-preferences">
       <div className="section-heading">
         <div>
@@ -192,4 +194,3 @@ export function SettingsView({
 export { SettingsSkeleton } from "./SettingsSkeleton";
 
 function formatBytes(bytes: number) { if (!bytes) return "0 B"; const units = ["B", "KB", "MB", "GB"]; const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1); return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`; }
-

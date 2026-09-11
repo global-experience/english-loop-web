@@ -8,6 +8,7 @@ export type PlatformType = "ios" | "android" | "web";
 export function useMobileUi() {
   const [mobile, setMobile] = useState(false);
   const [platform, setPlatform] = useState<PlatformType>("web");
+  const [native, setNative] = useState(false);
 
   useEffect(() => {
     const query = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(max-width: 767px)") : null;
@@ -20,7 +21,9 @@ export function useMobileUi() {
 
     const update = () => {
       const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-      setMobile(isNativeAppRuntime(capacitor, ua) || query?.matches === true);
+      const isNative = isNativeAppRuntime(capacitor, ua);
+      setNative(isNative);
+      setMobile(isNative || query?.matches === true);
       const capacitorPlatform = capacitor?.getPlatform?.();
       const isIPadOs = typeof navigator !== "undefined" && navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
       if (capacitorPlatform === "ios" || (typeof navigator !== "undefined" && /iPad|iPhone|iPod/i.test(ua)) || isIPadOs) {
@@ -37,7 +40,7 @@ export function useMobileUi() {
     return () => query?.removeEventListener?.("change", update);
   }, []);
 
-  return { mobile, platform };
+  return { mobile, platform, native };
 }
 
 export function usePortalReady() {

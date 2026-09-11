@@ -193,7 +193,7 @@ export function SpeechPracticeSheet({
     sttProviderRef.current = "MOCK";
   }, [open, lineId]);
 
-  useBodyScrollLock(open);
+  useBodyScrollLock(mobile ? open : false);
 
   // Auto close popup when switching tabs
   useEffect(() => {

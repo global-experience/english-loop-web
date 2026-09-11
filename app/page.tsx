@@ -18,6 +18,7 @@ import { isNativeAppRuntime } from "@/lib/nativeRuntime";
 import type { LearningSessionEntry } from "@/lib/learningSession";
 import type { ReviewLearningTarget } from "@/components/ReviewView";
 import type { Activity, FeedVideo } from "@/lib/types";
+import { getSmartReminderSettings, initializeNativeReminderRuntime, syncNativeRoutineReminders } from "@/lib/nativeReminders";
 import {
   APP_TABS,
   emitTabReselect,
@@ -125,7 +126,7 @@ function getInitialRoute() {
   return {
     tab,
     mode: mode === "morning" || mode === "lunch" || mode === "evening" || mode === "library" || mode === "youtube" ? mode : null,
-    learningEntry: (contentId || routineItemId) && (entrySource === "today" || entrySource === "feed" || entrySource === "library" || entrySource === "review" || entrySource === "direct") ? {
+    learningEntry: (contentId || routineItemId) && (entrySource === "today" || entrySource === "feed" || entrySource === "library" || entrySource === "review" || entrySource === "direct" || entrySource === "notification") ? {
       contentId,
       transcriptLineId,
       entrySource,
@@ -209,6 +210,13 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!today?.routine || !isNativeRuntime()) return;
+    void initializeNativeReminderRuntime()
+      .then(() => syncNativeRoutineReminders(today.routine!, { requestPermission: false }))
+      .catch(() => undefined);
+  }, [today?.routine]);
 
   useEffect(() => {
     const handleRoutinesUpdated = () => {
@@ -336,6 +344,34 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
       window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
     });
   }, []);
+
+  useEffect(() => {
+    if (!isNativeRuntime() || getSmartReminderSettings().enabled) return;
+    const countedKey = "loopine:smart-reminder-launch-counted:v1";
+    const suggestionKey = "loopine:smart-reminder-suggestion:v1";
+    if (window.sessionStorage.getItem(countedKey)) return;
+    window.sessionStorage.setItem(countedKey, "1");
+
+    let state = { launches: 0, lastPromptAt: 0 };
+    try {
+      state = { ...state, ...JSON.parse(window.localStorage.getItem(suggestionKey) || "{}") };
+    } catch {
+      // Invalid legacy state is replaced below.
+    }
+    state.launches += 1;
+    const thirtyDays = 30 * 24 * 60 * 60 * 1_000;
+    const shouldSuggest = state.launches >= 5 && Date.now() - state.lastPromptAt >= thirtyDays;
+    if (shouldSuggest) state.lastPromptAt = Date.now();
+    window.localStorage.setItem(suggestionKey, JSON.stringify(state));
+    if (!shouldSuggest) return;
+
+    const timer = window.setTimeout(() => {
+      if (window.confirm("Loopine을 꾸준히 사용하고 있네요. 집이나 회사 도착·이탈에 맞춘 스마트 루틴 알림을 한번 사용해볼까요?")) {
+        switchTab("settings");
+      }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [switchTab]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

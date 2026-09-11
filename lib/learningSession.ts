@@ -1,6 +1,6 @@
 import type { Content, RoutineItemConfig, RoutineSnapshot } from "@/lib/types";
 
-export type LearningEntrySource = "today" | "feed" | "library" | "review" | "direct";
+export type LearningEntrySource = "today" | "feed" | "library" | "review" | "direct" | "notification";
 export type RoutineStep = "MORNING_COMMUTE" | "LUNCH" | "EVENING_COMMUTE" | "NIGHT_VOICE";
 
 export type LearningSessionEntry = {

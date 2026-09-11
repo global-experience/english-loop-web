@@ -85,6 +85,10 @@ export type RoutineItemConfig = {
 export type RoutineNotification = {
   enabled: boolean;
   offsetMinutes: number;
+  trigger?: "time" | "place_enter" | "place_exit" | "home_exit" | "work_enter" | "work_exit";
+  locationId?: string | null;
+  fallbackToTime?: boolean;
+  locationWindowMinutes?: number;
   title?: string | null;
   body?: string | null;
 };

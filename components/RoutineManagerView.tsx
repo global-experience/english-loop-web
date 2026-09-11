@@ -5,10 +5,12 @@ import { createPortal } from "react-dom";
 import { ArrowDown, ArrowLeft, ArrowUp, Bell, Check, Copy, GripVertical, LoaderCircle, Pencil, Plus, RotateCcw, Save, Trash2, TriangleAlert, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { triggerHapticImpact } from "@/lib/haptics";
-import type { ContentStrategy, RoutineActivityType, RoutineItem, RoutineItemConfig, RoutinePayload } from "@/lib/types";
+import type { ContentStrategy, RoutineActivityType, RoutineItem, RoutineItemConfig, RoutineNotification, RoutinePayload } from "@/lib/types";
 import { ACTIVITY_LABELS, DAY_LABELS, RoutineIcon, daySummary, defaultRoutineItem, fetchRoutines, notifyRoutinesUpdated, syncRoutineNotifications } from "@/lib/routines";
 import { useBodyScrollLock, useMobileUi, usePortalReady } from "@/lib/useMobileUi";
 import { useSheetDragToClose } from "@/lib/sheetDrag";
+import { getSmartReminderSettings } from "@/lib/nativeReminders";
+import { SmartLocationSettings } from "@/components/SmartLocationSettings";
 
 const activityOptions: RoutineActivityType[] = ["listen", "shadowing", "recall", "record", "review", "ai_conversation", "free_study"];
 const strategyOptions: ContentStrategy[] = ["recommended", "continue_recent", "fixed", "saved", "manual", "none"];
@@ -185,6 +187,7 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
       setSelectedPlanId((current) => current && payload.plans.some((plan) => plan.id === current) ? current : payload.plans[0]?.id || null);
       const notificationState = await syncRoutineNotifications(payload);
       if (notificationState === "denied") setMessage(`${success} 알림 권한이 거부되어 예약은 건너뛰었습니다.`);
+      else if (notificationState === "location-denied") setMessage(`${success} 시간 알림은 예약했지만 위치 권한이 없어 출퇴근 감지는 시작하지 못했습니다.`);
       else if (notificationState === "unavailable") setMessage(`${success} 앱 알림 플러그인이 연결되면 같은 설정으로 예약됩니다.`);
       else setMessage(success);
       void onRefresh?.();
@@ -437,6 +440,8 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
             ))}
           </div>
 
+          <SmartLocationSettings payload={routines} variant="teaser" />
+
           {selectedPlan && (
             <div className="routine-plan-workspace">
               <div className="routine-plan-toolbar">
@@ -516,7 +521,7 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
             </div>
           )}
 
-          <button type="button" className="routine-reset-button" onClick={() => void resetDefaults()}><RotateCcw size={17} /> 기본 루틴으로 초기화</button>
+          {/* <button type="button" className="routine-reset-button" onClick={() => void resetDefaults()}><RotateCcw size={17} /> 기본 루틴으로 초기화</button> */}
         </div>
       )}
 
@@ -605,7 +610,7 @@ function RoutineItemEditorModal({
   busy: boolean;
 }) {
   const portalReady = usePortalReady();
-  const { mobile } = useMobileUi();
+  const { mobile, native } = useMobileUi();
   const { sheetRef, sheetClassName, handleProps } = useSheetDragToClose({ onClose, enabled: mobile });
 
   const [name, setName] = useState(item.name);
@@ -621,13 +626,34 @@ function RoutineItemEditorModal({
   const [showTranslation, setShowTranslation] = useState(item.config.showTranslation);
   const [recordingEnabled, setRecordingEnabled] = useState(item.config.recordingEnabled);
   const [sttEnabled, setSttEnabled] = useState(item.config.sttEnabled);
+  const legacyTrigger = item.notification.trigger;
+  const initialLocationId = item.notification.locationId
+    || (legacyTrigger === "home_exit" ? "home" : legacyTrigger === "work_enter" || legacyTrigger === "work_exit" ? "work" : "");
+  const initialNotificationTrigger: NonNullable<RoutineNotification["trigger"]> = legacyTrigger === "home_exit" || legacyTrigger === "work_exit"
+    ? "place_exit"
+    : legacyTrigger === "work_enter"
+      ? "place_enter"
+      : legacyTrigger || "time";
   const [notificationEnabled, setNotificationEnabled] = useState(item.notification.enabled);
+  const [notificationTrigger, setNotificationTrigger] = useState<NonNullable<RoutineNotification["trigger"]>>(initialNotificationTrigger);
+  const [notificationLocationId, setNotificationLocationId] = useState(initialLocationId);
+  const [smartPlaces, setSmartPlaces] = useState(() => Object.values(getSmartReminderSettings().places));
+  const [notificationOffset, setNotificationOffset] = useState(item.notification.offsetMinutes || 0);
+  const [fallbackToTime, setFallbackToTime] = useState(item.notification.fallbackToTime !== false);
+  const [locationWindowMinutes, setLocationWindowMinutes] = useState(item.notification.locationWindowMinutes || 180);
   const [repeatOptions, setRepeatOptions] = useState<number[]>(item.config.repeatOptions);
   const [speedOptions, setSpeedOptions] = useState<number[]>(item.config.speedOptions);
   const [defaultRepeat, setDefaultRepeat] = useState(item.config.defaultRepeat);
   const [defaultSpeed, setDefaultSpeed] = useState(item.config.defaultSpeed);
   const [subtitleMode, setSubtitleMode] = useState(item.config.subtitleMode);
   const [targetCount, setTargetCount] = useState(item.config.targetCount || 0);
+
+  useEffect(() => {
+    if (!native) return;
+    const refreshPlaces = () => setSmartPlaces(Object.values(getSmartReminderSettings().places));
+    window.addEventListener("loopine:smart-reminders-updated", refreshPlaces);
+    return () => window.removeEventListener("loopine:smart-reminders-updated", refreshPlaces);
+  }, [native]);
 
   if (!portalReady) return null;
 
@@ -668,6 +694,12 @@ function RoutineItemEditorModal({
       notification: {
         ...item.notification,
         enabled: notificationEnabled,
+        // A browser/PWA edit must not erase a location trigger configured in the native app.
+        trigger: native ? notificationTrigger : item.notification.trigger,
+        locationId: native ? (notificationTrigger === "time" ? null : notificationLocationId || null) : item.notification.locationId,
+        offsetMinutes: Number(notificationOffset) || 0,
+        fallbackToTime: native ? fallbackToTime : item.notification.fallbackToTime,
+        locationWindowMinutes: native ? Number(locationWindowMinutes) || 180 : item.notification.locationWindowMinutes,
       },
     });
   }
@@ -836,34 +868,34 @@ function RoutineItemEditorModal({
             </div>
 
             <div className="routine-toggle-grid">
-              <button
+              {/* <button
                 type="button"
                 className={`routine-toggle-btn ${isActive ? "selected" : ""}`}
                 onClick={() => setIsActive(!isActive)}
               >
                 {isActive ? <Check size={14} /> : null} 루틴 활성
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 type="button"
                 className={`routine-toggle-btn ${showTranslation ? "selected" : ""}`}
                 onClick={() => setShowTranslation(!showTranslation)}
               >
                 {showTranslation ? <Check size={14} /> : null} 번역 보기
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 type="button"
                 className={`routine-toggle-btn ${recordingEnabled ? "selected" : ""}`}
                 onClick={() => setRecordingEnabled(!recordingEnabled)}
               >
                 {recordingEnabled ? <Check size={14} /> : null} 녹음 사용
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 type="button"
                 className={`routine-toggle-btn ${sttEnabled ? "selected" : ""}`}
                 onClick={() => setSttEnabled(!sttEnabled)}
               >
                 {sttEnabled ? <Check size={14} /> : null} STT 비교
-              </button>
+              </button> */}
               <button
                 type="button"
                 className={`routine-toggle-btn ${notificationEnabled ? "selected" : ""}`}
@@ -872,6 +904,78 @@ function RoutineItemEditorModal({
                 {notificationEnabled ? <Check size={14} /> : null} 알림
               </button>
             </div>
+
+            {notificationEnabled && (
+              <div className="routine-notification-options">
+                <div className="routine-field-row grid-2">
+                  <div className="routine-field-group">
+                    <label htmlFor="routine-notification-trigger">알림 실행 조건</label>
+                    <select
+                      id="routine-notification-trigger"
+                      className="routine-field-select"
+                      value={notificationTrigger}
+                      onChange={(event) => setNotificationTrigger(event.target.value as typeof notificationTrigger)}
+                    >
+                      <option value="time">설정한 시간</option>
+                      {/* Native geofencing choices must not appear in desktop/mobile web or PWA. */}
+                      {native && <option value="place_enter">선택 장소에 도착할 때</option>}
+                      {native && <option value="place_exit">선택 장소에서 나갈 때</option>}
+                    </select>
+                  </div>
+                  <div className="routine-field-group">
+                    <label htmlFor="routine-notification-offset">시간 알림 조정 (분)</label>
+                    <input
+                      id="routine-notification-offset"
+                      className="routine-field-input"
+                      type="number"
+                      min="-120"
+                      max="120"
+                      value={notificationOffset}
+                      onChange={(event) => setNotificationOffset(Number(event.target.value))}
+                    />
+                  </div>
+                </div>
+
+                {native && notificationTrigger !== "time" && (
+                  <div className="routine-location-trigger-options">
+                    <div className="routine-field-group">
+                      <label htmlFor="routine-notification-location">알림 장소 (선택)</label>
+                      <select
+                        id="routine-notification-location"
+                        className="routine-field-select"
+                        value={notificationLocationId}
+                        onChange={(event) => setNotificationLocationId(event.target.value)}
+                      >
+                        <option value="">장소를 선택하지 않음</option>
+                        {smartPlaces.map((place) => <option key={place.id} value={place.id}>{place.name} · 반경 {place.radiusMeters}m</option>)}
+                      </select>
+                      <small>{smartPlaces.length ? "장소는 설정 탭에서 추가·수정할 수 있어요." : "설정 탭에서 먼저 집·회사 등의 장소를 추가해주세요."}</small>
+                    </div>
+                    <button
+                      type="button"
+                      className={`routine-toggle-btn ${fallbackToTime ? "selected" : ""}`}
+                      onClick={() => setFallbackToTime((current) => !current)}
+                    >
+                      {fallbackToTime ? <Check size={14} /> : null} 위치를 못 잡으면 시간 알림
+                    </button>
+                    <div className="routine-field-group">
+                      <label htmlFor="routine-location-window">루틴 시간 기준 감지 범위 (분)</label>
+                      <input
+                        id="routine-location-window"
+                        className="routine-field-input"
+                        type="number"
+                        min="30"
+                        max="360"
+                        step="30"
+                        value={locationWindowMinutes}
+                        onChange={(event) => setLocationWindowMinutes(Number(event.target.value))}
+                      />
+                    </div>
+                    <p>해당 시간 범위 밖의 출입은 학습 알림으로 처리하지 않아 반복 알림을 줄입니다.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Section 3: Detailed Learning Options */}

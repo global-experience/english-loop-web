@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { cancelRoutineReminderOccurrence } from "@/lib/nativeReminders";
 import {
   REVIEW_TABS,
   type ContentProgressCard,
@@ -175,7 +176,10 @@ function ReviewViewInner({
         void apiFetch(`/api/routines/items/${routineEntry.id}/complete`, {
           method: "POST",
           body: JSON.stringify({ actual_minutes: routineEntry.estimated_minutes }),
-        }).then(() => onRoutineCompleted?.()).catch(() => {
+        }).then(async () => {
+          await cancelRoutineReminderOccurrence(routineEntry.id);
+          onRoutineCompleted?.();
+        }).catch(() => {
           completedRoutineRef.current = "";
         });
       }
@@ -324,4 +328,3 @@ export {
   ContentRecordsSkeleton,
   LibrarySkeleton,
 } from "./review/ReviewSkeletons";
-

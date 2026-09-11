@@ -187,4 +187,21 @@ describe("SpeechPracticeSheet Native Bridge", () => {
     fireEvent.click(screen.getByRole("button", { name: "녹음 열기" }));
     expect(present).toHaveBeenCalledTimes(2);
   });
+
+  it("does not lock document body scroll on desktop when open", () => {
+    // Default matchMedia mock in jsdom matches desktop (matches: false for max-width: 767px)
+    render(
+      <SpeechPracticeSheet
+        open={true}
+        entry={entry}
+        lineId="line-desktop"
+        referenceText="Desktop scroll test"
+        onClose={() => undefined}
+        onListen={() => undefined}
+      />
+    );
+
+    expect(document.body.style.position).not.toBe("fixed");
+    expect(document.body.classList.contains("modal-open")).toBe(false);
+  });
 });

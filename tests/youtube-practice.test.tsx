@@ -350,5 +350,36 @@ describe("YouTubePractice", () => {
     alertMock.mockRestore();
     stopActiveJobSpy.mockRestore();
   });
-});
 
+  it("switches mutually between speech practice sheet and translation panel on desktop", async () => {
+    renderPractice();
+    expect(await screen.findByRole("heading", { name: "Welcome to Office English." })).toBeInTheDocument();
+
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      segment_id: "a".repeat(64),
+      video_id: "rGQkLXIey4Y",
+      source_text: "Welcome to Office English.",
+      translation: "오피스 영어에 오신 것을 환영합니다.",
+      model: "llama-3.3-70b-versatile",
+      cached: true,
+    });
+
+    const recordButton = screen.getByRole("button", { name: /녹음/ });
+    const translateButton = screen.getByRole("button", { name: /^번역/ });
+
+    // 1. Open recording popup
+    fireEvent.click(recordButton);
+    expect(screen.getByRole("heading", { name: "문장 말해보기" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /번역|표현/ })).not.toBeInTheDocument();
+
+    // 2. Click translation button while recording popup is open -> recording closes, translation opens
+    fireEvent.click(translateButton);
+    expect(await screen.findByText("오피스 영어에 오신 것을 환영합니다.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "문장 말해보기" })).not.toBeInTheDocument();
+
+    // 3. Click recording button while translation popup is open -> translation closes, recording opens
+    fireEvent.click(recordButton);
+    expect(screen.getByRole("heading", { name: "문장 말해보기" })).toBeInTheDocument();
+    expect(screen.queryByText("오피스 영어에 오신 것을 환영합니다.")).not.toBeInTheDocument();
+  });
+});

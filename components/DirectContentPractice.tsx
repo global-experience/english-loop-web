@@ -3,6 +3,7 @@
 import { TouchEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, ChevronLeft, ChevronRight, Eye, EyeOff, Languages, LoaderCircle, Mic, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { apiFetch, mediaUrl } from "@/lib/api";
+import { cancelRoutineReminderOccurrence } from "@/lib/nativeReminders";
 import { isMobileDeviceRuntime } from "@/lib/nativeRuntime";
 import type { LearningPresetOptions, LearningSessionEntry } from "@/lib/learningSession";
 import { routineCompletionProgress } from "@/lib/routineCompletion";
@@ -215,6 +216,7 @@ export function DirectContentPractice({ active = true, entry, presets, onChangeC
         actual_minutes: entry.routineSnapshot?.estimated_minutes || 0,
       }),
     }).then(async () => {
+      await cancelRoutineReminderOccurrence(entry.routineItemId!);
       setMessage(`${routineProgress.label} 목표 ${routineProgress.target}개를 달성해 오늘 루틴을 완료했어요.`);
       await onRefresh();
     }).catch(() => {
@@ -225,6 +227,7 @@ export function DirectContentPractice({ active = true, entry, presets, onChangeC
 
   async function completeWorkspace(next: "review" | "routine" | "end") {
     await apiFetch("/api/learning/sessions/complete", { method: "POST", body: JSON.stringify({ client_session_id: clientSessionIdRef.current, content_id: content.id, activity_id: entry.activityId || null, routine_item_id: entry.routineItemId || null, routine_snapshot: entry.routineSnapshot || {}, entry_source: entry.entrySource, practiced_line_count: practiced.size, saved_expression_count: saved.size, retry_line_count: retry.size, missing_words: Array.from(missingWords) }) });
+    if (entry.routineItemId) await cancelRoutineReminderOccurrence(entry.routineItemId);
     await onRefresh();
     if (next === "review") onOpenReview();
     else if (next === "routine") onNextRoutine();
@@ -249,10 +252,10 @@ export function DirectContentPractice({ active = true, entry, presets, onChangeC
       {source ? <audio ref={audioRef} src={source} onTimeUpdate={timeUpdate} onEnded={() => setPlaying(false)} preload="metadata" /> : <div className="media-notice">재생 가능한 오디오가 없어도 자막 학습과 말하기 기록은 사용할 수 있습니다.</div>}
       <div className="youtube-loop-settings"><div><span>반복</span>{presets.repeats.map((count) => <button key={count} className={repeatTarget === count ? "active" : ""} onClick={() => setRepeatTarget(count)}>{count}회</button>)}</div><div><span>속도</span>{presets.speeds.map((speed) => <button key={speed} className={rate === speed ? "active" : ""} onClick={() => { setRate(speed); if (audioRef.current) audioRef.current.playbackRate = speed; }}>{speed}×</button>)}</div></div>
       <div className="youtube-shadowing sentence-swipe-stage learning-workspace-scroll-anchor" ref={currentSentenceRef} onTouchStart={(event) => { touchStart.current = event.touches[0].clientX; }} onTouchEnd={swipeEnd}>
-        <div className="selected-line-meta"><p className="eyebrow">LINE {index + 1} / {content.segments.length} · {formatTime(selected.start_ms)}</p><button className="record-inline-button" onClick={() => setSpeechOpen(true)}><Mic size={16} /> 녹음</button></div>
+        <div className="selected-line-meta"><p className="eyebrow">LINE {index + 1} / {content.segments.length} · {formatTime(selected.start_ms)}</p><button className="record-inline-button" onClick={() => { setShowMeaning(false); setSpeechOpen(true); }}><Mic size={16} /> 녹음</button></div>
         <h3 className={`selectable-text ${!showTranscriptText ? "blurred-text" : ""}`} onClick={() => { if (!showTranscriptText) setShowTranscriptText(true); }}>{selected.english_text}</h3>
         {showMeaning && <p className="selected-meaning">{savedMeaning || "등록된 번역이 없습니다."}</p>}
-        <div className="current-sentence-tools"><button onClick={() => setShowMeaning((value) => !value)}><Languages size={15} /> 번역 보기</button><button type="button" className={saved.has(selected.id) ? "saved" : ""} onClick={() => void saveExpression()} disabled={savingId === selected.id}>{savingId === selected.id ? <LoaderCircle className="spin" size={15} /> : <Bookmark size={15} fill={saved.has(selected.id) ? "currentColor" : "none"} />} {savingId === selected.id ? (saved.has(selected.id) ? "저장 취소 중…" : "저장 중…") : (saved.has(selected.id) ? "문장 저장됨" : "문장 저장")}</button><button onClick={() => setShowTranscriptText((value) => !value)}>{showTranscriptText ? <EyeOff size={15} /> : <Eye size={15} />} 자막 {showTranscriptText ? "숨기기" : "보기"}</button><button onClick={() => void startLoop(index, true)}><Volume2 size={15} /> 느리게 듣기</button></div>
+        <div className="current-sentence-tools"><button onClick={() => { setSpeechOpen(false); setShowMeaning((value) => !value); }}><Languages size={15} /> 번역 보기</button><button type="button" className={saved.has(selected.id) ? "saved" : ""} onClick={() => void saveExpression()} disabled={savingId === selected.id}>{savingId === selected.id ? <LoaderCircle className="spin" size={15} /> : <Bookmark size={15} fill={saved.has(selected.id) ? "currentColor" : "none"} />} {savingId === selected.id ? (saved.has(selected.id) ? "저장 취소 중…" : "저장 중…") : (saved.has(selected.id) ? "문장 저장됨" : "문장 저장")}</button><button onClick={() => setShowTranscriptText((value) => !value)}>{showTranscriptText ? <EyeOff size={15} /> : <Eye size={15} />} 자막 {showTranscriptText ? "숨기기" : "보기"}</button><button onClick={() => void startLoop(index, true)}><Volume2 size={15} /> 느리게 듣기</button></div>
         {!isMobileDevice && <div className="sentence-swipe-nav"><button onClick={() => selectLine(index - 1, true, true)} disabled={index === 0}><ChevronLeft /></button><span>옆으로 넘겨 다음 문장</span><button onClick={() => selectLine(index + 1, true, true)} disabled={index === content.segments.length - 1}><ChevronRight /></button></div>}
         <div className="youtube-shadow-actions"><button className="primary-button" onClick={() => void startLoop()}><RotateCcw size={17} /> {repeatTarget}회 구간 반복</button><button className="icon-toggle" onClick={pauseResume} disabled={!source} aria-label={playing ? "일시정지" : "이어서 재생"}>{playing ? <Pause /> : <Play />}</button></div>
       </div>
