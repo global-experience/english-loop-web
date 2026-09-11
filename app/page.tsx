@@ -37,6 +37,7 @@ type TabDirection = "forward" | "back";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
 import { ReviewViewSkeleton } from "@/components/review/ReviewSkeletons";
 import { CatalogSkeleton } from "@/components/feed/FeedCatalog";
+import { ReportViewSkeleton } from "@/components/ReportSkeleton";
 
 function FeedViewFallback() {
   const isCatalog = typeof window !== "undefined" && window.location.pathname.replace(/\/$/, "") === "/feed/categories";
@@ -74,7 +75,10 @@ const ReviewView = dynamic(() => import("@/components/ReviewView").then((mod) =>
   ssr: false,
   loading: () => <ReviewViewSkeleton />,
 });
-const ReportView = dynamic(() => import("@/components/ReportView").then((mod) => mod.ReportView), { ssr: false });
+const ReportView = dynamic(() => import("@/components/ReportView").then((mod) => mod.ReportView), {
+  ssr: false,
+  loading: () => <ReportViewSkeleton />,
+});
 const SettingsView = dynamic(() => import("@/components/SettingsView").then((mod) => mod.SettingsView), {
   ssr: false,
   loading: () => <SettingsSkeleton />,
