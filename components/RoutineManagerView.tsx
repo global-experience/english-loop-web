@@ -83,6 +83,7 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [planDirection, setPlanDirection] = useState<"forward" | "back">("forward");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [notificationGuideItemId, setNotificationGuideItemId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoutineItem | null>(null);
 
   useEffect(() => {
@@ -150,7 +151,13 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
     return () => {
       if (reorderDebounceRef.current) clearTimeout(reorderDebounceRef.current);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- load only when the manager mounts
+
+  useEffect(() => {
+    const openGuide = () => void openFirstRoutineNotificationGuide();
+    window.addEventListener("loopine:open-routine-notification-guide", openGuide);
+    return () => window.removeEventListener("loopine:open-routine-notification-guide", openGuide);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- handler reads the latest payload from routinesRef
 
   useEffect(() => {
     if (!routines?.plans.length || selectedPlanId) return;
@@ -206,6 +213,45 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
       days_of_week: selectedPlan.days_of_week,
     };
     await persist("/api/routines/items", { method: "POST", body: JSON.stringify(draft) }, "새 루틴 항목을 추가했어요.");
+  }
+
+  async function openFirstRoutineNotificationGuide() {
+    setBusy("notification-guide");
+    setMessage("");
+    try {
+      let payload = routinesRef.current || await fetchRoutines();
+      let plan = payload.plans[0];
+
+      if (!plan) {
+        payload = await apiFetch<RoutinePayload>("/api/routines/reset-defaults", { method: "POST" });
+        plan = payload.plans[0];
+      }
+      if (!plan) throw new Error("알림을 연결할 학습 계획을 만들지 못했습니다.");
+
+      let item = plan.items[0];
+      if (!item) {
+        const draft = {
+          ...defaultRoutineItem(plan.id, 0),
+          days_of_week: plan.days_of_week,
+        };
+        payload = await apiFetch<RoutinePayload>("/api/routines/items", { method: "POST", body: JSON.stringify(draft) });
+        plan = payload.plans.find((candidate) => candidate.id === plan.id) || payload.plans[0];
+        item = plan?.items[0];
+      }
+      if (!plan || !item) throw new Error("알림을 연결할 루틴 항목을 만들지 못했습니다.");
+
+      setRoutines(payload);
+      setSelectedPlanId(plan.id);
+      setNotificationGuideItemId(item.id);
+      setEditingItemId(item.id);
+      setMessage("첫 루틴에 알림 실행 조건과 장소를 연결해주세요.");
+      void onRefresh?.();
+      notifyRoutinesUpdated();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "루틴 알림 가이드를 열지 못했습니다.");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function duplicate(item: RoutineItem) {
@@ -528,10 +574,15 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
       {editingItem && (
         <RoutineItemEditorModal
           item={editingItem}
-          onClose={() => setEditingItemId(null)}
+          notificationGuide={notificationGuideItemId === editingItem.id}
+          onClose={() => {
+            setEditingItemId(null);
+            setNotificationGuideItemId(null);
+          }}
           onSave={async (patch) => {
             await persist(`/api/routines/items/${editingItem.id}`, { method: "PATCH", body: JSON.stringify(patch) }, "루틴 항목을 저장했어요.");
             setEditingItemId(null);
+            setNotificationGuideItemId(null);
           }}
           onDuplicate={() => {
             const target = editingItem;
@@ -596,6 +647,7 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
 
 function RoutineItemEditorModal({
   item,
+  notificationGuide = false,
   onClose,
   onSave,
   onDuplicate,
@@ -603,6 +655,7 @@ function RoutineItemEditorModal({
   busy,
 }: {
   item: RoutineItem;
+  notificationGuide?: boolean;
   onClose: () => void;
   onSave: (patch: Partial<RoutineItem>) => Promise<void> | void;
   onDuplicate: () => void;
@@ -647,6 +700,16 @@ function RoutineItemEditorModal({
   const [defaultSpeed, setDefaultSpeed] = useState(item.config.defaultSpeed);
   const [subtitleMode, setSubtitleMode] = useState(item.config.subtitleMode);
   const [targetCount, setTargetCount] = useState(item.config.targetCount || 0);
+  const notificationSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!notificationGuide) return;
+    setNotificationEnabled(true);
+    const timer = window.setTimeout(() => {
+      notificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [notificationGuide]);
 
   useEffect(() => {
     if (!native) return;
@@ -841,7 +904,10 @@ function RoutineItemEditorModal({
           </div>
 
           {/* Section 2: Days & Toggles */}
-          <div className="routine-form-section">
+          <div
+            ref={notificationSectionRef}
+            className={`routine-form-section${notificationGuide ? " routine-notification-guide-target" : ""}`}
+          >
             <div className="routine-section-header-row">
               <h3>반복 요일 및 기능 설정</h3>
               <div className="routine-day-presets">
@@ -850,6 +916,16 @@ function RoutineItemEditorModal({
                 <button type="button" className="routine-day-preset-btn" onClick={() => setDaysOfWeek([5, 6])}>주말</button>
               </div>
             </div>
+
+            {notificationGuide && (
+              <div className="routine-notification-guide" role="status">
+                <Bell size={18} />
+                <div>
+                  <strong>마지막으로 루틴 알림을 연결해볼까요?</strong>
+                  <span>알림은 켜두었습니다. 아래에서 실행 조건을 고르고, 장소 알림이라면 방금 저장한 장소를 선택한 뒤 저장하세요.</span>
+                </div>
+              </div>
+            )}
 
             <div className="routine-days-grid">
               {DAY_LABELS.map((dayLabel, idx) => {

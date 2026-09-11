@@ -377,6 +377,7 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
     if (result === "scheduled") {
       setPermissionSettingsOpened(false);
       setStatus(`${savedMessage} 스마트 위치 알림도 바로 켰어요.`);
+      window.dispatchEvent(new CustomEvent("loopine:open-routine-notification-guide"));
       return;
     }
     if (result === "location-denied") {
