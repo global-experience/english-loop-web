@@ -2,10 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { getApiBase } from "@/lib/api";
+import { isNativeAppRuntime, type CapacitorRuntime } from "@/lib/nativeRuntime";
 
 export const SPLASH_SESSION_KEY = "loopine:splash:shown";
 const SPLASH_DURATION_MS = 1250;
 const FADE_DURATION_MS = 250;
+
+function checkShouldSkipSplash(): boolean {
+  if (typeof window === "undefined") return false;
+  const capacitor = (window as Window & { Capacitor?: CapacitorRuntime }).Capacitor;
+  const ua = navigator.userAgent;
+  if (isNativeAppRuntime(capacitor, ua)) {
+    return true;
+  }
+  const pathname = window.location?.pathname || "";
+  const pathSegment = pathname.replace(/^\/|\/$/g, "").split("/")[0] || "";
+  const isDirectTab = ["settings", "report", "learn", "feed", "review"].includes(pathSegment);
+  if (isDirectTab) return true;
+
+  try {
+    if (sessionStorage.getItem(SPLASH_SESSION_KEY) === "true") {
+      return true;
+    }
+  } catch {}
+  return false;
+}
 
 export function useAppSplash() {
   const [state, setState] = useState({ ready: false, visible: true, fadingOut: false });
@@ -16,15 +37,13 @@ export function useAppSplash() {
       // 실제 앱 실행과 동시에 Render Free를 깨운다. 화면 전환은 이 요청을 기다리지 않는다.
       void fetch(`${apiBase}/health`, { cache: "no-store", credentials: "omit" }).catch(() => undefined);
     }
-    const pathname = (typeof window !== "undefined" && window.location?.pathname) ? window.location.pathname : "";
-    const pathSegment = pathname.replace(/^\/|\/$/g, "").split("/")[0] || "";
-    const isDirectTab = ["settings", "report", "learn", "feed", "review"].includes(pathSegment);
+
+    if (checkShouldSkipSplash()) {
+      setState({ ready: true, visible: false, fadingOut: false });
+      return;
+    }
 
     try {
-      if (isDirectTab || sessionStorage.getItem(SPLASH_SESSION_KEY) === "true") {
-        setState({ ready: true, visible: false, fadingOut: false });
-        return;
-      }
       sessionStorage.setItem(SPLASH_SESSION_KEY, "true");
     } catch {
       // The splash can still run when session storage is unavailable.

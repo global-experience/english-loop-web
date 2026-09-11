@@ -6,6 +6,7 @@ import { ArrowRight, LockKeyhole, UserPlus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { AppSplash, useAppSplash } from "@/components/AppSplash";
+import { hideNativeSplashScreen } from "@/lib/nativeRuntime";
 
 type AuthMode = "login" | "register";
 
@@ -44,6 +45,12 @@ export default function LoginPage() {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    if (!checkingAuth) {
+      void hideNativeSplashScreen(300);
+    }
+  }, [checkingAuth]);
 
   function switchMode(nextMode: AuthMode) {
     if (nextMode === mode) return;

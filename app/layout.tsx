@@ -47,6 +47,21 @@ import { ReactQueryProvider } from "./providers";
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko">
+      <head>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              html, body {
+                background-color: #f4f1e8;
+                margin: 0;
+              }
+              html.splash-active, html.splash-active body {
+                background-color: #18201d !important;
+              }
+            `,
+          }}
+        />
+      </head>
       <body>
         <ReactQueryProvider>{children}</ReactQueryProvider>
       </body>

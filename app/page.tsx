@@ -14,7 +14,7 @@ import { OnboardingPreferences } from "@/components/OnboardingPreferences";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { youtubeStore } from "@/lib/youtubeStore";
 import { triggerHapticSelection } from "@/lib/haptics";
-import { isNativeAppRuntime } from "@/lib/nativeRuntime";
+import { isNativeAppRuntime, hideNativeSplashScreen } from "@/lib/nativeRuntime";
 import type { LearningSessionEntry } from "@/lib/learningSession";
 import type { ReviewLearningTarget } from "@/components/ReviewView";
 import type { Activity, FeedVideo } from "@/lib/types";
@@ -214,6 +214,20 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!loading || user) {
+      void hideNativeSplashScreen(300);
+    }
+  }, [loading, user]);
+
+  useEffect(() => {
+    // 안전 타임아웃: 네트워크 지연 시에도 최대 1.5초 후에는 네이티브 스플래시 해제
+    const timer = window.setTimeout(() => {
+      void hideNativeSplashScreen(300);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!today?.routine || !isNativeRuntime()) return;
