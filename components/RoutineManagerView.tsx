@@ -84,11 +84,13 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
   const [planDirection, setPlanDirection] = useState<"forward" | "back">("forward");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [notificationGuideItemId, setNotificationGuideItemId] = useState<string | null>(null);
+  const [notificationGuidePromptOpen, setNotificationGuidePromptOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RoutineItem | null>(null);
 
   useEffect(() => {
     if (!active) {
       setEditingItemId(null);
+      setNotificationGuidePromptOpen(false);
       setDeleteTarget(null);
     }
   }, [active]);
@@ -108,7 +110,7 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
     setSelectedPlanId(planId);
   }, [selectedPlanId]);
 
-  useBodyScrollLock(editingItemId !== null || deleteTarget !== null);
+  useBodyScrollLock(editingItemId !== null || deleteTarget !== null || notificationGuidePromptOpen);
   const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);
@@ -154,10 +156,10 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- load only when the manager mounts
 
   useEffect(() => {
-    const openGuide = () => void openFirstRoutineNotificationGuide();
-    window.addEventListener("loopine:open-routine-notification-guide", openGuide);
-    return () => window.removeEventListener("loopine:open-routine-notification-guide", openGuide);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- handler reads the latest payload from routinesRef
+    const offerGuide = () => setNotificationGuidePromptOpen(true);
+    window.addEventListener("loopine:open-routine-notification-guide", offerGuide);
+    return () => window.removeEventListener("loopine:open-routine-notification-guide", offerGuide);
+  }, []);
 
   useEffect(() => {
     if (!routines?.plans.length || selectedPlanId) return;
@@ -216,6 +218,7 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
   }
 
   async function openFirstRoutineNotificationGuide() {
+    setNotificationGuidePromptOpen(false);
     setBusy("notification-guide");
     setMessage("");
     try {
@@ -596,6 +599,32 @@ export function RoutineManagerView({ active = true, onBack, onRefresh }: Props) 
           }}
           busy={busy === `/api/routines/items/${editingItem.id}`}
         />
+      )}
+
+      {notificationGuidePromptOpen && portalReady && createPortal(
+        <div
+          className="confirm-modal-layer routine-guide-prompt-layer"
+          role="presentation"
+          onMouseDown={(event) => event.target === event.currentTarget && setNotificationGuidePromptOpen(false)}
+        >
+          <section
+            className="confirm-modal-dialog routine-guide-prompt"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="routine-guide-prompt-title"
+          >
+            <span className="routine-guide-prompt-icon"><Bell size={22} /></span>
+            <h3 id="routine-guide-prompt-title">루틴 알림 설정을 도와드릴까요?</h3>
+            <p>첫 번째 학습 루틴을 열어 알림 실행 조건과 방금 등록한 장소를 연결하는 방법을 안내해드릴게요.</p>
+            <div>
+              <button type="button" className="secondary-button" onClick={() => setNotificationGuidePromptOpen(false)}>취소</button>
+              <button type="button" className="primary-button" onClick={() => void openFirstRoutineNotificationGuide()} disabled={busy === "notification-guide"}>
+                {busy === "notification-guide" ? <LoaderCircle className="spin" size={17} /> : <Bell size={17} />} 가이드 보기
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body
       )}
 
       {deleteTarget && portalReady && createPortal(

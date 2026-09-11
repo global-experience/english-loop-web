@@ -83,6 +83,9 @@ describe("smart reminder routine guide", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "가이드 시작" }));
 
+    expect(await screen.findByRole("dialog", { name: "루틴 알림 설정을 도와드릴까요?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /가이드 보기/ }));
+
     expect(await screen.findByRole("dialog", { name: "아침 듣기 루틴 수정" })).toBeInTheDocument();
     expect(screen.getByText("마지막으로 루틴 알림을 연결해볼까요?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /알림/ })).toHaveClass("selected");
@@ -101,6 +104,7 @@ describe("smart reminder routine guide", () => {
 
     render(<RoutineManagerView onBack={vi.fn()} onRefresh={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "가이드 시작" }));
+    fireEvent.click(await screen.findByRole("button", { name: /가이드 보기/ }));
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
       "/api/routines/items",
@@ -108,5 +112,16 @@ describe("smart reminder routine guide", () => {
     ));
     expect(await screen.findByRole("dialog", { name: "아침 듣기 루틴 수정" })).toBeInTheDocument();
     expect(screen.getByText("마지막으로 루틴 알림을 연결해볼까요?")).toBeInTheDocument();
+  });
+
+  it("dismisses the centered guide prompt without opening a routine", async () => {
+    render(<RoutineManagerView onBack={vi.fn()} onRefresh={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "가이드 시작" }));
+
+    const prompt = await screen.findByRole("dialog", { name: "루틴 알림 설정을 도와드릴까요?" });
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(prompt).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "아침 듣기 루틴 수정" })).not.toBeInTheDocument();
   });
 });

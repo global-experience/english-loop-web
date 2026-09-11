@@ -1545,6 +1545,26 @@ input[type="time"].routine-field-input::-webkit-calendar-picker-indicator:hover 
   line-height: 1.5;
 }
 
+.routine-guide-prompt-layer {
+  align-items: center;
+}
+
+.routine-guide-prompt {
+  text-align: center;
+}
+
+.routine-guide-prompt-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 4px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--acid);
+  box-shadow: 0 10px 24px rgba(216, 239, 103, .24);
+}
+
 @keyframes routine-guide-focus {
   from { opacity: .55; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
