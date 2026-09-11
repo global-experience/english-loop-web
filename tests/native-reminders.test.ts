@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { buildRoutineReminderOccurrences, evaluateSmartPlace, getSmartReminderSettings, savePlaceCoordinates } from "@/lib/nativeReminders";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildRoutineReminderOccurrences, evaluateSmartPlace, getSmartReminderSettings, openNativeLocationSettings, openNativePermissionSettings, saveCurrentLocationAsPlace, savePlaceCoordinates } from "@/lib/nativeReminders";
 import type { RoutineItem, RoutinePayload } from "@/lib/types";
 
 function item(patch: Partial<RoutineItem> = {}): RoutineItem {
@@ -165,5 +165,71 @@ describe("smart place storage migration", () => {
     const [place] = Object.values(settings.places);
 
     expect(place).toMatchObject({ name: "회사", latitude: 37.51, longitude: 127.02, radiusMeters: 2_000 });
+  });
+});
+
+describe("native permission recovery", () => {
+  it("opens the native app settings when a denied permission cannot be prompted again", async () => {
+    const openSettings = vi.fn().mockResolvedValue(undefined);
+    const runtimeWindow = window as Window & {
+      Capacitor?: {
+        isNativePlatform?: () => boolean;
+        Plugins?: Record<string, unknown>;
+      };
+    };
+    runtimeWindow.Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: { BackgroundGeolocation: { openSettings } },
+    };
+
+    await expect(openNativeLocationSettings()).resolves.toBe(true);
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    delete runtimeWindow.Capacitor;
+  });
+
+  it("passes the permission type to the native settings bridge", async () => {
+    const openSettings = vi.fn();
+    const runtimeWindow = window as Window & {
+      Capacitor?: { isNativePlatform?: () => boolean };
+      LoopineNativePermissions?: { openSettings: (kind: "notification" | "location") => void };
+    };
+    runtimeWindow.Capacitor = { isNativePlatform: () => true };
+    runtimeWindow.LoopineNativePermissions = { openSettings };
+
+    await expect(openNativePermissionSettings("notification")).resolves.toBe(true);
+    expect(openSettings).toHaveBeenCalledWith("notification");
+    delete runtimeWindow.LoopineNativePermissions;
+    delete runtimeWindow.Capacitor;
+  });
+
+  it("shares and removes a denied current-location watcher across repeated taps", async () => {
+    let locationCallback: ((location?: unknown, error?: { code?: string; message?: string }) => void) | undefined;
+    const removeWatcher = vi.fn().mockResolvedValue(undefined);
+    const addWatcher = vi.fn().mockImplementation((_options, callback) => {
+      locationCallback = callback;
+      queueMicrotask(() => locationCallback?.(undefined, { code: "NOT_AUTHORIZED", message: "Permission denied." }));
+      return Promise.resolve("location-once");
+    });
+    const runtimeWindow = window as Window & {
+      Capacitor?: {
+        isNativePlatform?: () => boolean;
+        Plugins?: Record<string, unknown>;
+      };
+    };
+    runtimeWindow.Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: { BackgroundGeolocation: { addWatcher, removeWatcher } },
+    };
+
+    const attempts = await Promise.allSettled([
+      saveCurrentLocationAsPlace({ name: "집" }),
+      saveCurrentLocationAsPlace({ name: "회사" }),
+    ]);
+
+    expect(attempts.every((attempt) => attempt.status === "rejected")).toBe(true);
+    expect(addWatcher).toHaveBeenCalledTimes(1);
+    expect(removeWatcher).toHaveBeenCalledTimes(1);
+    expect(removeWatcher).toHaveBeenCalledWith({ id: "location-once" });
+    delete runtimeWindow.Capacitor;
   });
 });

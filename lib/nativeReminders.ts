@@ -71,6 +71,12 @@ type CapacitorWindow = Window & {
     isNativePlatform?: () => boolean;
     Plugins?: Record<string, unknown>;
   };
+  LoopineNativePermissions?: {
+    openSettings?: (kind: "notification" | "location") => void;
+  };
+  LoopineNativePermissionHost?: {
+    openSettings?: (kind: "notification" | "location") => void;
+  };
 };
 
 export type SmartPlace = {
@@ -109,6 +115,7 @@ const DEFAULT_SMART_SETTINGS: SmartReminderSettings = {
 let actionListener: ListenerHandle | null = null;
 let activeWatcherId: string | null = null;
 let latestPayload: RoutinePayload | null = null;
+let currentLocationRequest: Promise<NativeLocation> | null = null;
 
 function nativePlugins() {
   if (typeof window === "undefined") return null;
@@ -295,6 +302,13 @@ async function notificationPermission(plugin: NativeLocalNotifications, requestP
   if (!requestPermission) return current?.display || "prompt";
   const requested = await plugin.requestPermissions?.();
   return requested?.display || current?.display || "denied";
+}
+
+export async function requestNativeNotificationPermission(requestPermission = true) {
+  const plugin = localNotifications();
+  if (!plugin?.checkPermissions) return "unavailable" as const;
+  const permission = await notificationPermission(plugin, requestPermission);
+  return permission === "granted" ? "granted" as const : "denied" as const;
 }
 
 function openRoutineFromNotification(extra: Record<string, unknown> | undefined) {
@@ -539,6 +553,22 @@ export async function configureSmartLocationMonitoring(payload?: RoutinePayload)
 
   await removeStoredWatcher(plugin);
   try {
+    let watcherIdForCallback = "";
+    let watcherMustStop = false;
+    let errorReported = false;
+    const stopRejectedWatcher = () => {
+      watcherMustStop = true;
+      if (!watcherIdForCallback) return;
+      const rejectedId = watcherIdForCallback;
+      watcherIdForCallback = "";
+      if (activeWatcherId === rejectedId) activeWatcherId = null;
+      window.localStorage.removeItem(WATCHER_KEY);
+      try {
+        void Promise.resolve(plugin.removeWatcher?.({ id: rejectedId })).catch(() => undefined);
+      } catch {
+        // The native bridge can close while the permission dialog is being dismissed.
+      }
+    };
     const watcherId = await Promise.resolve(plugin.addWatcher({
       backgroundTitle: "Loopine 스마트 루틴",
       backgroundMessage: "출퇴근 루틴을 감지하기 위해 위치를 확인하고 있어요.",
@@ -547,12 +577,27 @@ export async function configureSmartLocationMonitoring(payload?: RoutinePayload)
       distanceFilter: 75,
     }, (location, error) => {
       if (error) {
-        window.dispatchEvent(new CustomEvent("loopine:smart-reminder-error", { detail: error }));
+        if (/NOT_AUTHORIZED|permission|denied/i.test(`${error.code || ""} ${error.message || ""}`)) {
+          stopRejectedWatcher();
+        }
+        if (!errorReported) {
+          errorReported = true;
+          window.dispatchEvent(new CustomEvent("loopine:smart-reminder-error", { detail: error }));
+        }
         return;
       }
       if (location) void processLocation(location);
     }));
     if (!watcherId) throw new Error("위치 감시를 시작하지 못했습니다. 앱을 다시 실행해주세요.");
+    watcherIdForCallback = watcherId;
+    if (watcherMustStop) {
+      try {
+        await Promise.resolve(plugin.removeWatcher({ id: watcherId }));
+      } catch {
+        // The denied watcher has already stopped on the native side.
+      }
+      return "denied" as const;
+    }
     activeWatcherId = watcherId;
     window.localStorage.setItem(WATCHER_KEY, activeWatcherId);
     return "monitoring" as const;
@@ -567,7 +612,7 @@ export async function stopSmartLocationMonitoring() {
   if (plugin) await removeStoredWatcher(plugin);
 }
 
-function currentLocation(): Promise<NativeLocation> {
+function requestCurrentLocation(): Promise<NativeLocation> {
   const plugin = backgroundGeolocation();
   if (!plugin?.addWatcher || !plugin.removeWatcher) {
     return Promise.reject(new Error("위치 기능은 Loopine 모바일 앱에서 사용할 수 있습니다."));
@@ -575,8 +620,10 @@ function currentLocation(): Promise<NativeLocation> {
   return new Promise((resolve, reject) => {
     let watcherId = "";
     let settled = false;
+    let removed = false;
     const removeWatcher = () => {
-      if (!watcherId) return;
+      if (!watcherId || removed) return;
+      removed = true;
       try {
         void Promise.resolve(plugin.removeWatcher?.({ id: watcherId })).catch(() => undefined);
       } catch {
@@ -617,10 +664,23 @@ function currentLocation(): Promise<NativeLocation> {
         if (settled) removeWatcher();
       }
     }).catch((error) => {
+      if (settled) return;
+      settled = true;
       window.clearTimeout(timeout);
       reject(error);
     });
   });
+}
+
+function currentLocation(): Promise<NativeLocation> {
+  // A denied native watcher may invoke its error callback more than once before
+  // the bridge finishes returning the watcher id. Share one in-flight request so
+  // repeated taps cannot create multiple noisy watchers.
+  if (currentLocationRequest) return currentLocationRequest;
+  currentLocationRequest = requestCurrentLocation().finally(() => {
+    currentLocationRequest = null;
+  });
+  return currentLocationRequest;
 }
 
 function newPlaceId() {
@@ -693,6 +753,21 @@ export function removeSmartPlace(id: string) {
   return settings;
 }
 
+export async function openNativePermissionSettings(kind: "notification" | "location") {
+  if (typeof window === "undefined") return false;
+  const nativeWindow = window as CapacitorWindow;
+  const nativeBridge = nativeWindow.LoopineNativePermissions || nativeWindow.LoopineNativePermissionHost;
+  if (nativeBridge?.openSettings) {
+    nativeBridge.openSettings(kind);
+    return true;
+  }
+  const plugin = backgroundGeolocation();
+  if (!plugin?.openSettings) return false;
+  await plugin.openSettings();
+  return true;
+}
+
+/** @deprecated Use openNativePermissionSettings so the native shell can route by permission type. */
 export async function openNativeLocationSettings() {
-  await backgroundGeolocation()?.openSettings?.();
+  return openNativePermissionSettings("location");
 }

@@ -2,7 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SmartLocationSettings } from "@/components/SmartLocationSettings";
-import { saveSmartReminderSettings } from "@/lib/nativeReminders";
+import { openNativePermissionSettings, requestNativeNotificationPermission, saveSmartReminderSettings, syncNativeRoutineReminders } from "@/lib/nativeReminders";
 
 vi.mock("@/lib/routines", () => ({
   fetchRoutines: vi.fn().mockResolvedValue({ plans: [], timezone: "Asia/Seoul" }),
@@ -13,6 +13,8 @@ vi.mock("@/lib/nativeReminders", async (importOriginal) => {
   return {
     ...actual,
     configureSmartLocationMonitoring: vi.fn().mockResolvedValue(undefined),
+    openNativePermissionSettings: vi.fn().mockResolvedValue(true),
+    requestNativeNotificationPermission: vi.fn().mockResolvedValue("granted"),
     stopSmartLocationMonitoring: vi.fn().mockResolvedValue(undefined),
     syncNativeRoutineReminders: vi.fn().mockResolvedValue("scheduled"),
   };
@@ -24,6 +26,9 @@ type RuntimeWindow = Window & {
 
 describe("SmartLocationSettings accordion, edit popup, and delete confirmation popup", () => {
   beforeEach(() => {
+    vi.mocked(syncNativeRoutineReminders).mockResolvedValue("scheduled");
+    vi.mocked(openNativePermissionSettings).mockResolvedValue(true);
+    vi.mocked(requestNativeNotificationPermission).mockResolvedValue("granted");
     window.localStorage.clear();
     (window as RuntimeWindow).Capacitor = { isNativePlatform: () => true };
     saveSmartReminderSettings({
@@ -78,6 +83,29 @@ describe("SmartLocationSettings accordion, edit popup, and delete confirmation p
     fireEvent.click(summaryButton);
     expect(summaryButton).toHaveAttribute("aria-expanded", "true");
     expect(collapseContainer).toHaveClass("expanded");
+  });
+
+  it("shows a notification permission dialog and opens system settings after denial", async () => {
+    vi.mocked(requestNativeNotificationPermission).mockResolvedValueOnce("denied");
+    render(<SmartLocationSettings variant="full" payload={{ plans: [], timezone: "Asia/Seoul" }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "사용하기" }));
+
+    expect(await screen.findByRole("dialog", { name: "알림 권한이 필요해요" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "사용하기" })).toBeInTheDocument();
+    expect(screen.getByText(/학습 루틴을 알려드리려면 Loopine 알림 권한/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "권한 요청" }));
+
+    await waitFor(() => expect(openNativePermissionSettings).toHaveBeenCalledWith("notification"));
+    expect(screen.queryByRole("dialog", { name: "알림 권한이 필요해요" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "권한 적용 확인" })).toBeInTheDocument();
+
+    window.dispatchEvent(new CustomEvent("loopine:native-app-resumed"));
+    await waitFor(() => {
+      expect(syncNativeRoutineReminders).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("button", { name: "권한 적용 확인" })).not.toBeInTheDocument();
+      expect(screen.getByText("권한을 확인했고 스마트 위치 알림을 다시 준비했어요.")).toBeInTheDocument();
+    });
   });
 
   it("opens delete confirmation popup on delete click, allows cancel", async () => {

@@ -449,82 +449,61 @@
   font-weight: 750;
 }
 
-.smart-place-new {
+/* Smooth accordion-style roll down for .smart-place-new */
+.smart-place-new-slide {
+  display: grid;
+  grid-template-rows: 0fr;
+  animation: smart-place-slide-expand 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: grid-template-rows;
+}
+
+@keyframes smart-place-slide-expand {
+  from {
+    grid-template-rows: 0fr;
+  }
+  to {
+    grid-template-rows: 1fr;
+  }
+}
+
+.smart-place-new-slide > .smart-place-new {
   overflow: hidden;
-  padding: 13px;
+  min-height: 0;
+  padding: 14px;
   border: 1px dashed #b7bd97;
   border-radius: 16px;
   background: rgba(216, 239, 103, 0.05);
-  transform-origin: top center;
-  animation: smart-place-new-in 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
-  will-change: max-height, opacity, transform;
+  animation: smart-place-slide-fade 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
 }
 
-@keyframes smart-place-new-in {
+@keyframes smart-place-slide-fade {
   0% {
-    opacity: 0;
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    margin-top: -4px;
-    border-color: transparent;
-    transform: translateY(-10px) scale(0.97);
-  }
-
-  50% {
-    border-color: rgba(183, 189, 151, 0.5);
-  }
-
-  100% {
-    opacity: 1;
-    max-height: 480px;
-    padding-top: 13px;
-    padding-bottom: 13px;
-    margin-top: 0;
-    border-color: #b7bd97;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.smart-place-new > label:nth-of-type(1) {
-  animation: smart-place-item-in 0.28s 0.06s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.smart-place-new > label:nth-of-type(2) {
-  animation: smart-place-item-in 0.28s 0.11s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.smart-place-new > label:nth-of-type(3) {
-  animation: smart-place-item-in 0.28s 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.smart-place-new > .smart-place-new-actions {
-  animation: smart-place-item-in 0.28s 0.19s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes smart-place-item-in {
-  from {
     opacity: 0;
     transform: translateY(-8px);
   }
-
-  to {
+  100% {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
+.smart-place-new {
+  padding: 14px;
+  border: 1px dashed #b7bd97;
+  border-radius: 16px;
+  background: rgba(216, 239, 103, 0.05);
+}
+
 @keyframes pop-in {
   0% {
     opacity: 0;
-    max-height: 0;
-    transform: translateY(-6px) scale(0.98);
+    transform: translateY(-6px);
   }
 
   100% {
     opacity: 1;
-    max-height: 480px;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -543,19 +522,6 @@
 .smart-place-add {
   justify-self: start;
   border-style: dashed;
-  animation: smart-place-add-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes smart-place-add-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .smart-place-empty,
@@ -585,6 +551,27 @@
   border-radius: 12px;
   color: #52610d;
   background: rgba(217, 247, 68, .2);
+}
+
+.smart-permission-retry {
+  width: 100%;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  border-radius: 14px;
+  color: var(--cream);
+  background: var(--ink);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.smart-permission-retry:disabled {
+  cursor: wait;
+  opacity: .62;
 }
 
 @media (max-width: 768px) {
@@ -907,8 +894,9 @@
   .map-picker-card>footer button {
     flex: 1;
   }
+}
 
-  /* ── Smart Place Edit Modal & Delete Layer ───────────────────────────────── */
+/* ── Smart Place Edit Modal & Delete Layer ───────────────────────────────── */
   .smart-place-modal-layer {
     position: fixed;
     inset: 0;
@@ -1210,7 +1198,115 @@
     z-index: 10060;
   }
 
+  .permission-recovery-layer {
+    z-index: 10070;
+  }
+
+  .permission-recovery-dialog {
+    width: min(440px, 100%);
+    display: grid;
+    gap: 12px;
+    padding: 26px;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 28px;
+    color: #f7f8f5;
+    background: #17201c;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, .46);
+    animation: translation-card-in-desktop .22s cubic-bezier(.22, .82, .24, 1) both;
+  }
+
+  .permission-recovery-icon {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #17201c;
+    background: var(--acid);
+  }
+
+  .permission-recovery-dialog .eyebrow {
+    margin: 3px 0 -6px;
+    color: #ff8a55;
+    font: 800 10px var(--font-display);
+    letter-spacing: .12em;
+  }
+
+  .permission-recovery-dialog h3,
+  .permission-recovery-dialog p,
+  .permission-recovery-dialog small {
+    margin: 0;
+  }
+
+  .permission-recovery-dialog .permission-recovery-path {
+    color: #17201c;
+    background: var(--acid);
+    font-weight: 750;
+  }
+
+  .permission-recovery-dialog h3 {
+    color: #fff;
+    font: 780 23px var(--font-display);
+  }
+
+  .permission-recovery-dialog>p:not(.eyebrow) {
+    color: rgba(255, 255, 255, .78);
+    font-size: 14px;
+    line-height: 1.58;
+  }
+
+  .permission-recovery-dialog small {
+    padding: 11px 12px;
+    border-radius: 13px;
+    color: rgba(255, 255, 255, .64);
+    background: rgba(255, 255, 255, .06);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .permission-recovery-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.35fr;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .permission-recovery-actions button {
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 15px;
+    font-weight: 800;
+  }
+
+  .permission-recovery-actions .secondary-button {
+    color: #fff;
+    background: rgba(255, 255, 255, .07);
+  }
+
+  .permission-recovery-actions .primary-button {
+    color: #17201c;
+    border-color: var(--acid);
+    background: var(--acid);
+  }
+
   @media (max-width: 767px) {
+    .permission-recovery-layer {
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .permission-recovery-dialog {
+      width: 100%;
+      max-width: 100%;
+      padding: 24px 20px calc(22px + max(12px, env(safe-area-inset-bottom)));
+      border-radius: 30px 30px 0 0;
+      animation: translation-sheet-in .26s cubic-bezier(.22, .82, .24, 1) both;
+    }
+
     .smart-place-modal-layer {
       align-items: flex-end;
       padding: 0;

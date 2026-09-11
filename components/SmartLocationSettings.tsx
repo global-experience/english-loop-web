@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronDown,
@@ -9,6 +9,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Settings2,
   ShieldCheck,
   Trash2,
   TriangleAlert,
@@ -19,6 +20,8 @@ import type { RoutinePayload } from "@/lib/types";
 import {
   configureSmartLocationMonitoring,
   getSmartReminderSettings,
+  openNativePermissionSettings,
+  requestNativeNotificationPermission,
   removeSmartPlace,
   saveCurrentLocationAsPlace,
   savePlaceCoordinates,
@@ -47,8 +50,17 @@ type MapDraft = {
   longitude?: number;
 };
 
+type PermissionIssue = "notification" | "location" | null;
+
 const NAME_PRESETS = ["집", "회사", "헬스장", "본가", "학교", "스터디룸"];
 const RADIUS_PRESETS = [100, 300, 500, 1000, 2000];
+const PERMISSION_ISSUE_KEY = "loopine:smart-reminder-permission-issue:v1";
+
+function readPermissionIssue(): PermissionIssue {
+  if (typeof window === "undefined") return null;
+  const value = window.localStorage.getItem(PERMISSION_ISSUE_KEY);
+  return value === "notification" || value === "location" ? value : null;
+}
 
 function friendlyError(caught: unknown) {
   const raw = caught instanceof Error ? caught.message : String(caught || "");
@@ -62,11 +74,14 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   const { native } = useMobileUi();
   const portalReady = usePortalReady();
   const [settings, setSettings] = useState<SmartReminderSettings>(() => getSmartReminderSettings());
-  const [initiallyEnabled] = useState(() => getSmartReminderSettings().enabled);
+  const [initiallyEnabled] = useState(() => getSmartReminderSettings().enabled && readPermissionIssue() !== "notification");
   const [payload, setPayload] = useState<RoutinePayload | undefined>(initialPayload);
   const [expanded, setExpanded] = useState(variant === "full");
   const [busy, setBusy] = useState("");
   const [status, setStatus] = useState("");
+  const [permissionIssue, setPermissionIssueState] = useState<PermissionIssue>(readPermissionIssue);
+  const [permissionDialog, setPermissionDialog] = useState<PermissionIssue>(null);
+  const [permissionSettingsOpened, setPermissionSettingsOpened] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("집");
   const [newAddress, setNewAddress] = useState("");
@@ -74,10 +89,13 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   const [mapDraft, setMapDraft] = useState<MapDraft | null>(null);
   const [editingPlace, setEditingPlace] = useState<SmartPlace | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SmartPlace | null>(null);
+  const retryPermissionRef = useRef<() => void>(() => undefined);
+  const leftForSystemSettingsRef = useRef(false);
 
-  useBodyScrollLock(Boolean(editingPlace || deleteTarget));
+  useBodyScrollLock(Boolean(editingPlace || deleteTarget || permissionDialog));
 
   const places = useMemo(() => Object.values(settings.places).sort((a, b) => a.name.localeCompare(b.name, "ko")), [settings]);
+  const isActive = settings.enabled && permissionIssue !== "notification";
 
   useEffect(() => {
     if (!native) return;
@@ -98,6 +116,21 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   }, [native]);
 
   useEffect(() => {
+    if (!native) return;
+    const handleLocationError = (event: Event) => {
+      const detail = (event as CustomEvent<{ code?: string; message?: string }>).detail;
+      if (!/NOT_AUTHORIZED|permission|denied/i.test(`${detail?.code || ""} ${detail?.message || ""}`)) return;
+      setPermissionIssueState("location");
+      window.localStorage.setItem(PERMISSION_ISSUE_KEY, "location");
+      setPermissionSettingsOpened(false);
+      setPermissionDialog("location");
+      setStatus("위치 권한이 꺼져 있어 스마트 알림을 시작하지 못했습니다.");
+    };
+    window.addEventListener("loopine:smart-reminder-error", handleLocationError);
+    return () => window.removeEventListener("loopine:smart-reminder-error", handleLocationError);
+  }, [native]);
+
+  useEffect(() => {
     if (!deleteTarget) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setDeleteTarget(null);
@@ -111,39 +144,70 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
     await configureSmartLocationMonitoring(payload);
   }
 
+  function setPermissionIssue(issue: PermissionIssue) {
+    setPermissionIssueState(issue);
+    if (issue) window.localStorage.setItem(PERMISSION_ISSUE_KEY, issue);
+    else window.localStorage.removeItem(PERMISSION_ISSUE_KEY);
+  }
+
   async function toggleEnabled() {
     if (!native) {
       setExpanded(true);
       setStatus("스마트 위치 알림은 Loopine iOS·Android 앱에서 사용할 수 있어요.");
       return;
     }
-    if (!settings.enabled && places.length === 0) {
+    if (!isActive && places.length === 0) {
       setExpanded(true);
       setAdding(true);
       setStatus("알림에 사용할 장소를 먼저 추가해주세요.");
       return;
     }
-    const next = { ...settings, enabled: !settings.enabled };
-    if (next.enabled) {
-      setExpanded(true);
-    }
-    setSettings(next);
-    saveSmartReminderSettings(next);
     setBusy("toggle");
     try {
-      if (!next.enabled) {
+      if (isActive) {
+        const next = { ...settings, enabled: false };
+        setSettings(next);
+        saveSmartReminderSettings(next);
         await stopSmartLocationMonitoring();
+        setPermissionIssue(null);
         setStatus("스마트 위치 알림을 껐어요. 시간 알림은 그대로 유지됩니다.");
         return;
       }
+
+      setExpanded(true);
       if (!payload) throw new Error("루틴 정보를 불러오는 중입니다.");
-      const result = await syncNativeRoutineReminders(payload, { requestPermission: true });
+
+      const notificationState = await requestNativeNotificationPermission(true);
+      if (notificationState !== "granted") {
+        const disabled = { ...settings, enabled: false };
+        setSettings(disabled);
+        saveSmartReminderSettings(disabled);
+        setPermissionIssue("notification");
+        setPermissionDialog("notification");
+        setStatus(notificationState === "unavailable" ? "알림 기능을 사용할 수 없습니다." : "알림 권한이 필요합니다.");
+        return;
+      }
+
+      const next = { ...settings, enabled: true };
+      setSettings(next);
+      saveSmartReminderSettings(next);
+      setPermissionIssue(null);
+      const result = await syncNativeRoutineReminders(payload, { requestPermission: false });
       if (result === "scheduled") {
+        setPermissionIssue(null);
+        setPermissionSettingsOpened(false);
         setStatus("스마트 위치 알림을 켰어요. 좌표는 이 기기 안에서만 사용됩니다.");
       } else if (result === "location-denied") {
-        setStatus("시간 알림은 준비됐지만 위치 권한이 필요합니다. 기기 설정에서 ‘항상 허용’을 선택해주세요.");
+        setPermissionIssue("location");
+        setPermissionDialog("location");
+        setStatus("시간 알림은 준비됐지만 위치 권한이 필요합니다.");
       } else if (result === "denied") {
-        setStatus("알림 권한이 필요합니다. 기기 설정에서 Loopine 알림을 허용해주세요.");
+        const disabled = { ...next, enabled: false };
+        setSettings(disabled);
+        saveSmartReminderSettings(disabled);
+        setPermissionIssue("notification");
+        setPermissionDialog("notification");
+        setStatus("알림 권한이 필요합니다.");
       } else {
         setStatus("모바일 앱을 최신 빌드로 업데이트한 뒤 다시 시도해주세요.");
       }
@@ -154,7 +218,122 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
     }
   }
 
+  async function retryPermissions() {
+    if (!payload) {
+      setStatus("루틴 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    setBusy("permission");
+    setStatus(`${permissionIssue === "location" ? "위치" : "알림"} 권한을 다시 확인하고 있어요…`);
+    try {
+      let nextSettings = settings;
+      if (permissionIssue === "notification" || !settings.enabled) {
+        const notificationState = await requestNativeNotificationPermission(false);
+        if (notificationState !== "granted") {
+          const disabled = { ...settings, enabled: false };
+          setSettings(disabled);
+          saveSmartReminderSettings(disabled);
+          setPermissionIssue("notification");
+          setPermissionSettingsOpened(false);
+          setPermissionDialog("notification");
+          setStatus("알림 권한이 아직 허용되지 않았습니다.");
+          return;
+        }
+        nextSettings = { ...settings, enabled: true };
+        setSettings(nextSettings);
+        saveSmartReminderSettings(nextSettings);
+        setPermissionIssue(null);
+      }
+
+      const result = await syncNativeRoutineReminders(payload, { requestPermission: false });
+      if (result === "scheduled") {
+        setPermissionIssue(null);
+        setPermissionSettingsOpened(false);
+        setStatus("권한을 확인했고 스마트 위치 알림을 다시 준비했어요.");
+        return;
+      }
+
+      const issue: PermissionIssue = result === "denied" ? "notification" : result === "location-denied" ? "location" : permissionIssue;
+      if (issue === "notification") {
+        const disabled = { ...nextSettings, enabled: false };
+        setSettings(disabled);
+        saveSmartReminderSettings(disabled);
+      }
+      setPermissionIssue(issue);
+      setPermissionSettingsOpened(false);
+      setPermissionDialog(issue);
+      setStatus(`${issue === "location" ? "위치" : "알림"} 권한이 아직 허용되지 않았습니다.`);
+    } catch (caught) {
+      setStatus(friendlyError(caught));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function openPermissionSettings() {
+    if (!permissionDialog) return;
+    const issue = permissionDialog;
+    setBusy("permission-settings");
+    try {
+      // Once denied, iOS does not allow an app to display the system permission prompt again.
+      // The native shell routes notification settings directly where the OS supports it.
+      setPermissionSettingsOpened(true);
+      leftForSystemSettingsRef.current = false;
+      const opened = await openNativePermissionSettings(issue);
+      if (!opened) throw new Error("설정 화면을 열 수 없습니다.");
+      setPermissionDialog(null);
+      setStatus(`기기 설정에서 Loopine의 ${issue === "location" ? "위치" : "알림"} 권한을 허용한 뒤 돌아와 적용 여부를 확인해주세요.`);
+    } catch {
+      setPermissionSettingsOpened(false);
+      setStatus("기기 설정을 열지 못했습니다. 설정 앱에서 Loopine 권한을 직접 변경해주세요.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  useEffect(() => {
+    retryPermissionRef.current = () => void retryPermissions();
+  });
+
+  useEffect(() => {
+    if (!native || !permissionSettingsOpened) return;
+    let timer = 0;
+    let checking = false;
+    const markLeftApp = () => {
+      if (document.visibilityState === "hidden") leftForSystemSettingsRef.current = true;
+    };
+    const verifyOnReturn = () => {
+      if (document.visibilityState === "hidden" || checking) return;
+      // Native shells also emit this event. For browsers, require a real hidden -> visible
+      // transition so opening the dialog itself does not immediately retry the permission.
+      if (!leftForSystemSettingsRef.current) return;
+      checking = true;
+      leftForSystemSettingsRef.current = false;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        retryPermissionRef.current();
+      }, 350);
+    };
+    const verifyAfterNativeResume = () => {
+      leftForSystemSettingsRef.current = true;
+      verifyOnReturn();
+    };
+    document.addEventListener("visibilitychange", markLeftApp);
+    document.addEventListener("visibilitychange", verifyOnReturn);
+    window.addEventListener("loopine:native-app-resumed", verifyAfterNativeResume);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", markLeftApp);
+      document.removeEventListener("visibilitychange", verifyOnReturn);
+      window.removeEventListener("loopine:native-app-resumed", verifyAfterNativeResume);
+    };
+  }, [native, permissionSettingsOpened]);
+
   async function capture(input: { id?: string; name: string; addressLabel?: string; radiusMeters: number }) {
+    if (permissionIssue === "location" && !permissionSettingsOpened) {
+      setPermissionDialog("location");
+      return;
+    }
     const key = input.id ? `capture:${input.id}` : "add";
     setBusy(key);
     setStatus("현재 위치를 확인하고 있어요…");
@@ -168,6 +347,11 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
       await refreshMonitoring(next);
       setStatus(`${input.name.trim() || "새 장소"}을(를) 반경 ${input.radiusMeters || 500}m로 저장했어요.`);
     } catch (caught) {
+      if (/permission|denied|권한/i.test(caught instanceof Error ? caught.message : String(caught || ""))) {
+        setPermissionIssue("location");
+        setPermissionSettingsOpened(false);
+        setPermissionDialog("location");
+      }
       setStatus(friendlyError(caught));
     } finally {
       setBusy("");
@@ -243,7 +427,7 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
   // Geofencing is intentionally hidden outside the Capacitor iOS/Android shell.
   // Desktop/mobile browsers and installed PWAs do not run the native location monitor.
   if (!native) return null;
-  if (variant === "teaser" && initiallyEnabled && settings.enabled) return null;
+  if (variant === "teaser" && initiallyEnabled && isActive) return null;
 
   return (
     <section className={`smart-location-settings ${variant}`} aria-labelledby={`smart-location-title-${variant}`}>
@@ -258,11 +442,11 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
           <small>SMART REMINDER</small>
           <strong
             id={`smart-location-title-${variant}`}
-            key={settings.enabled ? "enabled" : "disabled"}
-            className={`smart-location-title ${settings.enabled ? "enabled" : "disabled"}`}
+            key={isActive ? "enabled" : "disabled"}
+            className={`smart-location-title ${isActive ? "enabled" : "disabled"}`}
           >
-            {settings.enabled ? "스마트 위치 알림 사용 중" : "출퇴근 위치로 알림 받기"}
-            {settings.enabled && <span className="smart-location-active-badge" aria-hidden="true" />}
+            {isActive ? "스마트 위치 알림 사용 중" : "출퇴근 위치로 알림 받기"}
+            {isActive && <span className="smart-location-active-badge" aria-hidden="true" />}
           </strong>
           <em>{places.length ? `${places.length}개 장소 · 기기에서만 위치 판정` : "집·회사 등 장소를 등록해보세요"}</em>
         </span>
@@ -274,8 +458,9 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
           <div className="smart-location-details">
             <div className="smart-location-intro">
               <p>장소에 들어오거나 나가는 순간을 감지해 연결된 루틴을 알려드려요. 저장한 주소 메모와 정확한 좌표는 Loopine 서버에 전송하지 않습니다.</p>
-              <button type="button" className={settings.enabled ? "active" : ""} onClick={() => void toggleEnabled()} disabled={Boolean(busy)}>
-                {busy === "toggle" ? <LoaderCircle className="spin" size={15} /> : settings.enabled ? "사용 중 · 끄기" : "사용하기"}
+              <button type="button" className={isActive ? "active" : ""} onClick={() => void toggleEnabled()} disabled={Boolean(busy)}>
+                {busy === "toggle" && <LoaderCircle className="spin" size={15} />}
+                {isActive ? "사용 중 · 끄기" : "사용하기"}
               </button>
             </div>
 
@@ -295,16 +480,18 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
             </div>
 
             {adding ? (
-              <div className="smart-place-new">
-                <label>장소 이름<input value={newName} maxLength={30} onChange={(event) => setNewName(event.target.value)} placeholder="예: 집, 회사, 헬스장" /></label>
-                <label>주소 또는 메모 (선택)<input value={newAddress} maxLength={100} onChange={(event) => setNewAddress(event.target.value)} placeholder="예: 성수동 사무실" /></label>
-                <label>감지 반경<input type="number" min="80" max="2000" step="50" value={newRadius} onChange={(event) => setNewRadius(Number(event.target.value))} /><span>m</span></label>
-                <div className="smart-place-new-actions">
-                  <button type="button" onClick={() => setAdding(false)}>취소</button>
-                  <button type="button" disabled={!newName.trim()} onClick={() => void openMapPicker({ name: newName, addressLabel: newAddress || undefined, radiusMeters: newRadius })}><MapPin size={15} /> 지도에서 선택</button>
-                  <button type="button" className="primary" disabled={Boolean(busy) || !newName.trim()} onClick={() => void capture({ name: newName, addressLabel: newAddress, radiusMeters: newRadius })}>
-                    {busy === "add" ? <LoaderCircle className="spin" size={15} /> : <LocateFixed size={15} />} 현재 위치로 추가
-                  </button>
+              <div className="smart-place-new-slide">
+                <div className="smart-place-new">
+                  <label>장소 이름<input value={newName} maxLength={30} onChange={(event) => setNewName(event.target.value)} placeholder="예: 집, 회사, 헬스장" /></label>
+                  <label>주소 또는 메모 (선택)<input value={newAddress} maxLength={100} onChange={(event) => setNewAddress(event.target.value)} placeholder="예: 성수동 사무실" /></label>
+                  <label>감지 반경<input type="number" min="80" max="2000" step="50" value={newRadius} onChange={(event) => setNewRadius(Number(event.target.value))} /><span>m</span></label>
+                  <div className="smart-place-new-actions">
+                    <button type="button" onClick={() => setAdding(false)}>취소</button>
+                    <button type="button" disabled={!newName.trim()} onClick={() => void openMapPicker({ name: newName, addressLabel: newAddress || undefined, radiusMeters: newRadius })}><MapPin size={15} /> 지도에서 선택</button>
+                    <button type="button" className="primary" disabled={Boolean(busy) || !newName.trim()} onClick={() => void capture({ name: newName, addressLabel: newAddress, radiusMeters: newRadius })}>
+                      {busy === "add" ? <LoaderCircle className="spin" size={15} /> : <LocateFixed size={15} />} 현재 위치로 추가
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -313,6 +500,17 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
 
             <p className="smart-location-privacy"><ShieldCheck size={15} /> 장소별 기본 반경은 500m이며 80~2,000m 사이에서 조정할 수 있습니다.</p>
             {status && <p className="smart-location-status" role="status">{status}</p>}
+            {/* {permissionIssue && (
+              <button
+                type="button"
+                className="smart-permission-retry"
+                onClick={() => permissionSettingsOpened ? void retryPermissions() : setPermissionDialog(permissionIssue)}
+                disabled={Boolean(busy)}
+              >
+                {busy === "permission" ? <LoaderCircle className="spin" size={16} /> : <Settings2 size={16} />}
+                {busy === "permission" ? "권한 확인 중…" : permissionSettingsOpened ? "권한 적용 확인" : "권한 다시 요청"}
+              </button>
+            )} */}
           </div>
         </div>
       </div>
@@ -361,6 +559,43 @@ export function SmartLocationSettings({ payload: initialPayload, variant = "full
                 onClick={() => confirmDelete(deleteTarget)}
               >
                 <Trash2 size={17} /> 삭제
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
+
+      {permissionDialog && portalReady && createPortal(
+        <div
+          className="confirm-modal-layer permission-recovery-layer"
+          role="presentation"
+          onMouseDown={(event) => event.target === event.currentTarget && setPermissionDialog(null)}
+        >
+          <section className="permission-recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="permission-recovery-title">
+            <span className="permission-recovery-icon">
+              {permissionDialog === "location" ? <LocateFixed size={25} /> : <Settings2 size={25} />}
+            </span>
+            <p className="eyebrow">PERMISSION REQUIRED</p>
+            <h3 id="permission-recovery-title">
+              {permissionDialog === "location" ? "위치 권한이 필요해요" : "알림 권한이 필요해요"}
+            </h3>
+            <p>
+              {permissionDialog === "location"
+                ? "등록한 장소의 도착·이탈을 기기에서 감지하려면 Loopine 위치 권한을 ‘항상 허용’으로 변경해주세요."
+                : "정해둔 시간과 장소에서 학습 루틴을 알려드리려면 Loopine 알림 권한을 허용해주세요."}
+            </p>
+            <small>처음 거부한 권한은 앱에서 같은 시스템 팝업을 다시 띄울 수 없어 기기 설정에서 변경해야 합니다.</small>
+            <small className="permission-recovery-path">
+              {permissionDialog === "location"
+                ? "설정 화면에서 ‘위치’ → ‘항상’을 선택한 뒤 Loopine으로 돌아오세요."
+                : "알림 설정 화면에서 ‘알림 허용’을 켠 뒤 Loopine으로 돌아오세요."}
+            </small>
+            <div className="permission-recovery-actions">
+              <button type="button" className="secondary-button" onClick={() => setPermissionDialog(null)}>취소</button>
+              <button type="button" className="primary-button" onClick={() => void openPermissionSettings()} disabled={Boolean(busy)}>
+                {busy === "permission-settings" ? <LoaderCircle className="spin" size={16} /> : <Settings2 size={16} />}
+                권한 요청
               </button>
             </div>
           </section>
