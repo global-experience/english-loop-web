@@ -29,10 +29,36 @@ const PREFERRED_VOICE_NAMES = [
   "Moira",
 ];
 
+/** 이상한 기계음/변조/괴물/속삭임 등 학습에 부적합한 Mac/iOS 특수 효과 목소리 제외 */
+const EXCLUDED_VOICE_NAMES = [
+  "whisper",
+  "albert",
+  "bad news",
+  "bahh",
+  "bells",
+  "boing",
+  "bubbles",
+  "cellos",
+  "deranged",
+  "good news",
+  "hysterical",
+  "pipe organ",
+  "trinoids",
+  "zarvox",
+  "jester",
+  "junior",
+  "organ",
+  "superstar",
+  "wobble",
+  "ralph",
+  "fred",
+];
+
 const VOICE_LOAD_TIMEOUT_MS = 1200;
 const RESTART_DELAY_MS = 120;
 
 let cachedVoice: SpeechSynthesisVoice | null = null;
+let activeUtterance: SpeechSynthesisUtterance | null = null;
 let voicesPromise: Promise<SpeechSynthesisVoice[]> | null = null;
 
 function synth(): SpeechSynthesis | null {
@@ -55,22 +81,36 @@ export function cancelSpeech(): void {
 /**
  * 목소리 목록 중 영어를 고른다.
  *
- * 테스트를 위해 내보낸다. 이 선택이 곧 "쉰 목소리" 를 막는 지점이다.
+ * 테스트를 위해 내보낸다. 이 선택이 곧 "쉰 목소리" 및 "귀신 목소리" 를 막는 지점이다.
  */
 export function pickEnglishVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  const english = voices.filter((voice) => voice.lang?.toLowerCase().startsWith("en"));
+  const english = voices.filter((voice) => {
+    if (!voice.lang?.toLowerCase().startsWith("en")) return false;
+    const nameLower = voice.name?.toLowerCase() || "";
+    return !EXCLUDED_VOICE_NAMES.some((excluded) => nameLower.includes(excluded));
+  });
   if (!english.length) return null;
 
-  // iOS 는 저품질 목소리를 voiceURI 에 `compact` 로 표시한다. 특히 뭉개진다.
+  // iOS/macOS 는 기본(사전 설치) 목소리를 voiceURI 에 `compact` 로 표시한다.
   const fullQuality = english.filter((voice) => !voice.voiceURI?.includes("compact"));
-  const pool = fullQuality.length ? fullQuality : english;
 
+  // 1. 선호 목록 중 고품질(non-compact) 목소리가 있으면 최우선 선택
   for (const name of PREFERRED_VOICE_NAMES) {
-    const match = pool.find((voice) => voice.name?.includes(name));
+    const match = fullQuality.find((voice) => voice.name?.includes(name));
     if (match) return match;
   }
+
+  // 2. 고품질 선호 목소리가 없더라도, compact 선호 목소리(Samantha, Ava, Daniel 등)가
+  //    생소한 비-compact 목소리나 시스템 대체 음성보다 훨씬 자연스럽다.
+  for (const name of PREFERRED_VOICE_NAMES) {
+    const match = english.find((voice) => voice.name?.includes(name));
+    if (match) return match;
+  }
+
+  // 3. 선호 목록에 없는 경우, en-US 우선 선택
   const normalized = (value: string) => value.replace("_", "-").toLowerCase();
-  return pool.find((voice) => normalized(voice.lang) === "en-us") || pool[0];
+  const pool = fullQuality.length ? fullQuality : english;
+  return pool.find((voice) => normalized(voice.lang) === "en-us") || pool[0] || english[0];
 }
 
 function loadVoices(): Promise<SpeechSynthesisVoice[]> {
@@ -115,6 +155,13 @@ function speakNow(speech: SpeechSynthesis, text: string, voices: SpeechSynthesis
   const wasBusy = speech.speaking || speech.pending;
   cancelSpeech();
   const utterance = buildUtterance(text, voices, rate);
+  utterance.onend = () => {
+    if (activeUtterance === utterance) activeUtterance = null;
+  };
+  utterance.onerror = () => {
+    if (activeUtterance === utterance) activeUtterance = null;
+  };
+  activeUtterance = utterance;
   if (wasBusy) {
     window.setTimeout(() => speech.speak(utterance), RESTART_DELAY_MS);
   } else {

@@ -49,4 +49,22 @@ describe("pickEnglishVoice", () => {
     const voices = [voice("Nicky", "en-GB"), voice("Aaron", "en_US")];
     expect(pickEnglishVoice(voices)?.name).toBe("Aaron");
   });
+
+  it("Whisper, Albert 등 특수효과/귀신 목소리가 비-compact 여도 compact 기본 영어 목소리를 우선 선택한다", () => {
+    const voices = [
+      voice("Samantha", "en-US", "com.apple.voice.compact.en-US.Samantha"),
+      voice("Whisper", "en-US", "com.apple.speech.synthesis.voice.Whisper"),
+      voice("Albert", "en-US", "com.apple.speech.synthesis.voice.Albert"),
+      voice("Zarvox", "en-US", "com.apple.speech.synthesis.voice.Zarvox"),
+    ];
+    expect(pickEnglishVoice(voices)?.name).toBe("Samantha");
+  });
+
+  it("특수효과/귀신 목소리만 있으면 null 을 반환하여 브라우저 기본값에 맡긴다", () => {
+    const voices = [
+      voice("Whisper", "en-US", "com.apple.speech.synthesis.voice.Whisper"),
+      voice("Albert", "en-US", "com.apple.speech.synthesis.voice.Albert"),
+    ];
+    expect(pickEnglishVoice(voices)).toBeNull();
+  });
 });

@@ -53,7 +53,11 @@ export function SubtitlePlayerSheet({
   const speedRef = useRef(1);
   const openRef = useRef(open);
   const ttsTimerRef = useRef<number | null>(null);
+  const restartTimerRef = useRef<number | null>(null);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const utteranceTokenRef = useRef(0);
   const isCancelingTtsRef = useRef(false);
+  const cachedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
     repeatsLeftRef.current = repeatsLeft;
@@ -64,6 +68,19 @@ export function SubtitlePlayerSheet({
   useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  // Safari voiceschanged listener to ensure voice cache is populated
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const handleVoicesChanged = () => {
+      const voices = window.speechSynthesis.getVoices() || [];
+      cachedVoiceRef.current = pickEnglishVoice(voices);
+    };
+    window.speechSynthesis.addEventListener("voiceschanged", handleVoicesChanged);
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", handleVoicesChanged);
+    };
+  }, []);
 
   // Extract 11-char YouTube Video ID
   const videoId = useMemo(() => {
@@ -231,24 +248,34 @@ export function SubtitlePlayerSheet({
    */
   function pickNaturalEnglishVoice(): SpeechSynthesisVoice | null {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-    return pickEnglishVoice(window.speechSynthesis.getVoices() || []);
+    const voices = window.speechSynthesis.getVoices() || [];
+    if (!cachedVoiceRef.current || !voices.includes(cachedVoiceRef.current)) {
+      cachedVoiceRef.current = pickEnglishVoice(voices);
+    }
+    return cachedVoiceRef.current;
   }
 
   const stopTts = useCallback(() => {
+    utteranceTokenRef.current += 1;
     isCancelingTtsRef.current = true;
     if (ttsTimerRef.current !== null) {
       window.clearTimeout(ttsTimerRef.current);
       ttsTimerRef.current = null;
+    }
+    if (restartTimerRef.current !== null) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
     }
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         window.speechSynthesis.cancel();
       } catch { /* ignore */ }
     }
+    activeUtteranceRef.current = null;
     setPlaying(false);
     window.setTimeout(() => {
       isCancelingTtsRef.current = false;
-    }, 100);
+    }, 120);
   }, []);
 
   const speakTts = useCallback(() => {
@@ -258,55 +285,84 @@ export function SubtitlePlayerSheet({
       window.clearTimeout(ttsTimerRef.current);
       ttsTimerRef.current = null;
     }
-
-    isCancelingTtsRef.current = false;
-    try {
-      window.speechSynthesis.cancel();
-    } catch { /* ignore */ }
-
-    const utterance = new SpeechSynthesisUtterance(target.text);
-    utterance.lang = "en-US";
-    utterance.rate = Math.max(0.75, Math.min(1.5, speedRef.current));
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    const naturalVoice = pickNaturalEnglishVoice();
-    if (naturalVoice) {
-      utterance.voice = naturalVoice;
+    if (restartTimerRef.current !== null) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
     }
 
-    utterance.onstart = () => {
-      if (!openRef.current || isCancelingTtsRef.current) {
-        try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
-        return;
+    const currentToken = ++utteranceTokenRef.current;
+    isCancelingTtsRef.current = false;
+
+    const synth = window.speechSynthesis;
+    const wasBusy = synth.speaking || synth.pending;
+    if (wasBusy) {
+      try {
+        synth.cancel();
+      } catch { /* ignore */ }
+    }
+
+    const runSpeak = () => {
+      if (currentToken !== utteranceTokenRef.current || !openRef.current) return;
+
+      const utterance = new SpeechSynthesisUtterance(target.text);
+      utterance.lang = "en-US";
+      utterance.rate = Math.max(0.75, Math.min(1.5, speedRef.current));
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      const naturalVoice = pickNaturalEnglishVoice();
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
       }
-      setPlaying(true);
-    };
 
-    utterance.onend = () => {
-      setPlaying(false);
-      if (!openRef.current || isCancelingTtsRef.current) return;
-
-      const isInfinite = repeatTargetRef.current === 0;
-      if (isInfinite || (repeatTargetRef.current > 0 && repeatsLeftRef.current > 1)) {
-        if (!isInfinite) {
-          repeatsLeftRef.current -= 1;
-          setRepeatsLeft(repeatsLeftRef.current);
+      utterance.onstart = () => {
+        if (currentToken !== utteranceTokenRef.current || !openRef.current || isCancelingTtsRef.current) {
+          try { synth.cancel(); } catch { /* ignore */ }
+          return;
         }
-        ttsTimerRef.current = window.setTimeout(() => {
-          ttsTimerRef.current = null;
-          if (openRef.current && !isCancelingTtsRef.current) {
-            speakTts();
+        setPlaying(true);
+      };
+
+      utterance.onend = () => {
+        if (currentToken !== utteranceTokenRef.current) return;
+        setPlaying(false);
+        activeUtteranceRef.current = null;
+        if (!openRef.current || isCancelingTtsRef.current) return;
+
+        const isInfinite = repeatTargetRef.current === 0;
+        if (isInfinite || (repeatTargetRef.current > 0 && repeatsLeftRef.current > 1)) {
+          if (!isInfinite) {
+            repeatsLeftRef.current -= 1;
+            setRepeatsLeft(repeatsLeftRef.current);
           }
-        }, 500);
+          ttsTimerRef.current = window.setTimeout(() => {
+            ttsTimerRef.current = null;
+            if (currentToken === utteranceTokenRef.current && openRef.current && !isCancelingTtsRef.current) {
+              speakTts();
+            }
+          }, 450);
+        }
+      };
+
+      utterance.onerror = () => {
+        if (currentToken !== utteranceTokenRef.current) return;
+        setPlaying(false);
+        activeUtteranceRef.current = null;
+      };
+
+      activeUtteranceRef.current = utterance;
+      try {
+        synth.speak(utterance);
+      } catch {
+        setPlaying(false);
+        activeUtteranceRef.current = null;
       }
     };
 
-    utterance.onerror = () => setPlaying(false);
-    try {
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      setPlaying(false);
+    if (wasBusy) {
+      restartTimerRef.current = window.setTimeout(runSpeak, 120);
+    } else {
+      runSpeak();
     }
   }, [target?.text]);
 
@@ -350,8 +406,8 @@ export function SubtitlePlayerSheet({
 
   useEffect(() => {
     if (open && target) {
-      repeatsLeftRef.current = repeatTarget;
-      setRepeatsLeft(repeatTarget);
+      repeatsLeftRef.current = repeatTargetRef.current;
+      setRepeatsLeft(repeatTargetRef.current);
       setPlaying(false);
       stopTts();
       if (!videoId) {
@@ -360,7 +416,7 @@ export function SubtitlePlayerSheet({
     } else {
       stopTts();
     }
-  }, [open, target, repeatTarget, videoId, speakTts, stopTts]);
+  }, [open, target, videoId, speakTts, stopTts]);
 
   useEffect(() => {
     return () => {
@@ -461,7 +517,6 @@ export function SubtitlePlayerSheet({
                       setPlaying(true);
                     } catch { /* ignore */ }
                   } else {
-                    stopTts();
                     speakTts();
                   }
                 }}

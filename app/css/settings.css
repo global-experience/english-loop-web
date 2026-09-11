@@ -453,6 +453,7 @@
 .smart-place-new-slide {
   display: grid;
   grid-template-rows: 0fr;
+  overflow: hidden;
   animation: smart-place-slide-expand 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: grid-template-rows;
 }
