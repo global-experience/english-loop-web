@@ -83,9 +83,16 @@ const PLAYBACK_WATCHDOG_MS = 5000;
 /** 재생 상태가 끝내 오지 않아도 이 시간 뒤에는 플레이어를 드러낸다. */
 const PLAYER_REVEAL_FALLBACK_MS = 1200;
 
+const YT_STATE_ENDED = 0;
 const YT_STATE_PLAYING = 1;
 const YT_STATE_PAUSED = 2;
 const YT_STATE_BUFFERING = 3;
+
+/**
+ * 버퍼링이 이만큼 이어지고 재생 위치도 그대로면 멈춘 것으로 보고 한 번 깨운다.
+ * 임베드가 네트워크가 끊겼다 붙는 순간 등에서 스스로 빠져나오지 못하는 경우가 있다.
+ */
+const STALL_RECOVERY_MS = 8000;
 
 /**
  * 살아 있는 플레이어 하나.
@@ -100,6 +107,8 @@ type PlayerEntry = {
   host: HTMLElement;
   role: "active" | "warm";
   prewarmTimer: number | null;
+  /** 버퍼링에서 못 빠져나오는지 감시하는 타이머. */
+  stallTimer: number | null;
 };
 
 /** 속성 선택자에 그대로 넣기 위한 최소 이스케이프. */
@@ -477,6 +486,7 @@ export function FeedView({
     const entry = entriesRef.current.get(videoId);
     if (!entry) return;
     if (entry.prewarmTimer !== null) window.clearTimeout(entry.prewarmTimer);
+    if (entry.stallTimer !== null) window.clearTimeout(entry.stallTimer);
     if (entry.role === "active") settlePlayback();
     try { entry.player?.destroy(); } catch { /* ignore */ }
     try { entry.host.innerHTML = ""; } catch { /* ignore */ }
@@ -552,6 +562,45 @@ export function FeedView({
     setIsMuted(shouldMute);
   }, []);
 
+  /**
+   * 버퍼링이 길어지는지 지켜보다가, 재생 위치가 그대로면 깨운다.
+   *
+   * 임베드는 네트워크가 끊겼다 붙거나 세그먼트 요청이 한 번 어긋나면 BUFFERING 에서
+   * 스스로 못 빠져나오는 경우가 있다. 그대로 두면 사용자는 영원히 도는 스피너만 본다.
+   * 1차는 playVideo(), 2차는 현재 위치로 다시 seek 해 데이터를 새로 요청하게 만든다.
+   */
+  const watchForStall = useCallback((entry: PlayerEntry) => {
+    if (entry.stallTimer !== null) window.clearTimeout(entry.stallTimer);
+    let markedAt = 0;
+    try { markedAt = entry.player.getCurrentTime?.() ?? 0; } catch { /* ignore */ }
+    let attempt = 0;
+
+    function tick(): void {
+      entry.stallTimer = null;
+      if (entriesRef.current.get(entry.videoId) !== entry || entry.role !== "active") return;
+      let now = 0;
+      let state = -1;
+      try {
+        now = entry.player.getCurrentTime?.() ?? 0;
+        state = entry.player.getPlayerState?.() ?? -1;
+      } catch { return; }
+      // 스스로 풀렸거나 재생이 진행됐다면 그냥 둔다.
+      if (state !== YT_STATE_BUFFERING || now - markedAt > 0.25) return;
+      attempt += 1;
+      try {
+        if (attempt === 1) {
+          entry.player.playVideo();
+        } else {
+          entry.player.seekTo?.(Math.max(0, now - 0.5), true);
+          entry.player.playVideo();
+        }
+      } catch { /* ignore */ }
+      if (attempt < 2) entry.stallTimer = window.setTimeout(tick, STALL_RECOVERY_MS);
+    }
+
+    entry.stallTimer = window.setTimeout(tick, STALL_RECOVERY_MS);
+  }, []);
+
   const retryVideo = useCallback((ytVideoId: string) => {
     setBlockedVideoIds((current) => current.filter((id) => id !== ytVideoId));
   }, []);
@@ -588,7 +637,9 @@ export function FeedView({
     });
 
     // onReady 가 생성보다 먼저 불릴 수 있는 구현을 대비해 레지스트리에 먼저 올린다.
-    const entry = { videoId: ytVideoId, player: null, host, role, prewarmTimer: null } as unknown as PlayerEntry;
+    const entry = {
+      videoId: ytVideoId, player: null, host, role, prewarmTimer: null, stallTimer: null,
+    } as unknown as PlayerEntry;
     entriesRef.current.set(ytVideoId, entry);
 
     const player = new window.YT.Player(target, {
@@ -606,7 +657,10 @@ export function FeedView({
         enablejsapi: 1,
         modestbranding: 1,
         iv_load_policy: 3,
-        loop: 1
+        // 단일 영상 반복은 playlist 에 같은 id 를 넣어야 실제로 동작한다.
+        // loop 만 두면 조용히 무시돼서, 영상이 끝나면 그대로 멈춰 있었다.
+        loop: 1,
+        playlist: ytVideoId
       },
       events: {
         onReady: () => {
@@ -621,7 +675,9 @@ export function FeedView({
               if (entriesRef.current.get(ytVideoId) !== entry || entry.role !== "warm") return;
               try {
                 entry.player.pauseVideo();
-                entry.player.seekTo?.(0, false);
+                // allowSeekAhead=false 는 "버퍼 밖 데이터를 새로 요청하지 말라"는 뜻이다.
+                // 그 상태로 승격돼 재생되면 받아 둔 구간 끝에서 버퍼링에 갇힌다. true 로 둔다.
+                entry.player.seekTo?.(0, true);
               } catch { /* ignore */ }
             }, PREWARM_PLAY_MS);
             return;
@@ -672,6 +728,22 @@ export function FeedView({
             // 승격 직후의 unMute() 가 준비 전이라 무시됐을 수 있다. 여기서 확실히 맞춘다.
             applyMuteToActive(entry.player);
           }
+          if (event.data === YT_STATE_BUFFERING) {
+            watchForStall(entry);
+          } else if (entry.stallTimer !== null) {
+            window.clearTimeout(entry.stallTimer);
+            entry.stallTimer = null;
+          }
+
+          if (event.data === YT_STATE_ENDED) {
+            // playlist 파라미터로 반복되지만, 임베드가 반복에 실패하고 끝에 멈춰 서는
+            // 경우가 있다. 그때는 직접 되감아 다시 재생한다.
+            try {
+              entry.player.seekTo?.(0, true);
+              entry.player.playVideo();
+            } catch { /* ignore */ }
+          }
+
           if (event.data === YT_STATE_PLAYING) {
             if (playingStartedAtRef.current === null) playingStartedAtRef.current = performance.now();
           } else {
@@ -693,7 +765,7 @@ export function FeedView({
       // 새 iframe 이다. 흰 깜박임이 끝날 때까지 다시 감춘다.
       setPaintedVideoId((current) => current === ytVideoId ? "" : current);
     }
-  }, [applyMuteToActive, armWatchdog, cancelPrewarm, clearWatchdog, destroyEntry, markBlocked, pausePlayer, releaseWarmPlayers, settlePlayback]);
+  }, [applyMuteToActive, armWatchdog, cancelPrewarm, clearWatchdog, destroyEntry, markBlocked, pausePlayer, releaseWarmPlayers, settlePlayback, watchForStall]);
 
   /**
    * 세로 피드의 플레이어가 돌아도 되는 상태인가.
