@@ -70,6 +70,8 @@ type NativeBackgroundGeolocation = {
 type NativeGeofencing = {
   sync?: (payload: string) => string | void;
   stop?: () => string | void;
+  /** Android: 장소 알림 탭으로 앱이 열렸을 때의 루틴 정보(JSON)를 한 번만 돌려준다. 없으면 빈 문자열. */
+  consumePendingRoutineNotification?: () => string | void;
 };
 
 type CapacitorWindow = Window & {
@@ -207,6 +209,24 @@ function ensureNativeGeofenceStatusListener() {
   window.addEventListener("loopine:native-routine-notification", (event) => {
     openRoutineFromNotification((event as CustomEvent<Record<string, unknown>>).detail);
   });
+  // Android 는 알림 탭 정보를 Intent extras 로 받는데, 웹뷰가 페이지를 다 읽기 전이면 이벤트를 밀어넣어도
+  // 받을 리스너가 없다. 그래서 네이티브가 들고 있다가 웹이 초기화될 때(여기)와 백그라운드에서 돌아올 때
+  // (loopine:native-app-resumed) 가져간다. iOS 는 Capacitor LocalNotifications 경로로 이미 처리된다.
+  consumePendingNativeRoutineNotification();
+  window.addEventListener("loopine:native-app-resumed", consumePendingNativeRoutineNotification);
+}
+
+function consumePendingNativeRoutineNotification() {
+  const host = nativeGeofencing();
+  if (!host?.consumePendingRoutineNotification) return;
+  try {
+    const raw = host.consumePendingRoutineNotification();
+    if (!raw) return;
+    const detail = JSON.parse(raw) as Record<string, unknown>;
+    openRoutineFromNotification(detail);
+  } catch {
+    // 잘못된 JSON 이나 브리지 예외는 딥링크만 포기하고 앱은 정상 진행한다.
+  }
 }
 
 function nativeGeofencePayload(payload: RoutinePayload, settings: SmartReminderSettings) {
