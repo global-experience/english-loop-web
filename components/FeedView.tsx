@@ -527,6 +527,29 @@ export function FeedView({
     }, PLAYBACK_WATCHDOG_MS);
   }, [clearWatchdog, markBlocked]);
 
+  /**
+   * 현재 영상의 음소거 상태를 "지금" 기준으로 다시 계산해 플레이어와 UI 에 함께 적용한다.
+   *
+   * 생성 시점에 계산해 둔 값을 쓰면 안 된다. 이웃으로 만든 플레이어는 항상 음소거로
+   * 생성되는데(role="warm"), onReady 가 오기 전에 사용자가 그 영상으로 스냅하면 승격된 뒤
+   * onReady 가 실행되면서 그 "음소거" 값이 그대로 UI 에 반영돼 소리가 꺼진 것처럼 보였다.
+   * 또 승격 직후의 unMute() 는 플레이어가 아직 준비 전이면 무시되므로, 재생이 시작될 때
+   * 한 번 더 적용해 준다.
+   */
+  const applyMuteToActive = useCallback((player: FeedPlayer) => {
+    const shouldMute = shouldStartFeedMuted({
+      native: isNativeApp(),
+      userInteracted: userInteractedRef.current,
+      userMuted: userMutedRef.current,
+      hasBeenActive: hasUserActivation(),
+    });
+    try {
+      if (shouldMute) player.mute();
+      else player.unMute();
+    } catch { /* 아직 준비 전이다. 다음 상태 변화에서 다시 적용된다. */ }
+    setIsMuted(shouldMute);
+  }, []);
+
   const retryVideo = useCallback((ytVideoId: string) => {
     setBlockedVideoIds((current) => current.filter((id) => id !== ytVideoId));
   }, []);
@@ -603,7 +626,7 @@ export function FeedView({
           }
 
           currentVideoIdRef.current = ytVideoId;
-          setIsMuted(shouldMute);
+          applyMuteToActive(entry.player);
           try {
             if (activeTabRef.current) entry.player.playVideo();
             else pausePlayer(true);
@@ -644,6 +667,8 @@ export function FeedView({
             clearWatchdog();
             // 여기서부터는 iframe 이 YouTube 화면을 그리고 있다. 이제 드러내도 안전하다.
             setPaintedVideoId(ytVideoId);
+            // 승격 직후의 unMute() 가 준비 전이라 무시됐을 수 있다. 여기서 확실히 맞춘다.
+            applyMuteToActive(entry.player);
           }
           if (event.data === YT_STATE_PLAYING) {
             if (playingStartedAtRef.current === null) playingStartedAtRef.current = performance.now();
@@ -666,7 +691,7 @@ export function FeedView({
       // 새 iframe 이다. 흰 깜박임이 끝날 때까지 다시 감춘다.
       setPaintedVideoId((current) => current === ytVideoId ? "" : current);
     }
-  }, [armWatchdog, cancelPrewarm, clearWatchdog, destroyEntry, markBlocked, pausePlayer, releaseWarmPlayers, settlePlayback]);
+  }, [applyMuteToActive, armWatchdog, cancelPrewarm, clearWatchdog, destroyEntry, markBlocked, pausePlayer, releaseWarmPlayers, settlePlayback]);
 
   // ── 현재 영상 + 이웃(네이티브 전용) 플레이어를 맞춘다 ──
   // 현재 영상은 playIndex 가 정착한 즉시, 이웃은 거기서 PREWARM_DELAY_MS 를 더 기다린 뒤에
@@ -734,16 +759,8 @@ export function FeedView({
         entry.role = "active";
         playerRef.current = entry.player;
         currentVideoIdRef.current = videoId;
-        const shouldMute = shouldStartFeedMuted({
-          native: isNativeApp(),
-          userInteracted: userInteractedRef.current,
-          userMuted: userMutedRef.current,
-          hasBeenActive: hasUserActivation(),
-        });
-        setIsMuted(shouldMute);
+        applyMuteToActive(entry.player);
         try {
-          if (shouldMute) entry.player.mute();
-          else entry.player.unMute();
           if (activeTabRef.current) entry.player.playVideo();
         } catch { /* ignore */ }
         armWatchdog(entry.player, videoId);
@@ -789,7 +806,7 @@ export function FeedView({
   }, [
     active, catalogOpen, apiReady, playIndex, items, prewarmEnabled, blockedVideoIds,
     pausePlayer, clearWatchdog, cancelPrewarm, releaseWarmPlayers, destroyEntry,
-    createPlayer, armWatchdog, settlePlayback,
+    createPlayer, armWatchdog, settlePlayback, applyMuteToActive,
   ]);
 
   // 피드로 돌아왔을 때 스크롤 복원
