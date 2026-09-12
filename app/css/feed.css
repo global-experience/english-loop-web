@@ -268,8 +268,11 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
   object-fit: cover;
 }
 
-/* 썸네일 위에 겹쳐 놓는다. 플레이어가 첫 프레임을 그리기 전까지 검은 박스 대신
-   썸네일이 보이고, 이웃 영상은 투명한 채로 버퍼만 받아 둔다. */
+/* 썸네일 위에 겹쳐 놓는다.
+   새로 만든 iframe 은 YouTube 스크립트가 돌기 전에 브라우저가 빈 문서를 흰색으로 한 번
+   칠한다 — 스냅할 때 보이던 그 깜박임이다. 카드 배경(#080a09)은 iframe '뒤'라 이걸 가릴 수
+   없으므로, 플레이어 자체를 투명하게 띄워 두고 재생이 시작된 뒤에 드러낸다. 그 동안은
+   밑에 깔린 썸네일이 보인다. 이웃 영상은 계속 투명한 채로 버퍼만 받는다. */
 .feed-player-host {
   position: absolute;
   inset: 0;
@@ -277,11 +280,23 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
   width: 100%;
   height: 100%;
   min-height: 310px;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+
+.feed-player-host[data-role="active"][data-ready="true"] {
+  opacity: 1;
 }
 
 .feed-player-host[data-role="warm"] {
-  opacity: 0;
   pointer-events: none;
+}
+
+/* 두 번째 방어선: 브라우저가 아직 빈 iframe 을 칠할 때 흰색 대신 어두운 색을 쓰게 한다. */
+.feed-media iframe,
+.feed-player-host iframe {
+  color-scheme: dark;
+  background: #080a09;
 }
 
 .feed-player-host iframe {

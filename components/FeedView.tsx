@@ -80,6 +80,9 @@ const PLAY_SETTLE_MS = 450;
 /** onReady 이후 이 시간 안에 재생도 메타데이터 로드도 확인되지 않으면 차단으로 판정한다. */
 const PLAYBACK_WATCHDOG_MS = 5000;
 
+/** 재생 상태가 끝내 오지 않아도 이 시간 뒤에는 플레이어를 드러낸다. */
+const PLAYER_REVEAL_FALLBACK_MS = 1200;
+
 const YT_STATE_PLAYING = 1;
 const YT_STATE_PAUSED = 2;
 const YT_STATE_BUFFERING = 3;
@@ -172,6 +175,15 @@ export function FeedView({
    * 하이드레이션 불일치를 피하려고 첫 렌더는 항상 false 로 두고 마운트 후에 결정한다.
    */
   const [prewarmEnabled, setPrewarmEnabled] = useState(false);
+  /**
+   * 플레이어가 실제로 그림을 그리기 시작한 영상.
+   *
+   * 새로 만든 iframe 은 YouTube 스크립트가 돌기 전에 브라우저가 빈 문서를 흰색으로 한 번
+   * 칠한다 — 스냅할 때 보이던 그 깜박임이다. 카드 배경(#080a09)은 iframe 뒤라 이걸 못 가린다.
+   * 그래서 플레이어를 투명하게 띄워 두고 재생이 시작된 뒤에야 드러낸다. 그 동안 사용자는
+   * 밑에 깔린 썸네일을 본다.
+   */
+  const [paintedVideoId, setPaintedVideoId] = useState("");
   const pathname = usePathname();
   const [catalogOpen, setCatalogOpen] = useState(() => {
     if (typeof window !== "undefined") {
@@ -602,6 +614,13 @@ export function FeedView({
           // 판정한다. 브라우저 자동재생 정책 때문에 멈춘 경우에는 duration이 정상적으로
           // 잡히므로 두 상황이 구분된다.
           armWatchdog(entry.player, ytVideoId);
+
+          // 자동재생이 막히는 등으로 상태 변화가 오지 않아도 플레이어는 이미 그려져 있다.
+          // 영원히 투명하게 두면 안 되므로 짧은 실패 대비 타이머를 건다.
+          window.setTimeout(() => {
+            if (entriesRef.current.get(ytVideoId) !== entry || entry.role !== "active") return;
+            setPaintedVideoId((current) => current === ytVideoId ? current : ytVideoId);
+          }, PLAYER_REVEAL_FALLBACK_MS);
         },
         onStateChange: (event: { data: number }) => {
           if (entriesRef.current.get(ytVideoId) !== entry || entry.role !== "active") return;
@@ -621,7 +640,11 @@ export function FeedView({
             return;
           }
 
-          if (event.data === YT_STATE_PLAYING || event.data === YT_STATE_BUFFERING) clearWatchdog();
+          if (event.data === YT_STATE_PLAYING || event.data === YT_STATE_BUFFERING) {
+            clearWatchdog();
+            // 여기서부터는 iframe 이 YouTube 화면을 그리고 있다. 이제 드러내도 안전하다.
+            setPaintedVideoId(ytVideoId);
+          }
           if (event.data === YT_STATE_PLAYING) {
             if (playingStartedAtRef.current === null) playingStartedAtRef.current = performance.now();
           } else {
@@ -638,7 +661,11 @@ export function FeedView({
     }) as unknown as FeedPlayer;
 
     entry.player = player;
-    if (role === "active") playerRef.current = player;
+    if (role === "active") {
+      playerRef.current = player;
+      // 새 iframe 이다. 흰 깜박임이 끝날 때까지 다시 감춘다.
+      setPaintedVideoId((current) => current === ytVideoId ? "" : current);
+    }
   }, [armWatchdog, cancelPrewarm, clearWatchdog, destroyEntry, markBlocked, pausePlayer, releaseWarmPlayers, settlePlayback]);
 
   // ── 현재 영상 + 이웃(네이티브 전용) 플레이어를 맞춘다 ──
@@ -1259,6 +1286,7 @@ export function FeedView({
                     className="feed-player-host"
                     data-player-host={video.youtube_video_id}
                     data-role={isCurrent ? "active" : "warm"}
+                    data-ready={paintedVideoId === video.youtube_video_id ? "true" : "false"}
                   />
                 )}
                 {blocked && index === playIndex && (

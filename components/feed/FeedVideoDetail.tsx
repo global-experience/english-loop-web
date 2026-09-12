@@ -59,6 +59,14 @@ export function FeedVideoDetail({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [closing, setClosing] = useState(false);
+  /**
+   * 로드가 끝난 iframe 의 영상 id.
+   *
+   * 새 iframe 은 YouTube 스크립트가 돌기 전에 브라우저가 빈 문서를 흰색으로 한 번 칠한다.
+   * hero 배경(#000)은 iframe 뒤라 그걸 못 가리므로, 로드가 끝날 때까지 iframe 을 투명하게
+   * 두고 뒤에 깔린 포스터를 보여 준다.
+   */
+  const [loadedVideoId, setLoadedVideoId] = useState("");
 
   const streamRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -167,6 +175,11 @@ export function FeedVideoDetail({
     cards.forEach((card) => observer.observe(card));
     return () => observer.disconnect();
   }, [items]);
+
+  // 다른 영상으로 넘어갔다. 새 iframe 이 뜨는 동안 다시 포스터를 보여 준다.
+  useEffect(() => {
+    setLoadedVideoId("");
+  }, [index]);
 
   // 끝이 가까워지면 미리 채운다.
   useEffect(() => {
@@ -285,10 +298,21 @@ export function FeedVideoDetail({
                 data-feed-index={idx}
               >
                 <div className="feed-media video-detail-hero">
+                  <img
+                    className="video-detail-poster"
+                    src={thumbnailUrl(item.thumbnail_url, "medium")}
+                    alt=""
+                    aria-hidden="true"
+                    onClick={() => scrollToVideo(idx)}
+                    style={{ cursor: "pointer" }}
+                  />
                   {isPlaying ? (
                     <>
                       <iframe
                         key={item.youtube_video_id}
+                        className="video-detail-frame"
+                        data-ready={loadedVideoId === item.youtube_video_id ? "true" : "false"}
+                        onLoad={() => setLoadedVideoId(item.youtube_video_id)}
                         src={`https://www.youtube.com/embed/${item.youtube_video_id}?autoplay=1&playsinline=1&controls=0&fs=0&disablekb=1&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0`}
                         title={item.title}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -303,22 +327,13 @@ export function FeedVideoDetail({
                       />
                     </>
                   ) : (
-                    <>
-                      <img
-                        src={thumbnailUrl(item.thumbnail_url, "medium")}
-                        alt=""
-                        aria-hidden="true"
-                        onClick={() => scrollToVideo(idx)}
-                        style={{ cursor: "pointer" }}
-                      />
-                      <span
-                        className="feed-play"
-                        onClick={() => scrollToVideo(idx)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <Play fill="currentColor" />
-                      </span>
-                    </>
+                    <span
+                      className="feed-play"
+                      onClick={() => scrollToVideo(idx)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <Play fill="currentColor" />
+                    </span>
                   )}
                 </div>
 

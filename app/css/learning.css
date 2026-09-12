@@ -5191,6 +5191,19 @@ input[type="time"].routine-field-input::-webkit-calendar-picker-indicator:hover 
   display: block;
 }
 
+/* 피드 탭과 같은 이유로 iframe 을 로드가 끝날 때까지 감춘다. 그 동안은 포스터가 보인다. */
+.video-detail-hero .video-detail-frame {
+  z-index: 1;
+  opacity: 0;
+  transition: opacity .2s ease;
+  color-scheme: dark;
+  background: #000;
+}
+
+.video-detail-hero .video-detail-frame[data-ready="true"] {
+  opacity: 1;
+}
+
 /* 전환 중 iframe 이 아직 비어 있어도 검은 칸이 보이지 않게 한다. */
 .video-detail-poster {
   position: absolute;
