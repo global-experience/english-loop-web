@@ -107,6 +107,15 @@ export function getTabUrl(targetTab: AppTab): string {
   return `/${targetTab}/`;
 }
 
+/**
+ * 로그인 없이도 접근 가능한 공개 경로.
+ * /feed/ 와 /feed/categories/... 는 비로그인 사용자도 영상을 볼 수 있다.
+ */
+function isFeedPublicPath(): boolean {
+  if (typeof window === "undefined") return false;
+  return /^\/feed(\/.*)?$/.test(window.location.pathname);
+}
+
 function getInitialRoute() {
   if (typeof window === "undefined") return null;
   const pathSegment = window.location.pathname.replace(/^\/|\/$/g, "").split("/")[0];
@@ -186,7 +195,11 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
         setIsUnauthorized(true);
-        router.replace("/login");
+        // 피드/카테고리 공유 링크로 들어온 비로그인 사용자는 로그인 페이지로 보내지 않는다.
+        // 피드 탭은 사용자 데이터 없이도 영상 목록을 보여줄 수 있다.
+        if (!isFeedPublicPath()) {
+          router.replace("/login");
+        }
         return;
       }
       setError(caught instanceof Error ? caught.message : "데이터를 불러오지 못했습니다.");
@@ -331,6 +344,11 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   };
 
   const switchTab = useCallback((nextTab: AppTab, options?: { updateHistory?: boolean }) => {
+    // 비로그인 상태에서 피드 외 탭으로 이동하면 로그인 화면으로 안내한다.
+    if (isUnauthorized && nextTab !== "feed") {
+      router.replace("/login");
+      return;
+    }
     void triggerHapticSelection();
     if (tabRef.current !== "settings") {
       scrollPositionsRef.current[tabRef.current] = window.scrollY;
@@ -364,7 +382,7 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
     window.requestAnimationFrame(() => {
       window.scrollTo({ top: targetY, left: 0, behavior: "instant" });
     });
-  }, []);
+  }, [isUnauthorized, router]);
 
   useEffect(() => {
     if (!isNativeRuntime() || getSmartReminderSettings().enabled) return;
@@ -500,7 +518,7 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
     switchTab("learn");
   };
 
-  if (isUnauthorized || (!splash.ready || splash.visible)) {
+  if ((isUnauthorized && !isFeedPublicPath()) || (!splash.ready || splash.visible)) {
     if (isNativeRuntime()) {
       return <div style={{ minHeight: "100dvh", background: "#18201d" }} />;
     }
@@ -582,6 +600,7 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
               {paneTab === "feed" && (
                 <FeedView
                   active={active}
+                  isAuthenticated={Boolean(user) && !isUnauthorized}
                   openLearning={openFeedLearning}
                   focusVideo={feedFocusTarget?.video ?? null}
                   focusKey={feedFocusTarget?.key ?? 0}

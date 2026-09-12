@@ -37,6 +37,26 @@ function durationLabel(seconds: number) {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+function toVideoSlug(title: string): string {
+  return title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim()
+    .slice(0, 60) || "video";
+}
+
+function categoryVideoUrl(video: FeedVideo): string {
+  return `/feed/categories/${video.youtube_video_id}/${toVideoSlug(video.title || "video")}/`;
+}
+
+function publicFeedVideoUrl(video: FeedVideo): string {
+  return `/feed/${video.youtube_video_id}/${toVideoSlug(video.title || "video")}/`;
+}
+
 const GESTURES = ["touchend", "click", "keydown", "touchstart", "pointerdown"] as const;
 
 /**
@@ -69,18 +89,21 @@ function isNativeApp() {
 
 export function FeedView({
   active = true,
+  isAuthenticated = true,
   openLearning,
   focusVideo = null,
   focusKey = 0,
   onFocusConsumed,
 }: {
   active?: boolean;
+  isAuthenticated?: boolean;
   openLearning: (video: FeedVideo, transcriptLineId?: string | null) => void;
   /** A video the Today tab asked to open. Selected and played on arrival. */
   focusVideo?: FeedVideo | null;
   focusKey?: number;
   onFocusConsumed?: () => void;
 }) {
+  const router = useRouter();
   const [items, setItems] = useState<FeedVideo[]>([]);
   const itemsRef = useRef<FeedVideo[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -217,24 +240,18 @@ export function FeedView({
     return match ? match[1] : null;
   }
 
-  /** 제목을 URL-safe 슬러그로 변환 */
-  function toSlug(title: string): string {
-    return title
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .trim()
-      .slice(0, 60);
+  /** /feed/{youtubeVideoId}/{slug} 형식의 공개 세로 피드 딥링크. */
+  function parseFeedDetailPath(path: string): string | null {
+    const match = path.match(/^\/feed\/(?!categories(?:\/|$))([^/]+)(?:\/[^/]*)?\/?$/);
+    return match ? decodeURIComponent(match[1]) : null;
   }
 
-  /** 영상 제목으로 슬러그 URL 생성: /feed/categories/{videoId}/{slug} */
-  function categoryDetailUrl(video: FeedVideo): string {
-    const slug = toSlug(video.title || "video");
-    return `/feed/categories/${video.youtube_video_id}/${slug}`;
-  }
+  const requireAccount = useCallback(() => {
+    if (isAuthenticated) return true;
+    const next = `${window.location.pathname}${window.location.search}`;
+    router.push(`/login?next=${encodeURIComponent(next)}`);
+    return false;
+  }, [isAuthenticated, router]);
 
   /**
    * youtube_video_id 로 영상 상세를 비동기로 열어준다.
@@ -280,14 +297,26 @@ export function FeedView({
     if (!active || deepLinkHandled.current || typeof window === "undefined") return;
     const path = window.location.pathname;
     const videoIdFromPath = parseCategoryDetailPath(path);
+    const feedVideoIdFromPath = parseFeedDetailPath(path);
     const videoIdFromQuery = new URLSearchParams(window.location.search).get("video");
-    const target = videoIdFromPath ?? videoIdFromQuery;
+    const target = videoIdFromPath ?? feedVideoIdFromPath ?? videoIdFromQuery;
     if (!target) return;
     deepLinkHandled.current = true;
-    // 카탈로그가 열려있어야 상세가 그 위에 뜬다
-    setCatalogOpen(true);
-    setHasOpenedCatalog(true);
-    void openDetailByVideoId(target);
+    if (videoIdFromPath || videoIdFromQuery) {
+      // 카탈로그 공유 링크(및 이전 ?video= 링크)는 상세 화면으로 연다.
+      setCatalogOpen(true);
+      setHasOpenedCatalog(true);
+      void openDetailByVideoId(target);
+      return;
+    }
+    // 일반 피드 공유 링크는 같은 세로 피드 UI의 첫 카드로 바로 연다.
+    void fetchVideoDetail(target).then((video) => {
+      setItems((current) => [video, ...current.filter((item) => item.id !== video.id)]);
+      setActiveIndex(0);
+      setPlayIndex(0);
+      activeIndexRef.current = 0;
+      streamRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    }).catch(() => setError("공유된 영상을 찾을 수 없습니다."));
   }, [active]);
   const streamRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -877,7 +906,24 @@ export function FeedView({
     if (activeIndex >= items.length - 6 && cursor !== null) void loadMore();
   }, [activeIndex, cursor, items, loadMore, sendEvent, settlePlayback]);
 
+  // 세로 피드의 현재 영상도 고유 URL을 갖는다. 공유·새로고침·검색 엔진이
+  // 같은 영상을 다시 열 수 있으며, 스와이프마다 히스토리를 쌓지는 않는다.
+  useEffect(() => {
+    if (!active || catalogOpen || typeof window === "undefined") return;
+    const current = items[activeIndex];
+    if (!current) return;
+    const url = publicFeedVideoUrl(current);
+    if (window.location.pathname !== url) {
+      window.history.replaceState(
+        { ...window.history.state, loopine: true, tab: "feed", view: "feed-video", videoId: current.youtube_video_id },
+        "",
+        url,
+      );
+    }
+  }, [active, activeIndex, catalogOpen, items]);
+
   async function save(video: FeedVideo) {
+    if (!requireAccount()) return;
     if (video.saved_status === "PROCESSING" || video.saved_status === "READY") return;
     setSavingId(video.id);
     setError("");
@@ -914,6 +960,8 @@ export function FeedView({
           seed={catalogSeed()}
           originRect={detail.origin}
           onClose={() => setDetail(null)}
+          isAuthenticated={isAuthenticated}
+          onAuthRequired={requireAccount}
           onOpenLearning={(video) => { setDetail(null); openLearning(video); }}
           onPatchVideo={(videoId, patch) => {
             setItems((prev) => prev.map((v) => (v.id === videoId ? { ...v, ...patch } : v)));
@@ -988,7 +1036,11 @@ export function FeedView({
                     {savingId === video.id ? <LoaderCircle className="spin" size={17} /> : saved ? <Check size={17} /> : <Bookmark size={17} />}
                     {video.saved_status === "READY" ? "학습 준비됨" : video.saved_status === "PROCESSING" ? "자막 준비 중" : "찜하기"}
                   </button>
-                  <button className="feed-learn" onClick={() => { sendEvent(video, "OPEN_LEARNING"); openLearning(video); }}><Play size={17} fill="currentColor" /> 바로 학습</button>
+                  <button className="feed-learn" onClick={() => {
+                    if (!requireAccount()) return;
+                    sendEvent(video, "OPEN_LEARNING");
+                    openLearning(video);
+                  }}><Play size={17} fill="currentColor" /> {isAuthenticated ? "바로 학습" : "로그인 후 학습"}</button>
                 </div>
               </div>
             </article>;
@@ -1035,7 +1087,7 @@ export function FeedView({
             setDetail({ row, index: index < 0 ? 0 : index, origin });
             // URL을 /feed/categories/{youtube_video_id}/{slug} 로 업데이트
             if (typeof window !== "undefined") {
-              const url = categoryDetailUrl(video);
+              const url = categoryVideoUrl(video);
               window.history.pushState(
                 { loopine: true, view: "catalog-detail", videoId: video.youtube_video_id },
                 "",
@@ -1050,6 +1102,8 @@ export function FeedView({
             startIndex={detail.index}
             seed={catalogSeed()}
             originRect={detail.origin}
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={requireAccount}
             onClose={() => {
               setDetail(null);
               // 상세에서 뒤로: history 상태에 따라 복귀

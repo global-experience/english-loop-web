@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/lib/api";
 import { catalogSeed, fetchCatalogPage, fetchCategoryPage, toggleVideoLike, videoShareUrl } from "@/lib/catalog";
+import { categoryVideoPath } from "@/components/feed/FeedVideoDetail";
 
 vi.mock("@/lib/api", () => ({
   ApiError: class ApiError extends Error {},
@@ -77,10 +78,20 @@ describe("toggleVideoLike", () => {
 describe("videoShareUrl", () => {
   it("내부 UUID 가 아니라 youtube_video_id 를 쓴다", () => {
     const url = videoShareUrl("rGQkLXIey4Y");
-    expect(url).toContain("/feed/?video=rGQkLXIey4Y");
+    expect(url).toContain("/feed/rGQkLXIey4Y/video/");
     // 앱이 있으면 앱, 없으면 웹 — 판단은 OS(Universal Links) 가 한다.
     // 그래서 링크 값 자체는 평범한 https 주소여야 한다.
     expect(url.startsWith("http")).toBe(true);
     expect(url).not.toContain("loopine://");
+  });
+});
+
+describe("categoryVideoPath", () => {
+  it("현재 영상 ID와 제목 slug로 공개 카테고리 공유 URL을 만든다", () => {
+    const path = categoryVideoPath({
+      youtube_video_id: "F1FLaK26RlQ",
+      title: "The Simpsons | Best Moments Part 3",
+    } as never);
+    expect(path).toBe("/feed/categories/F1FLaK26RlQ/the-simpsons-best-moments-part-3/");
   });
 });

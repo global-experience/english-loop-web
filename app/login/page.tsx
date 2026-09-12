@@ -16,6 +16,12 @@ function isNativeRuntime() {
   return isNativeAppRuntime(capacitor, navigator.userAgent);
 }
 
+function safeNextPath(): string {
+  if (typeof window === "undefined") return "/";
+  const value = new URLSearchParams(window.location.search).get("next") || "/";
+  return value.startsWith("/") && !value.startsWith("//") ? value : "/";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const splash = useAppSplash();
@@ -37,7 +43,7 @@ export default function LoginPage() {
     apiFetch<User>("/api/me")
       .then((me) => {
         if (!cancelled && me?.id) {
-          router.replace("/");
+          router.replace(safeNextPath());
         } else if (!cancelled) {
           setCheckingAuth(false);
         }
@@ -122,7 +128,7 @@ export default function LoginPage() {
         setNotice("가입 요청이 접수됐습니다. 관리자가 승인하면 로그인할 수 있어요.");
         return;
       }
-      router.replace("/");
+      router.replace(safeNextPath());
     } catch (caught) {
       if (typeof caught === "object" && caught !== null && "code" in caught && caught.code === "ACCOUNT_PENDING_APPROVAL") {
         setError("아직 관리자 승인 대기 중입니다. 승인 후 다시 로그인해 주세요.");

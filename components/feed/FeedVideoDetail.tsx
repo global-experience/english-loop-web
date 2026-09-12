@@ -11,6 +11,22 @@ import { CATALOG_VIDEO_LIMIT, fetchCategoryPage, toggleVideoLike } from "@/lib/c
 import { thumbnailUrl } from "@/lib/thumbnails";
 import type { CatalogRow, FeedVideo } from "@/lib/types";
 
+function videoSlug(title: string): string {
+  return title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim()
+    .slice(0, 60) || "video";
+}
+
+export function categoryVideoPath(video: FeedVideo): string {
+  return `/feed/categories/${encodeURIComponent(video.youtube_video_id)}/${videoSlug(video.title || "video")}/`;
+}
+
 /**
  * 카탈로그에서 연 영상 상세.
  * 기존 피드 탭과 동일하게 위아래 스크롤 스냅(feed-stream)으로 영상들을 넘겨볼 수 있다.
@@ -23,6 +39,8 @@ export function FeedVideoDetail({
   onClose,
   onOpenLearning,
   onPatchVideo,
+  isAuthenticated = true,
+  onAuthRequired,
 }: {
   row: CatalogRow;
   startIndex: number;
@@ -31,6 +49,8 @@ export function FeedVideoDetail({
   onClose: () => void;
   onOpenLearning: (video: FeedVideo) => void;
   onPatchVideo?: (videoId: string, patch: Partial<FeedVideo>) => void;
+  isAuthenticated?: boolean;
+  onAuthRequired?: () => boolean;
 }) {
   const [items, setItems] = useState<FeedVideo[]>(row.items);
   const [nextCursor, setNextCursor] = useState<number | null>(row.next_cursor);
@@ -45,6 +65,26 @@ export function FeedVideoDetail({
   const initialScrolledRef = useRef(startIndex === 0);
 
   const video = items[index];
+
+  // 상세 안에서 위아래 스냅 또는 이전/다음 버튼으로 영상이 바뀌면 주소도
+  // 현재 보이는 영상으로 맞춘다. replaceState라 뒤로가기는 상세 진입 전
+  // 카테고리 목록으로 한 번에 돌아가고, 영상마다 히스토리가 쌓이지 않는다.
+  useEffect(() => {
+    if (!video || typeof window === "undefined") return;
+    if (!window.location.pathname.startsWith("/feed/categories/")) return;
+    const nextPath = categoryVideoPath(video);
+    if (window.location.pathname === nextPath) return;
+    window.history.replaceState(
+      {
+        ...window.history.state,
+        loopine: true,
+        view: "catalog-detail",
+        videoId: video.youtube_video_id,
+      },
+      "",
+      nextPath,
+    );
+  }, [video]);
 
   const handleClose = useCallback(() => {
     if (closing) return;
@@ -162,6 +202,10 @@ export function FeedVideoDetail({
   }
 
   async function toggleLike(target: FeedVideo) {
+    if (!isAuthenticated) {
+      onAuthRequired?.();
+      return;
+    }
     if (busy === `like:${target.id}`) return;
     setBusy(`like:${target.id}`);
     setError("");
@@ -177,6 +221,10 @@ export function FeedVideoDetail({
   }
 
   async function save(target: FeedVideo) {
+    if (!isAuthenticated) {
+      onAuthRequired?.();
+      return;
+    }
     if (target.saved_status) return;
     setBusy(target.id);
     setError("");
@@ -193,18 +241,7 @@ export function FeedVideoDetail({
 
   async function share(target: FeedVideo) {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://loopine.life";
-    const slug = target.title
-      ? target.title
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .replace(/[^\w\s-]/g, "")
-          .replace(/\s+/g, "-")
-          .replace(/-+/g, "-")
-          .trim()
-          .slice(0, 60)
-      : "video";
-    const url = `${origin}/feed/categories/${target.youtube_video_id}/${slug}`;
+    const url = `${origin}${categoryVideoPath(target)}`;
     const payload = { title: target.title, text: `${target.title} · ${target.channel_title}`, url };
     try {
       if (typeof navigator !== "undefined" && navigator.share) {
@@ -323,9 +360,15 @@ export function FeedVideoDetail({
                       )}
                       <span>좋아요</span>
                     </button>
-                    <button type="button" className="feed-learn" onClick={() => onOpenLearning(item)}>
+                    <button type="button" className="feed-learn" onClick={() => {
+                      if (!isAuthenticated) {
+                        onAuthRequired?.();
+                        return;
+                      }
+                      onOpenLearning(item);
+                    }}>
                       <BookOpen size={18} />
-                      <span>바로 학습</span>
+                      <span>{isAuthenticated ? "바로 학습" : "로그인 후 학습"}</span>
                     </button>
                     <button type="button" className="video-detail-secondary" onClick={() => share(item)}>
                       <Share2 size={18} />

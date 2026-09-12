@@ -58,5 +58,5 @@ export async function toggleVideoLike(videoId: string, liked: boolean) {
  */
 export function videoShareUrl(youtubeVideoId: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://loopine.life";
-  return `${origin}/feed/?video=${encodeURIComponent(youtubeVideoId)}`;
+  return `${origin}/feed/${encodeURIComponent(youtubeVideoId)}/video/`;
 }
