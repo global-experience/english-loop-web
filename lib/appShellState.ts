@@ -81,6 +81,16 @@ export function saveBootstrapSnapshot(user: User, today: TodayData) {
   }
 }
 
+export function clearBootstrapSnapshot() {
+  if (!canUseStorage()) return;
+  try {
+    window.sessionStorage.removeItem(BOOTSTRAP_KEY);
+    window.localStorage?.removeItem(BOOTSTRAP_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 export function emitTabVisibility(tab: AppTab, active: boolean) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("loopine:tab-visibility", { detail: { tab, active } }));

@@ -24,6 +24,7 @@ import {
   emitTabReselect,
   emitTabVisibility,
   isAppTab,
+  clearBootstrapSnapshot,
   readAppShellSnapshot,
   readBootstrapSnapshot,
   requestIdleWork,
@@ -195,6 +196,9 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
         setIsUnauthorized(true);
+        setUser(null);
+        setToday(null);
+        clearBootstrapSnapshot();
         // 피드/카테고리 공유 링크로 들어온 비로그인 사용자는 로그인 페이지로 보내지 않는다.
         // 피드 탭은 사용자 데이터 없이도 영상 목록을 보여줄 수 있다.
         if (!isFeedPublicPath()) {
@@ -227,6 +231,14 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (isUnauthorized && !isFeedPublicPath()) {
+      clearBootstrapSnapshot();
+      void hideNativeSplashScreen(0);
+      router.replace("/login");
+    }
+  }, [isUnauthorized, router]);
 
   useEffect(() => {
     if (isUnauthorized) return;
@@ -518,11 +530,15 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
     switchTab("learn");
   };
 
-  if ((isUnauthorized && !isFeedPublicPath()) || (!splash.ready || splash.visible)) {
+  if (isUnauthorized && !isFeedPublicPath()) {
+    return isNativeRuntime() ? <div style={{ minHeight: "100dvh", background: "#18201d" }} /> : null;
+  }
+
+  if (!splash.ready || splash.visible) {
     if (isNativeRuntime()) {
       return <div style={{ minHeight: "100dvh", background: "#18201d" }} />;
     }
-    return <AppSplash fadingOut={splash.fadingOut && !isUnauthorized && (!loading || !!user)} />;
+    return <AppSplash fadingOut={splash.fadingOut && (!loading || !!user)} />;
   }
 
   /**
