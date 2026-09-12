@@ -1400,6 +1400,17 @@ export function FeedView({
                     data-ready={paintedVideoId === video.youtube_video_id ? "true" : "false"}
                   />
                 )}
+                {isCurrent && !blocked && (
+                  /* 플레이어가 드러나기 전까지 썸네일 위에서 도는 표시.
+                     없으면 정지 화면만 보여서 멈춘 것처럼 느껴진다. */
+                  <span
+                    className="feed-media-loading"
+                    data-visible={paintedVideoId === video.youtube_video_id ? "false" : "true"}
+                    aria-hidden="true"
+                  >
+                    <LoaderCircle className="spin" size={24} />
+                  </span>
+                )}
                 {blocked && index === playIndex && (
                   <div className="feed-blocked" role="status">
                     <CircleAlert size={22} />

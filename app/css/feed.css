@@ -307,6 +307,41 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
   display: block;
 }
 
+/* 플레이어가 드러나기 전까지 썸네일 위에 떠 있는 로딩 표시.
+   플레이어가 페이드인하는 동안 같이 페이드아웃해 전환이 이어지게 한다. */
+.feed-media-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(8, 10, 9, .5);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+
+.feed-media-loading[data-visible="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-media-loading {
+    transition: none;
+  }
+
+  .feed-media-loading .spin {
+    animation-duration: 2s;
+  }
+}
+
 /* 임베드 재생이 봇 확인 화면 등으로 막혔을 때 덮는 폴백 레이어 */
 .feed-blocked {
   position: absolute;
