@@ -131,6 +131,24 @@ async function transcribeRecording(blob: Blob): Promise<TranscriptionResponse> {
   return apiFetch<TranscriptionResponse>("/api/learning/speech/transcribe", { method: "POST", body: form });
 }
 
+function discardActiveRecorder(
+  recorderRef: { current: MediaRecorder | null },
+  chunksRef: { current: BlobPart[] },
+) {
+  const recorder = recorderRef.current;
+  recorderRef.current = null;
+  chunksRef.current = [];
+  if (!recorder) return;
+  recorder.ondataavailable = null;
+  recorder.onstop = null;
+  try {
+    if (recorder.state !== "inactive") recorder.stop();
+  } catch {
+    // 이미 정지된 녹음기에서 stop 이 던지는 InvalidStateError 는 무시해도 된다.
+  }
+  recorder.stream?.getTracks().forEach((track) => track.stop());
+}
+
 export function SpeechPracticeSheet({
   open,
   entry,
@@ -194,6 +212,15 @@ export function SpeechPracticeSheet({
   }, [open, lineId]);
 
   useBodyScrollLock(mobile ? open : false);
+
+  // 시트가 닫히거나(탭 전환 포함) 컴포넌트가 사라질 때 녹음기와 마이크 스트림을 확실히 놓는다.
+  // 이전에는 상태만 초기화해서 MediaRecorder 가 계속 돌고 마이크 표시등이 켜진 채 남았다.
+  // 저장 콜백(onstop)을 먼저 떼어내므로 닫힌 시트에서 뒤늦게 STT/저장이 실행되지도 않는다.
+  useEffect(() => {
+    if (open) return;
+    discardActiveRecorder(recorderRef, chunksRef);
+  }, [open]);
+  useEffect(() => () => discardActiveRecorder(recorderRef, chunksRef), []);
 
   // Auto close popup when switching tabs
   useEffect(() => {

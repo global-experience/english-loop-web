@@ -82,7 +82,7 @@ const initialState: YouTubePracticeState = {
 
 type Listener = () => void;
 
-class YouTubeStore {
+export class YouTubeStore {
   private state: YouTubePracticeState;
   private listeners = new Set<Listener>();
   private isPolling = false;
@@ -101,11 +101,13 @@ class YouTubeStore {
       const saved = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<YouTubePracticeState>;
+        // 전사 중에 앱이 닫혔으면 activeJobId 가 있을 때만 loading 을 유지한다(첫 구독 시 폴링 재개).
+        const resumable = Boolean(parsed.loading && parsed.activeJobId);
         this.state = {
           ...initialState,
           ...parsed,
-          // If app was closed during loading, default loading back to false unless job polling resumes
-          loading: parsed.loading && parsed.activeJobId ? true : false,
+          loading: resumable,
+          jobProgress: resumable ? parsed.jobProgress ?? 0 : 0,
         };
       }
     } catch {
@@ -128,6 +130,9 @@ class YouTubeStore {
 
   public subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
+    // 첫 구독(= 화면 마운트) 시점에 중단된 잡 폴링을 이어 간다. 이전에는 이 호출이 어디에도
+    // 없어서, 전사 중 새로고침하면 loading:true·activeJobId 만 복원되고 진행 링이 영원히 멈췄다.
+    this.initDefaultIfNeeded();
     return () => {
       this.listeners.delete(listener);
     };
@@ -153,10 +158,13 @@ class YouTubeStore {
   }
 
   public initDefaultIfNeeded() {
-    if (this.initialized) return;
+    if (this.initialized || typeof window === "undefined") return;
     this.initialized = true;
     if (this.state.loading && this.state.activeJobId && !this.isPolling) {
       void this.pollJob(this.state.activeJobId);
+    } else if (this.state.loading) {
+      // activeJobId 없이 loading 만 남은 복원 상태는 이어 갈 방법이 없으니 정상 상태로 되돌린다.
+      this.setState({ loading: false, jobProgress: 0 });
     }
   }
 
