@@ -157,6 +157,20 @@ function isNativeRuntime() {
   return isNativeAppRuntime(capacitor, navigator.userAgent);
 }
 
+function isAuthRequiredError(caught: unknown): boolean {
+  if (caught instanceof ApiError) {
+    return caught.status === 401 || caught.code === "AUTH_REQUIRED" || caught.code === "SESSION_EXPIRED";
+  }
+  if (!caught || typeof caught !== "object") return false;
+  const candidate = caught as { status?: unknown; code?: unknown; message?: unknown };
+  return (
+    candidate.status === 401 ||
+    candidate.code === "AUTH_REQUIRED" ||
+    candidate.code === "SESSION_EXPIRED" ||
+    candidate.message === "로그인이 필요합니다"
+  );
+}
+
 export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } = {}) {
   const splash = useAppSplash();
   const restoredShell = useMemo(() => readAppShellSnapshot(), []);
@@ -194,7 +208,7 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
       setToday(data);
       saveBootstrapSnapshot(me, data);
     } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) {
+      if (isAuthRequiredError(caught)) {
         setIsUnauthorized(true);
         setUser(null);
         setToday(null);
@@ -203,6 +217,11 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
         // 피드 탭은 사용자 데이터 없이도 영상 목록을 보여줄 수 있다.
         if (!isFeedPublicPath()) {
           router.replace("/login");
+          window.setTimeout(() => {
+            if (window.location.pathname !== "/login") {
+              window.location.replace("/login");
+            }
+          }, 120);
         }
         return;
       }
@@ -237,6 +256,12 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
       clearBootstrapSnapshot();
       void hideNativeSplashScreen(0);
       router.replace("/login");
+      const timer = window.setTimeout(() => {
+        if (window.location.pathname !== "/login") {
+          window.location.replace("/login");
+        }
+      }, 120);
+      return () => window.clearTimeout(timer);
     }
   }, [isUnauthorized, router]);
 
