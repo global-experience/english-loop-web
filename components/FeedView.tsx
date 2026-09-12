@@ -965,14 +965,9 @@ export function FeedView({
     const handleTabReselect = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{ tab?: string }>;
       if (event.detail?.tab !== "feed") return;
-      // 이미 피드 탭에 있는데 탭 버튼을 다시 누른 것이다. 카테고리를 보고 있었다면
-      // 탭의 루트(세로 피드)로 돌아간다. 다른 탭에서 돌아올 때는 보던 화면이 복원되므로,
-      // 세로 피드로 나오는 길은 이 재탭과 뒤로가기 두 가지가 된다.
-      if (catalogOpen) {
-        setDetail(null);
-        closeCatalog();
-        return;
-      }
+      // 탭 버튼 재탭은 "맨 위로"다. 카테고리를 보고 있으면 페이지 스크롤이
+      // page.tsx 쪽에서 위로 올라가고, 여기서는 세로 피드를 처음으로 되돌린다.
+      // 화면을 바꾸지는 않는다 — 보던 곳에서 위로만 올라간다.
       setActiveIndex(0);
       activeIndexRef.current = 0;
       streamRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
@@ -985,7 +980,7 @@ export function FeedView({
       window.removeEventListener("loopine:tab-reselect", handleTabReselect);
       window.removeEventListener("loopine:app-background", pauseForBackground);
     };
-  }, [pausePlayer, cancelPrewarm, releaseWarmPlayers, catalogOpen, detail, closeCatalog]);
+  }, [pausePlayer, cancelPrewarm, releaseWarmPlayers, catalogOpen, detail]);
 
   // ── Focus a video handed over by the Today tab ──
   const focusVideoId = focusVideo?.id || "";
