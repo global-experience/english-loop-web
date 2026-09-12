@@ -109,6 +109,15 @@ export function getTabUrl(targetTab: AppTab): string {
 }
 
 /**
+ * 주어진 경로가 그 탭 안의 경로인지. 탭 복귀 시 기억해 둔 경로를 되살릴 때
+ * 엉뚱한 탭의 주소를 복원하지 않도록 막는다.
+ */
+function pathBelongsToTab(path: string, targetTab: AppTab): boolean {
+  const segment = path.replace(/^\/|\/$/g, "").split("/")[0];
+  return targetTab === "today" ? segment === "" : segment === targetTab;
+}
+
+/**
  * 로그인 없이도 접근 가능한 공개 경로.
  * /feed/ 와 /feed/categories/... 는 비로그인 사용자도 영상을 볼 수 있다.
  */
@@ -197,6 +206,14 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   const router = useRouter();
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   const [tabDirection, setTabDirection] = useState<TabDirection>("forward");
+  /**
+   * 탭별로 마지막에 보고 있던 경로.
+   *
+   * 탭 패널은 언마운트되지 않으므로 화면 상태는 살아 있는데, 복귀할 때 URL 을 탭 루트로
+   * 덮어쓰면 그 URL 을 따라가는 화면(피드 카테고리 등)이 닫혀 버렸다. 떠날 때의 경로를
+   * 기억해 두었다가 돌아올 때 그대로 되살린다.
+   */
+  const lastTabPathRef = useRef<Partial<Record<AppTab, string>>>({});
   const tabRef = useRef<AppTab>(initialTab);
   const scrollPositionsRef = useRef<Partial<Record<AppTab, number>>>(restoredShell?.scrollPositions || {});
 
@@ -387,6 +404,9 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
       return;
     }
     void triggerHapticSelection();
+    if (typeof window !== "undefined") {
+      lastTabPathRef.current[tabRef.current] = `${window.location.pathname}${window.location.search}`;
+    }
     if (tabRef.current !== "settings") {
       scrollPositionsRef.current[tabRef.current] = window.scrollY;
     }
@@ -402,8 +422,11 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
     }
 
     if (options?.updateHistory !== false && typeof window !== "undefined") {
-      const targetUrl = getTabUrl(nextTab);
-      if (window.location.pathname !== targetUrl) {
+      const remembered = lastTabPathRef.current[nextTab];
+      const targetUrl = remembered && pathBelongsToTab(remembered, nextTab)
+        ? remembered
+        : getTabUrl(nextTab);
+      if (`${window.location.pathname}${window.location.search}` !== targetUrl) {
         window.history.pushState({ loopine: true, tab: nextTab }, "", targetUrl);
       }
     }

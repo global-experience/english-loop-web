@@ -268,13 +268,15 @@ export function FeedView({
   }, [catalogOpen]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const path = window.location.pathname;
-      const videoId = parseCategoryDetailPath(path);
-      setCatalogOpen(isCategoryPath(path));
-      if (videoId && !detail) {
-        void openDetailByVideoId(videoId);
-      }
+    if (typeof window === "undefined") return;
+    const path = window.location.pathname;
+    // 다른 탭으로 나가면 주소는 /today 등이 된다. 그때 카탈로그를 닫아 버리면
+    // 탭으로 돌아왔을 때 보던 화면이 사라진다. 피드 안의 주소일 때만 따라간다.
+    if (!/^\/feed(\/.*)?$/.test(path)) return;
+    const videoId = parseCategoryDetailPath(path);
+    setCatalogOpen(isCategoryPath(path));
+    if (videoId && !detail) {
+      void openDetailByVideoId(videoId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
@@ -879,6 +881,14 @@ export function FeedView({
     const handleTabReselect = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{ tab?: string }>;
       if (event.detail?.tab !== "feed") return;
+      // 이미 피드 탭에 있는데 탭 버튼을 다시 누른 것이다. 카테고리를 보고 있었다면
+      // 탭의 루트(세로 피드)로 돌아간다. 다른 탭에서 돌아올 때는 보던 화면이 복원되므로,
+      // 세로 피드로 나오는 길은 이 재탭과 뒤로가기 두 가지가 된다.
+      if (catalogOpen) {
+        setDetail(null);
+        closeCatalog();
+        return;
+      }
       setActiveIndex(0);
       activeIndexRef.current = 0;
       streamRef.current?.scrollTo({ top: 0, left: 0, behavior: "smooth" });
@@ -891,7 +901,7 @@ export function FeedView({
       window.removeEventListener("loopine:tab-reselect", handleTabReselect);
       window.removeEventListener("loopine:app-background", pauseForBackground);
     };
-  }, [pausePlayer, cancelPrewarm, releaseWarmPlayers]);
+  }, [pausePlayer, cancelPrewarm, releaseWarmPlayers, catalogOpen, closeCatalog]);
 
   // ── Focus a video handed over by the Today tab ──
   const focusVideoId = focusVideo?.id || "";
