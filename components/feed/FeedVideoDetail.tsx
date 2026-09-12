@@ -7,7 +7,7 @@ import {
   LoaderCircle, Play, Share2, X,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { CATALOG_VIDEO_LIMIT, fetchCategoryPage, toggleVideoLike, videoShareUrl } from "@/lib/catalog";
+import { CATALOG_VIDEO_LIMIT, fetchCategoryPage, toggleVideoLike } from "@/lib/catalog";
 import { thumbnailUrl } from "@/lib/thumbnails";
 import type { CatalogRow, FeedVideo } from "@/lib/types";
 
@@ -192,7 +192,8 @@ export function FeedVideoDetail({
   }
 
   async function share(target: FeedVideo) {
-    const url = videoShareUrl(target.youtube_video_id);
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://loopine.life";
+    const url = `${origin}/feed/categories/${target.youtube_video_id}`;
     const payload = { title: target.title, text: `${target.title} · ${target.channel_title}`, url };
     try {
       if (typeof navigator !== "undefined" && navigator.share) {

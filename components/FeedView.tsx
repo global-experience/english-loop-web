@@ -159,8 +159,18 @@ export function FeedView({
 
   useEffect(() => {
     const onPopState = () => {
-      const isCatalog = window.location.pathname.replace(/\/$/, "") === "/feed/categories";
-      if (isCatalog) {
+      const path = window.location.pathname;
+      const videoId = parseCategoryDetailPath(path);
+      const isCatalog = path.replace(/\/$/, "") === "/feed/categories";
+      if (videoId) {
+        // 브라우저 앞으로 가기: 상세 영상 복원
+        setIsReturning(false);
+        setCatalogOpen(true);
+        setHasOpenedCatalog(true);
+        void openDetailByVideoId(videoId);
+      } else if (isCatalog) {
+        // 뒤로가기로 카탈로그 목록으로: 상세 닫기
+        setDetail(null);
         setIsReturning(false);
         setCatalogOpen(true);
         setHasOpenedCatalog(true);
@@ -168,6 +178,7 @@ export function FeedView({
         if (typeof window !== "undefined") {
           window.scrollTo({ top: 0, behavior: "instant" });
         }
+        setDetail(null);
         setCatalogOpen(false);
         setIsReturning(true);
         window.setTimeout(() => setIsReturning(false), 240);
@@ -179,55 +190,74 @@ export function FeedView({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const isCatalog = window.location.pathname.replace(/\/$/, "") === "/feed/categories";
-      setCatalogOpen(isCatalog);
+      const path = window.location.pathname;
+      const videoId = parseCategoryDetailPath(path);
+      const isCatalog = path.replace(/\/$/, "") === "/feed/categories";
+      setCatalogOpen(isCatalog || !!videoId);
     }
   }, [pathname]);
   const deepLinkHandled = useRef(false);
   /** 카탈로그에서 연 상세. 어느 줄에서 왔는지 함께 들고 있어야 세로 스와이프가 그 줄 안에서 돈다. */
   const [detail, setDetail] = useState<{ row: CatalogRow; index: number; origin: DOMRect | null } | null>(null);
 
+  /** /feed/categories/{videoId} 형태의 경로에서 videoId를 추출한다. */
+  function parseCategoryDetailPath(path: string): string | null {
+    const match = path.match(/^\/feed\/categories\/([^/]+)\/?$/);
+    return match ? match[1] : null;
+  }
+
   /**
-   * 공유 링크(`/feed/?video=<youtube_video_id>`)로 들어온 경우.
+   * youtube_video_id 로 영상 상세를 비동기로 열어준다.
    *
-   * 상세 화면은 "어느 줄에서 왔는가" 를 알아야 세로 스와이프가 그 줄 안에서
-   * 돈다. 딥링크에는 그 맥락이 없으므로, 영상이 속한 첫 카테고리를 불러와
-   * 그 줄로 삼는다. 어느 카테고리에도 없으면 그 영상 하나짜리 줄로 연다.
+   * 딥링크(`/feed/categories/{id}`) 직접 접근 및 popstate 복원 모두 이 함수를 공유한다.
+   * 상세 화면은 "어느 줄에서 왔는가" 를 알아야 세로 스와이프가 그 줄 안에서 돈다.
+   * 영상이 속한 첫 카테고리를 로드해 그 줄로 삼는다. 카테고리가 없으면 해당 영상 하나짜리 줄.
+   */
+  async function openDetailByVideoId(videoId: string): Promise<void> {
+    try {
+      const video = await fetchVideoDetail(videoId);
+      const category = video.categories[0];
+      if (category) {
+        const { fetchCategoryPage } = await import("@/lib/catalog");
+        const row = await fetchCategoryPage(category.slug, 0, catalogSeed(), 20);
+        const index = row.items.findIndex((item) => item.id === video.id);
+        setDetail(index >= 0
+          ? { row, index, origin: null }
+          : { row: { ...row, items: [video, ...row.items] }, index: 0, origin: null });
+        return;
+      }
+      setDetail({
+        row: {
+          category: { id: "", slug: "", label: "공유된 영상", description: null, kind: "TOPIC", sort_order: 0 },
+          items: [video],
+          next_cursor: null,
+          total: 1,
+        },
+        index: 0,
+        origin: null,
+      });
+    } catch {
+      // 링크가 낡았거나 영상이 내려간 것이다. 카탈로그 목록을 그대로 보여준다.
+    }
+  }
+
+  /**
+   * 딥링크 진입 처리.
+   * - `/feed/categories/{youtube_video_id}` 경로 직접 접근 (신규 공유 URL)
+   * - `/feed/?video={youtube_video_id}` 쿼리 파라미터 (기존 공유 URL, 하위 호환)
    */
   useEffect(() => {
     if (!active || deepLinkHandled.current || typeof window === "undefined") return;
-    const target = new URLSearchParams(window.location.search).get("video");
+    const path = window.location.pathname;
+    const videoIdFromPath = parseCategoryDetailPath(path);
+    const videoIdFromQuery = new URLSearchParams(window.location.search).get("video");
+    const target = videoIdFromPath ?? videoIdFromQuery;
     if (!target) return;
     deepLinkHandled.current = true;
-
-    (async () => {
-      try {
-        const video = await fetchVideoDetail(target);
-        const category = video.categories[0];
-        if (category) {
-          const { fetchCategoryPage } = await import("@/lib/catalog");
-          const row = await fetchCategoryPage(category.slug, 0, catalogSeed(), 20);
-          const index = row.items.findIndex((item) => item.id === video.id);
-          // 첫 페이지에 없으면 그 영상을 맨 앞에 두고 나머지를 뒤로 붙인다.
-          setDetail(index >= 0
-            ? { row, index, origin: null }
-            : { row: { ...row, items: [video, ...row.items] }, index: 0, origin: null });
-          return;
-        }
-        setDetail({
-          row: {
-            category: { id: "", slug: "", label: "공유된 영상", description: null, kind: "TOPIC", sort_order: 0 },
-            items: [video],
-            next_cursor: null,
-            total: 1,
-          },
-          index: 0,
-          origin: null,
-        });
-      } catch {
-        // 링크가 낡았거나 영상이 내려간 것이다. 일반 피드를 그대로 보여준다.
-      }
-    })();
+    // 카탈로그가 열려있어야 상세가 그 위에 뜬다
+    setCatalogOpen(true);
+    setHasOpenedCatalog(true);
+    void openDetailByVideoId(target);
   }, [active]);
   const streamRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -973,6 +1003,14 @@ export function FeedView({
           onOpenVideo={(video, row, origin) => {
             const index = row.items.findIndex((item) => item.id === video.id);
             setDetail({ row, index: index < 0 ? 0 : index, origin });
+            // URL을 /feed/categories/{youtube_video_id} 로 업데이트
+            if (typeof window !== "undefined") {
+              window.history.pushState(
+                { loopine: true, view: "catalog-detail", videoId: video.youtube_video_id },
+                "",
+                `/feed/categories/${video.youtube_video_id}`,
+              );
+            }
           }}
         />
         {detail && catalogOpen && (
@@ -981,7 +1019,21 @@ export function FeedView({
             startIndex={detail.index}
             seed={catalogSeed()}
             originRect={detail.origin}
-            onClose={() => setDetail(null)}
+            onClose={() => {
+              setDetail(null);
+              // 상세에서 뒤로: history 상태에 따라 복귀
+              if (typeof window !== "undefined") {
+                if (window.history.state?.view === "catalog-detail") {
+                  window.history.back();
+                } else {
+                  window.history.pushState(
+                    { loopine: true, view: "catalog" },
+                    "",
+                    "/feed/categories/",
+                  );
+                }
+              }
+            }}
             onOpenLearning={(video) => { setDetail(null); openLearning(video); }}
             onPatchVideo={(videoId, patch) => {
               setItems((prev) => prev.map((v) => (v.id === videoId ? { ...v, ...patch } : v)));
