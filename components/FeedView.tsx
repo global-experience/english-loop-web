@@ -169,11 +169,7 @@ export function FeedView({
   const closeCatalog = useCallback(() => {
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "instant" });
-      if (window.history.state?.view === "catalog") {
-        window.history.back();
-      } else {
-        window.history.pushState({ loopine: true }, "", "/feed/");
-      }
+      window.history.replaceState({ loopine: true, tab: "feed" }, "", "/feed/");
     }
     setCatalogOpen(false);
     setIsReturning(true);
@@ -1106,17 +1102,14 @@ export function FeedView({
             onAuthRequired={requireAccount}
             onClose={() => {
               setDetail(null);
-              // 상세에서 뒤로: history 상태에 따라 복귀
               if (typeof window !== "undefined") {
-                if (window.history.state?.view === "catalog-detail") {
-                  window.history.back();
-                } else {
-                  window.history.pushState(
-                    { loopine: true, view: "catalog" },
-                    "",
-                    "/feed/categories/",
-                  );
-                }
+                // 상세 링크로 외부에서 바로 들어온 경우 history.back()은 Loopine 밖으로
+                // 빠질 수 있다. 닫기 버튼은 항상 앱 내부 카테고리 목록으로 복귀시킨다.
+                window.history.replaceState(
+                  { loopine: true, view: "catalog", tab: "feed" },
+                  "",
+                  "/feed/categories/",
+                );
               }
             }}
             onOpenLearning={(video) => { setDetail(null); openLearning(video); }}
