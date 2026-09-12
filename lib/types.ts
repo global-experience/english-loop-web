@@ -215,7 +215,7 @@ export type FeedVideo = {
   liked?: boolean;
 };
 
-/** 카탈로그 화면의 한 줄. 순서는 어드민의 sort_order 가 정한다. */
+/** 카탈로그 화면의 한 줄. 개인화 동점일 때 어드민 sort_order를 사용한다. */
 export type FeedCategory = {
   id: string;
   slug: string;
@@ -223,6 +223,10 @@ export type FeedCategory = {
   description: string | null;
   kind: string;
   sort_order: number;
+  /** 사용자별 카테고리 순위 점수. 관리 화면의 sort_order와는 별개다. */
+  personalization_score?: number;
+  recommendation_reason?: string | null;
+  is_preferred?: boolean;
 };
 
 export type CatalogRow = {

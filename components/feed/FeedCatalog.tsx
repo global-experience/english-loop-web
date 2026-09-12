@@ -42,7 +42,7 @@ function FeedCatalogContent({
   onOpenVideo: (video: FeedVideo, row: CatalogRow, origin: DOMRect | null) => void;
   onClose: () => void;
 }) {
-  const [seed, setSeed] = useState(() => catalogSeed());
+  const [seed] = useState(() => catalogSeed());
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -59,11 +59,12 @@ function FeedCatalogContent({
   } = useInfiniteCatalogQuery(seed);
 
   // 모든 페이지의 카테고리 행들을 하나로 병합 (중복 카테고리 필터링)
+  const pages = data?.pages;
   const rows = useMemo(() => {
-    if (!data?.pages) return [];
+    if (!pages) return [];
     const seen = new Set<string>();
     const list: CatalogRow[] = [];
-    for (const page of data.pages) {
+    for (const page of pages) {
       if (!page?.rows) continue;
       for (const row of page.rows) {
         if (!seen.has(row.category.id)) {
@@ -73,7 +74,17 @@ function FeedCatalogContent({
       }
     }
     return list;
-  }, [data?.pages]);
+  }, [pages]);
+
+  // 상세 화면에서 하트/찜을 바꿔도 보고 있던 줄이 즉시 점프하지는 않는다.
+  // 카탈로그로 돌아오는 순간 서버의 새 개인화 순서를 받아 자연스럽게 갱신한다.
+  const wasActiveRef = useRef(active);
+  useEffect(() => {
+    if (active && !wasActiveRef.current) {
+      void refetch();
+    }
+    wasActiveRef.current = active;
+  }, [active, refetch]);
 
   // 비디오 변경(좋아요, 저장 상태 등) 패치 이벤트 수신
   useEffect(() => {
@@ -81,6 +92,9 @@ function FeedCatalogContent({
       const customEvent = e as CustomEvent<{ videoId: string; patch: Partial<FeedVideo> }>;
       if (!customEvent.detail) return;
       const { videoId, patch } = customEvent.detail;
+      if ("liked" in patch || "saved_status" in patch) {
+        void queryClient.invalidateQueries({ queryKey: catalogQueryKeys.all, refetchType: "none" });
+      }
       queryClient.setQueriesData<InfiniteData<CatalogPage>>(
         { queryKey: catalogQueryKeys.infinite(seed) },
         (old) => {
@@ -331,16 +345,17 @@ function CatalogCategoryRow({
   });
 
   // 1페이지는 부모가 갱신한 최신 initialRow.items를 사용하고, 가로 스크롤로 추가된 페이지들을 병합
+  const pages = data?.pages;
   const items = useMemo(() => {
-    if (!data?.pages || data.pages.length <= 1) return initialRow.items;
+    if (!pages || pages.length <= 1) return initialRow.items;
     const seen = new Set<string>();
     const list: FeedVideo[] = [];
     for (const item of initialRow.items) {
       seen.add(item.id);
       list.push(item);
     }
-    for (let i = 1; i < data.pages.length; i++) {
-      const page = data.pages[i];
+    for (let i = 1; i < pages.length; i++) {
+      const page = pages[i];
       if (!page?.items) continue;
       for (const item of page.items) {
         if (!seen.has(item.id)) {
@@ -350,7 +365,7 @@ function CatalogCategoryRow({
       }
     }
     return list;
-  }, [data?.pages, initialRow.items]);
+  }, [pages, initialRow.items]);
 
   // 가로 스크롤이 끝에 가까워지면 다음 페이지 영상 로드
   const onScroll = useCallback(() => {
