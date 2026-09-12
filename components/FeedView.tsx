@@ -6,6 +6,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bookmark, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, LayoutGrid, LoaderCircle, Play, Sparkles, Subtitles, Volume2, VolumeX } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { isNativeAppRuntime, shouldStartFeedMuted, hasUserActivation } from "@/lib/nativeRuntime";
+import {
+  MAX_LIVE_PLAYERS,
+  PREWARM_DELAY_MS,
+  PREWARM_PLAY_MS,
+  RAPID_SWIPE_COOLDOWN_MS,
+  RAPID_SWIPE_WINDOW_MS,
+  canPrewarmNeighbors,
+  isRapidSwiping,
+  prewarmWindow,
+} from "@/lib/feedPrewarm";
 import type { CatalogRow, FeedVideo } from "@/lib/types";
 import { catalogSeed, fetchVideoDetail } from "@/lib/catalog";
 import { FeedCatalog } from "./feed/FeedCatalog";
@@ -71,7 +81,28 @@ const PLAY_SETTLE_MS = 450;
 const PLAYBACK_WATCHDOG_MS = 5000;
 
 const YT_STATE_PLAYING = 1;
+const YT_STATE_PAUSED = 2;
 const YT_STATE_BUFFERING = 3;
+
+/**
+ * 살아 있는 플레이어 하나.
+ *
+ * role="active" 는 지금 보고 있는 영상, role="warm" 은 버퍼만 받아 둔 이웃 영상이다.
+ * 스냅이 이웃으로 넘어가면 iframe 을 새로 만들지 않고 이 항목의 role 만 바꿔 승격시킨다.
+ * 받아 둔 버퍼가 버려지지 않는 지점이라, 프리워밍의 이득이 실제로 남는 곳이 여기다.
+ */
+type PlayerEntry = {
+  videoId: string;
+  player: FeedPlayer;
+  host: HTMLElement;
+  role: "active" | "warm";
+  prewarmTimer: number | null;
+};
+
+/** 속성 선택자에 그대로 넣기 위한 최소 이스케이프. */
+function quoteAttr(value: string): string {
+  return value.replace(/["\\]/g, "\\$&");
+}
 
 function openOnYouTube(ytVideoId: string) {
   // 네이티브 앱에서는 유니버설 링크가 YouTube 앱으로 넘겨준다.
@@ -85,6 +116,18 @@ function isNativeApp() {
     Capacitor?: { isNativePlatform?: () => boolean };
   }).Capacitor;
   return isNativeAppRuntime(capacitor, navigator.userAgent);
+}
+
+/** 프리워밍을 켜도 되는 환경인지 판단할 재료를 모은다. SSR 에서는 항상 꺼진 상태. */
+function readPrewarmHints() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return { native: false };
+  }
+  const nav = navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+    deviceMemory?: number;
+  };
+  return { native: isNativeApp(), connection: nav.connection, deviceMemory: nav.deviceMemory };
 }
 
 export function FeedView({
@@ -124,6 +167,11 @@ export function FeedView({
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
   const [apiReady, setApiReady] = useState(false);
+  /**
+   * 이웃 영상 프리워밍 사용 여부. 네이티브 앱에서만 켜진다.
+   * 하이드레이션 불일치를 피하려고 첫 렌더는 항상 false 로 두고 마운트 후에 결정한다.
+   */
+  const [prewarmEnabled, setPrewarmEnabled] = useState(false);
   const pathname = usePathname();
   const [catalogOpen, setCatalogOpen] = useState(() => {
     if (typeof window !== "undefined") {
@@ -259,6 +307,7 @@ export function FeedView({
   async function openDetailByVideoId(videoId: string): Promise<void> {
     try {
       const video = await fetchVideoDetail(videoId);
+      if (!video?.youtube_video_id) return;
       const category = video.categories[0];
       if (category) {
         const { fetchCategoryPage } = await import("@/lib/catalog");
@@ -307,6 +356,8 @@ export function FeedView({
     }
     // 일반 피드 공유 링크는 같은 세로 피드 UI의 첫 카드로 바로 연다.
     void fetchVideoDetail(target).then((video) => {
+      // 응답이 비어 오면(링크가 낡았거나 영상이 내려간 경우) 피드에 빈 카드를 끼워 넣지 않는다.
+      if (!video?.youtube_video_id) throw new Error("empty video detail");
       setItems((current) => [video, ...current.filter((item) => item.id !== video.id)]);
       setActiveIndex(0);
       setPlayIndex(0);
@@ -319,8 +370,16 @@ export function FeedView({
   const previousActive = useRef<FeedVideo | null>(null);
   const userInteractedRef = useRef(false);   // true once user has touched/clicked anywhere
   const userMutedRef = useRef(false);          // true if user explicitly chose to mute
+  /** 지금 보고 있는 영상의 플레이어. 레지스트리의 role="active" 항목과 같다. */
   const playerRef = useRef<FeedPlayer | null>(null);
-  const playerHostRef = useRef<HTMLDivElement>(null);
+  /** youtube_video_id → 살아 있는 플레이어. 현재 1개 + 이웃 최대 2개. */
+  const entriesRef = useRef<Map<string, PlayerEntry>>(new Map());
+  const prewarmTimerRef = useRef<number | null>(null);
+  /** 최근 스냅 시각. 빠르게 넘기는 중인지 판단하는 데 쓴다. */
+  const swipeStampsRef = useRef<number[]>([]);
+  const prewarmPausedUntilRef = useRef(0);
+  /** 이웃을 흘려보내는 중인 구간. 이때 현재 영상이 멈추면 동시 재생이 막힌 웹뷰다. */
+  const warmingUntilRef = useRef(0);
   const currentVideoIdRef = useRef<string | null>(null);
   const feedSessionIdRef = useRef(
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -399,14 +458,62 @@ export function FeedView({
     }
   }, []);
 
+  /** 플레이어 하나를 완전히 회수한다. 창 밖으로 나간 영상은 즉시 여기로 들어온다. */
+  const destroyEntry = useCallback((videoId: string) => {
+    const entry = entriesRef.current.get(videoId);
+    if (!entry) return;
+    if (entry.prewarmTimer !== null) window.clearTimeout(entry.prewarmTimer);
+    if (entry.role === "active") settlePlayback();
+    try { entry.player?.destroy(); } catch { /* ignore */ }
+    try { entry.host.innerHTML = ""; } catch { /* ignore */ }
+    entriesRef.current.delete(videoId);
+    if (playerRef.current === entry.player) playerRef.current = null;
+    if (currentVideoIdRef.current === videoId) currentVideoIdRef.current = null;
+  }, [settlePlayback]);
+
+  const cancelPrewarm = useCallback(() => {
+    if (prewarmTimerRef.current !== null) {
+      window.clearTimeout(prewarmTimerRef.current);
+      prewarmTimerRef.current = null;
+    }
+  }, []);
+
+  /** 이웃 버퍼는 언제 버려도 되는 캐시다. 메모리가 급하면 가장 먼저 내려놓는다. */
+  const releaseWarmPlayers = useCallback(() => {
+    for (const [videoId, entry] of Array.from(entriesRef.current.entries())) {
+      if (entry.role === "warm") destroyEntry(videoId);
+    }
+  }, [destroyEntry]);
+
+  const destroyAllPlayers = useCallback(() => {
+    for (const videoId of Array.from(entriesRef.current.keys())) destroyEntry(videoId);
+  }, [destroyEntry]);
+
   /** 임베드로는 볼 수 없는 영상으로 표시하고 플레이어를 정리한다. */
   const markBlocked = useCallback((ytVideoId: string) => {
     clearWatchdog();
-    try { playerRef.current?.destroy(); } catch { /* ignore */ }
-    playerRef.current = null;
-    currentVideoIdRef.current = null;
+    destroyEntry(ytVideoId);
     setBlockedVideoIds((current) => current.includes(ytVideoId) ? current : [...current, ytVideoId]);
-  }, [clearWatchdog]);
+  }, [clearWatchdog, destroyEntry]);
+
+  /**
+   * 재생도 메타데이터 로드도 확인되지 않으면 차단으로 판정하는 감시 타이머.
+   * 새로 만든 플레이어와, 이웃에서 승격된 플레이어 모두 같은 기준으로 감시한다.
+   */
+  const armWatchdog = useCallback((player: FeedPlayer, ytVideoId: string) => {
+    clearWatchdog();
+    watchdogRef.current = window.setTimeout(() => {
+      watchdogRef.current = null;
+      let state = -1;
+      let duration = 0;
+      try {
+        state = player.getPlayerState?.() ?? -1;
+        duration = player.getDuration?.() ?? 0;
+      } catch { /* ignore */ }
+      const started = state === YT_STATE_PLAYING || state === YT_STATE_BUFFERING;
+      if (!started && duration <= 0) markBlocked(ytVideoId);
+    }, PLAYBACK_WATCHDOG_MS);
+  }, [clearWatchdog, markBlocked]);
 
   const retryVideo = useCallback((ytVideoId: string) => {
     setBlockedVideoIds((current) => current.filter((id) => id !== ytVideoId));
@@ -420,52 +527,32 @@ export function FeedView({
     return () => window.clearTimeout(timer);
   }, [activeIndex, playIndex]);
 
-  // ── Create / destroy YT.Player when playIndex, apiReady, or catalogOpen changes ──
-  useEffect(() => {
-    activeTabRef.current = active && !catalogOpen;
-    if (catalogOpen) {
-      pausePlayer(false);
-      clearWatchdog();
-      return;
-    }
-
-    const video = items[playIndex];
-    const blocked = video ? blockedVideoIds.includes(video.youtube_video_id) : false;
-    if (!active || !apiReady || !window.YT?.Player || !video || blocked) {
-      if (!active) pausePlayer(true);
-      return;
-    }
-
-    const hostEl = playerHostRef.current;
-    if (!hostEl) return;
-
+  /**
+   * 플레이어를 하나 만든다.
+   *
+   * role="warm" 은 이웃 영상이다. 음소거 상태로 PREWARM_PLAY_MS 만큼만 흘려 첫 세그먼트를
+   * 받아 둔 뒤 곧바로 멈춘다. 화면에는 썸네일이 그대로 보이고 소리도 나가지 않는다.
+   * 스냅이 그 영상으로 넘어오면 아래 reconcile 이 이 플레이어를 그대로 승격시키므로,
+   * 새 iframe 부트스트랩과 첫 버퍼링이 통째로 사라진다.
+   */
+  const createPlayer = useCallback((video: FeedVideo, role: "active" | "warm", host: HTMLElement) => {
+    if (!window.YT?.Player) return;
     const ytVideoId = video.youtube_video_id;
-    if (currentVideoIdRef.current === ytVideoId && playerRef.current) {
-      try {
-        if (activeTabRef.current) playerRef.current.playVideo();
-      } catch { /* ignore */ }
-      return;
-    }
 
-    // Destroy previous player
-    settlePlayback();
-    clearWatchdog();
-    try { playerRef.current?.destroy(); } catch { /* ignore */ }
-    playerRef.current = null;
-    currentVideoIdRef.current = null;
-
-    // Clear the host div so YT.Player creates a fresh iframe inside it
-    hostEl.innerHTML = "";
+    host.innerHTML = "";
     const target = document.createElement("div");
-    hostEl.appendChild(target);
+    host.appendChild(target);
 
-    // If document has sticky user activation (e.g. user navigated in SPA) or is Native, play unmuted!
-    const shouldMute = shouldStartFeedMuted({
+    const shouldMute = role === "warm" || shouldStartFeedMuted({
       native: isNativeApp(),
       userInteracted: userInteractedRef.current,
       userMuted: userMutedRef.current,
       hasBeenActive: hasUserActivation(),
     });
+
+    // onReady 가 생성보다 먼저 불릴 수 있는 구현을 대비해 레지스트리에 먼저 올린다.
+    const entry = { videoId: ytVideoId, player: null, host, role, prewarmTimer: null } as unknown as PlayerEntry;
+    entriesRef.current.set(ytVideoId, entry);
 
     const player = new window.YT.Player(target, {
       videoId: ytVideoId,
@@ -477,7 +564,7 @@ export function FeedView({
         mute: shouldMute ? 1 : 0,
         playsinline: 1,
         controls: 0,
-        cc_load_policy: 1,
+        cc_load_policy: role === "warm" ? 0 : 1,
         rel: 0,
         enablejsapi: 1,
         modestbranding: 1,
@@ -486,10 +573,27 @@ export function FeedView({
       },
       events: {
         onReady: () => {
+          if (entriesRef.current.get(ytVideoId) !== entry) return;
+
+          if (entry.role === "warm") {
+            // 0.1초만 흘려 첫 세그먼트를 받고 바로 멈춘다.
+            warmingUntilRef.current = performance.now() + PREWARM_PLAY_MS + 400;
+            try { entry.player.mute(); entry.player.playVideo(); } catch { /* ignore */ }
+            entry.prewarmTimer = window.setTimeout(() => {
+              entry.prewarmTimer = null;
+              if (entriesRef.current.get(ytVideoId) !== entry || entry.role !== "warm") return;
+              try {
+                entry.player.pauseVideo();
+                entry.player.seekTo?.(0, false);
+              } catch { /* ignore */ }
+            }, PREWARM_PLAY_MS);
+            return;
+          }
+
           currentVideoIdRef.current = ytVideoId;
           setIsMuted(shouldMute);
           try {
-            if (activeTabRef.current && !catalogOpen) player.playVideo();
+            if (activeTabRef.current) entry.player.playVideo();
             else pausePlayer(true);
           } catch { /* ignore */ }
 
@@ -497,19 +601,26 @@ export function FeedView({
           // 바뀌기 때문에, 재생이 시작되지도 않고 메타데이터(duration)도 없는 상태를 차단으로
           // 판정한다. 브라우저 자동재생 정책 때문에 멈춘 경우에는 duration이 정상적으로
           // 잡히므로 두 상황이 구분된다.
-          watchdogRef.current = window.setTimeout(() => {
-            watchdogRef.current = null;
-            let state = -1;
-            let duration = 0;
-            try {
-              state = player.getPlayerState?.() ?? -1;
-              duration = player.getDuration?.() ?? 0;
-            } catch { /* ignore */ }
-            const started = state === YT_STATE_PLAYING || state === YT_STATE_BUFFERING;
-            if (!started && duration <= 0) markBlocked(ytVideoId);
-          }, PLAYBACK_WATCHDOG_MS);
+          armWatchdog(entry.player, ytVideoId);
         },
         onStateChange: (event: { data: number }) => {
+          if (entriesRef.current.get(ytVideoId) !== entry || entry.role !== "active") return;
+
+          // 이웃을 흘려보내는 순간 현재 영상이 멈췄다면, 동시 재생이 하나로 제한된
+          // 웹뷰다(구형 iOS 등). 프리워밍을 끄고 현재 영상을 되살린다.
+          if (
+            event.data === YT_STATE_PAUSED
+            && activeTabRef.current
+            && warmingUntilRef.current > performance.now()
+          ) {
+            warmingUntilRef.current = 0;
+            setPrewarmEnabled(false);
+            cancelPrewarm();
+            releaseWarmPlayers();
+            try { entry.player.playVideo(); } catch { /* ignore */ }
+            return;
+          }
+
           if (event.data === YT_STATE_PLAYING || event.data === YT_STATE_BUFFERING) clearWatchdog();
           if (event.data === YT_STATE_PLAYING) {
             if (playingStartedAtRef.current === null) playingStartedAtRef.current = performance.now();
@@ -518,17 +629,141 @@ export function FeedView({
           }
         },
         // 2: 잘못된 파라미터, 5: HTML5 재생 오류, 100: 삭제/비공개, 101·150: 임베드 차단
-        onError: () => markBlocked(ytVideoId),
+        onError: () => {
+          // 이웃은 조용히 버린다. 사용자가 아직 보지도 않은 영상에 차단 배너를 띄우지 않는다.
+          if (entry.role === "warm") { destroyEntry(ytVideoId); return; }
+          markBlocked(ytVideoId);
+        },
       },
     }) as unknown as FeedPlayer;
 
-    playerRef.current = player;
+    entry.player = player;
+    if (role === "active") playerRef.current = player;
+  }, [armWatchdog, cancelPrewarm, clearWatchdog, destroyEntry, markBlocked, pausePlayer, releaseWarmPlayers, settlePlayback]);
 
-    return () => {
-      // Cleanup only if this effect re-runs (playIndex changed)
-      // The destroy happens at the top of the next effect run
-    };
-  }, [active, catalogOpen, apiReady, playIndex, items, pausePlayer, blockedVideoIds, clearWatchdog, markBlocked, settlePlayback]);
+  // ── 현재 영상 + 이웃(네이티브 전용) 플레이어를 맞춘다 ──
+  // 현재 영상은 playIndex 가 정착한 즉시, 이웃은 거기서 PREWARM_DELAY_MS 를 더 기다린 뒤에
+  // 만든다. 그래서 빠르게 넘기는 동안에는 지나가는 영상의 임베드가 하나도 생기지 않는다.
+  useEffect(() => {
+    activeTabRef.current = active && !catalogOpen;
+
+    if (catalogOpen) {
+      pausePlayer(false);
+      clearWatchdog();
+      cancelPrewarm();
+      releaseWarmPlayers();
+      return;
+    }
+    if (!active) {
+      pausePlayer(true);
+      cancelPrewarm();
+      releaseWarmPlayers();
+      return;
+    }
+    if (!apiReady || !window.YT?.Player) return;
+
+    const stream = streamRef.current;
+    const current = items[playIndex];
+    // 상세 조회가 비어 돌아온 카드가 섞일 수 있다. 그런 항목은 플레이어를 만들지 않는다.
+    if (!stream || !current?.youtube_video_id) return;
+
+    const hostFor = (videoId: string) =>
+      stream.querySelector<HTMLElement>(`[data-player-host="${quoteAttr(videoId)}"]`);
+
+    const wanted = new Map<string, "active" | "warm">();
+    if (!blockedVideoIds.includes(current.youtube_video_id)) {
+      wanted.set(current.youtube_video_id, "active");
+    }
+    if (prewarmEnabled) {
+      for (const index of prewarmWindow(playIndex, items.length)) {
+        const neighbor = items[index];
+        const id = neighbor?.youtube_video_id;
+        if (!id || wanted.has(id) || blockedVideoIds.includes(id)) continue;
+        wanted.set(id, "warm");
+      }
+    }
+
+    // 1) 창 밖으로 나간 플레이어부터 회수한다. 살아 있는 iframe 은 항상 최대 3개.
+    for (const videoId of Array.from(entriesRef.current.keys())) {
+      if (!wanted.has(videoId)) destroyEntry(videoId);
+    }
+
+    // 2) 이미 만들어 둔 플레이어는 재사용한다. 받아 둔 버퍼가 살아남는 곳.
+    for (const [videoId, role] of wanted) {
+      const entry = entriesRef.current.get(videoId);
+      if (!entry) continue;
+      if (entry.host !== hostFor(videoId)) {
+        // 카드가 다시 그려져 iframe 이 DOM 에서 떨어졌다. 버리고 새로 만든다.
+        destroyEntry(videoId);
+        continue;
+      }
+      if (entry.role === role) continue;
+      if (entry.prewarmTimer !== null) {
+        window.clearTimeout(entry.prewarmTimer);
+        entry.prewarmTimer = null;
+      }
+      if (role === "active") {
+        // 이웃 → 현재 승격. 새 iframe 없이 소리만 붙여 그대로 재생한다.
+        entry.role = "active";
+        playerRef.current = entry.player;
+        currentVideoIdRef.current = videoId;
+        const shouldMute = shouldStartFeedMuted({
+          native: isNativeApp(),
+          userInteracted: userInteractedRef.current,
+          userMuted: userMutedRef.current,
+          hasBeenActive: hasUserActivation(),
+        });
+        setIsMuted(shouldMute);
+        try {
+          if (shouldMute) entry.player.mute();
+          else entry.player.unMute();
+          if (activeTabRef.current) entry.player.playVideo();
+        } catch { /* ignore */ }
+        armWatchdog(entry.player, videoId);
+      } else {
+        // 현재 → 이웃 강등. 버퍼는 그대로 두고 멈추기만 한다. 되돌아오면 즉시 재생된다.
+        settlePlayback();
+        clearWatchdog();
+        entry.role = "warm";
+        if (playerRef.current === entry.player) playerRef.current = null;
+        try { entry.player.pauseVideo(); entry.player.mute(); } catch { /* ignore */ }
+      }
+    }
+
+    // 3) 현재 영상은 지체 없이 만든다.
+    const currentId = current.youtube_video_id;
+    if (wanted.get(currentId) === "active" && !entriesRef.current.has(currentId)) {
+      settlePlayback();
+      clearWatchdog();
+      const host = hostFor(currentId);
+      if (host) createPlayer(current, "active", host);
+    }
+
+    // 4) 이웃은 한 박자 늦춘다. 빠르게 넘긴 직후라면 그만큼 더 미룬다.
+    cancelPrewarm();
+    const pending = Array.from(wanted.entries())
+      .filter(([videoId, role]) => role === "warm" && !entriesRef.current.has(videoId))
+      .map(([videoId]) => videoId);
+    if (pending.length) {
+      const delay = Math.max(PREWARM_DELAY_MS, prewarmPausedUntilRef.current - Date.now());
+      prewarmTimerRef.current = window.setTimeout(() => {
+        prewarmTimerRef.current = null;
+        if (!activeTabRef.current) return;
+        for (const videoId of pending) {
+          if (entriesRef.current.size >= MAX_LIVE_PLAYERS) break;
+          if (entriesRef.current.has(videoId)) continue;
+          const video = itemsRef.current.find((item) => item.youtube_video_id === videoId);
+          const host = hostFor(videoId);
+          if (!video || !host) continue;
+          createPlayer(video, "warm", host);
+        }
+      }, delay);
+    }
+  }, [
+    active, catalogOpen, apiReady, playIndex, items, prewarmEnabled, blockedVideoIds,
+    pausePlayer, clearWatchdog, cancelPrewarm, releaseWarmPlayers, destroyEntry,
+    createPlayer, armWatchdog, settlePlayback,
+  ]);
 
   // 피드로 돌아왔을 때 스크롤 복원
   useEffect(() => {
@@ -543,7 +778,15 @@ export function FeedView({
     }
   }, [catalogOpen]);
 
-  useEffect(() => clearWatchdog, [clearWatchdog]);
+  useEffect(() => {
+    return () => {
+      clearWatchdog();
+      cancelPrewarm();
+      destroyAllPlayers();
+    };
+    // 마운트/언마운트에서만 동작해야 한다. 위 세 함수는 모두 안정적인 참조다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Sync mute state to player when user toggles ──
   useEffect(() => {
@@ -585,6 +828,9 @@ export function FeedView({
     const pauseForBackground = () => {
       activeTabRef.current = false;
       pausePlayer(true);
+      // 백그라운드에서까지 이웃 iframe 을 붙들고 있을 이유가 없다.
+      cancelPrewarm();
+      releaseWarmPlayers();
     };
     const handleTabReselect = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{ tab?: string }>;
@@ -601,7 +847,7 @@ export function FeedView({
       window.removeEventListener("loopine:tab-reselect", handleTabReselect);
       window.removeEventListener("loopine:app-background", pauseForBackground);
     };
-  }, [pausePlayer]);
+  }, [pausePlayer, cancelPrewarm, releaseWarmPlayers]);
 
   // ── Focus a video handed over by the Today tab ──
   const focusVideoId = focusVideo?.id || "";
@@ -700,6 +946,24 @@ export function FeedView({
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  // 네이티브 앱이고, 회선·기기가 여유로울 때만 이웃 프리워밍을 켠다.
+  useEffect(() => {
+    setPrewarmEnabled(canPrewarmNeighbors(readPrewarmHints()));
+  }, []);
+
+  // 빠르게 스냅하는 동안에는 이웃을 만들지 않고, 이미 받아 둔 이웃 버퍼도 즉시 내려놓는다.
+  // 손가락이 멈춘 뒤에야 다시 데우기 시작하므로 재생 세션이 폭주하지 않는다.
+  useEffect(() => {
+    const now = Date.now();
+    const stamps = swipeStampsRef.current.filter((at) => now - at <= RAPID_SWIPE_WINDOW_MS);
+    stamps.push(now);
+    swipeStampsRef.current = stamps;
+    if (!isRapidSwiping(stamps, now)) return;
+    prewarmPausedUntilRef.current = now + RAPID_SWIPE_COOLDOWN_MS;
+    cancelPrewarm();
+    releaseWarmPlayers();
+  }, [activeIndex, cancelPrewarm, releaseWarmPlayers]);
 
   // 키보드 단축키 (PC/데스크톱): 위/아래 키로 이전 영상/다음 영상 이동
   useEffect(() => {
@@ -800,19 +1064,16 @@ export function FeedView({
       if (streamRef.current) {
         streamRef.current.scrollTo({ top: 0, behavior: "instant" });
       }
-      try {
-        if (playerRef.current) {
-          playerRef.current.seekTo?.(0, true);
-          playerRef.current.playVideo();
-        }
-      } catch { /* ignore */ }
+      // 목록이 통째로 바뀌었다. 데워 둔 이웃까지 모두 버리고 처음부터 다시 만든다.
+      cancelPrewarm();
+      destroyAllPlayers();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "피드를 불러오지 못했습니다.");
     } finally {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [cancelPrewarm, destroyAllPlayers]);
 
   useEffect(() => { void loadMore(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -983,13 +1244,23 @@ export function FeedView({
           {items.map((video, index) => {
             const saved = video.saved_status === "READY" || video.saved_status === "PROCESSING";
             const blocked = blockedVideoIds.includes(video.youtube_video_id);
-            const showPlayer = index === playIndex && !blocked;
+            const isCurrent = index === playIndex;
+            // 이웃 카드에도 호스트를 미리 깔아 둔다. 플레이어가 붙기 전까지는 비어 있고,
+            // 붙은 뒤에도 role="warm" 인 동안에는 투명하게 썸네일 위를 덮기만 한다.
+            const showPlayer = !blocked && (
+              isCurrent || (prewarmEnabled && Math.abs(index - playIndex) === 1)
+            );
             return <article className="feed-card" key={video.id} data-feed-index={index}>
               <div className="feed-media">
-                {showPlayer
-                  ? <div className="feed-player-host" ref={playerHostRef} />
-                  : <><img src={video.thumbnail_url} alt="" /><span className="feed-play"><Play fill="currentColor" /></span></>
-                }
+                <img src={video.thumbnail_url} alt="" />
+                {!isCurrent && <span className="feed-play"><Play fill="currentColor" /></span>}
+                {showPlayer && (
+                  <div
+                    className="feed-player-host"
+                    data-player-host={video.youtube_video_id}
+                    data-role={isCurrent ? "active" : "warm"}
+                  />
+                )}
                 {blocked && index === playIndex && (
                   <div className="feed-blocked" role="status">
                     <CircleAlert size={22} />

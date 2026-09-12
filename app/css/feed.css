@@ -268,10 +268,20 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
   object-fit: cover;
 }
 
+/* 썸네일 위에 겹쳐 놓는다. 플레이어가 첫 프레임을 그리기 전까지 검은 박스 대신
+   썸네일이 보이고, 이웃 영상은 투명한 채로 버퍼만 받아 둔다. */
 .feed-player-host {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   min-height: 310px;
+}
+
+.feed-player-host[data-role="warm"] {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .feed-player-host iframe {
@@ -286,7 +296,7 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
 .feed-blocked {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -359,7 +369,7 @@ body.feed-reels-locked [data-tab="feed"] .tab-scene {
   position: absolute;
   right: 12px;
   bottom: 10px;
-  z-index: 1;
+  z-index: 2;
   padding: 4px 7px;
   border-radius: 6px;
   background: rgba(0, 0, 0, .72);

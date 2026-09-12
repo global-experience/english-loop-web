@@ -48,6 +48,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ko">
       <head>
+        {/* 피드 첫 재생 전에 DNS·TLS 를 미리 열어 둔다. 요청을 보내지 않으므로
+            봇 판정과 무관하고, 모바일 회선에서 수백 ms 를 줄인다. */}
+        <link rel="preconnect" href="https://www.youtube.com" />
+        <link rel="preconnect" href="https://i.ytimg.com" />
+        <link rel="dns-prefetch" href="https://www.youtube.com" />
+        <link rel="dns-prefetch" href="https://i.ytimg.com" />
+        <link rel="dns-prefetch" href="https://www.google.com" />
         <style
           dangerouslySetInnerHTML={{
             __html: `
