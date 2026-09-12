@@ -191,7 +191,7 @@
   grid-auto-columns: 78%;
   gap: 12px;
   overflow-x: auto;
-  scroll-snap-type: x mandatory;
+  /* scroll-snap-type: x mandatory; */
   scrollbar-width: none;
   margin: 0;
   padding: 2px 0 6px;
@@ -337,9 +337,17 @@
 
 /* Staggered lateral shimmer sweep for carousel cards */
 .today-carousel-skeleton .skeleton-shimmer:nth-child(1)::after,
-.today-carousel-skeleton .skeleton-shimmer:nth-child(2)::after { animation-delay: 0s; }
-.today-carousel-skeleton .skeleton-shimmer:nth-child(3)::after { animation-delay: 0.16s; }
-.today-carousel-skeleton .skeleton-shimmer:nth-child(4)::after { animation-delay: 0.32s; }
+.today-carousel-skeleton .skeleton-shimmer:nth-child(2)::after {
+  animation-delay: 0s;
+}
+
+.today-carousel-skeleton .skeleton-shimmer:nth-child(3)::after {
+  animation-delay: 0.16s;
+}
+
+.today-carousel-skeleton .skeleton-shimmer:nth-child(4)::after {
+  animation-delay: 0.32s;
+}
 
 
 /* ── review strip ────────────────────────────────────────────────────── */
