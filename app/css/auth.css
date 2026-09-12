@@ -255,6 +255,8 @@ html.splash-active body {
   font-size: 12px;
   line-height: 1.6;
   animation: login-item-slide-up 0.55s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 1;
+  position: relative;
 }
 
 .login-card {
