@@ -221,7 +221,7 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
             if (window.location.pathname !== "/login") {
               window.location.replace("/login");
             }
-          }, 120);
+          }, 800);
         }
         return;
       }
@@ -260,7 +260,7 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
         if (window.location.pathname !== "/login") {
           window.location.replace("/login");
         }
-      }, 120);
+      }, 800);
       return () => window.clearTimeout(timer);
     }
   }, [isUnauthorized, router]);
@@ -556,7 +556,11 @@ export default function Home({ initialTab: routeTab }: { initialTab?: AppTab } =
   };
 
   if (isUnauthorized && !isFeedPublicPath()) {
-    return isNativeRuntime() ? <div style={{ minHeight: "100dvh", background: "#18201d" }} /> : null;
+    // router.replace가 완료되는 짧은 순간에도 배경만 남는 빈 프레임을 만들지 않는다.
+    // 네이티브는 시스템 스플래시와 같은 색을, 웹은 기존 Loopine 스플래시를 유지한다.
+    return isNativeRuntime()
+      ? <div style={{ minHeight: "100dvh", background: "#18201d" }} />
+      : <AppSplash />;
   }
 
   if (!splash.ready || splash.visible) {

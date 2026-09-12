@@ -5,8 +5,9 @@ import { getApiBase } from "@/lib/api";
 import { isNativeAppRuntime, type CapacitorRuntime } from "@/lib/nativeRuntime";
 
 export const SPLASH_SESSION_KEY = "loopine:splash:shown";
-const SPLASH_DURATION_MS = 1250;
-const FADE_DURATION_MS = 250;
+// 브랜드가 인지될 만큼은 유지하되, 로그인 같은 다음 행동을 기다리는 느낌은 줄인다.
+const SPLASH_DURATION_MS = 850;
+const FADE_DURATION_MS = 220;
 
 function checkShouldSkipSplash(): boolean {
   if (typeof window === "undefined") return false;
