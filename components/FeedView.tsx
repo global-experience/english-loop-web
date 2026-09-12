@@ -104,9 +104,9 @@ export function FeedView({
   const pathname = usePathname();
   const [catalogOpen, setCatalogOpen] = useState(() => {
     if (typeof window !== "undefined") {
-      return window.location.pathname.replace(/\/$/, "") === "/feed/categories";
+      return isCategoryPath(window.location.pathname);
     }
-    return pathname.replace(/\/$/, "") === "/feed/categories";
+    return isCategoryPath(pathname);
   });
   const [hasOpenedCatalog, setHasOpenedCatalog] = useState(() => catalogOpen);
   const [isReturning, setIsReturning] = useState(false);
@@ -192,18 +192,48 @@ export function FeedView({
     if (typeof window !== "undefined") {
       const path = window.location.pathname;
       const videoId = parseCategoryDetailPath(path);
-      const isCatalog = path.replace(/\/$/, "") === "/feed/categories";
-      setCatalogOpen(isCatalog || !!videoId);
+      setCatalogOpen(isCategoryPath(path));
+      if (videoId && !detail) {
+        void openDetailByVideoId(videoId);
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
   const deepLinkHandled = useRef(false);
   /** 카탈로그에서 연 상세. 어느 줄에서 왔는지 함께 들고 있어야 세로 스와이프가 그 줄 안에서 돈다. */
   const [detail, setDetail] = useState<{ row: CatalogRow; index: number; origin: DOMRect | null } | null>(null);
 
-  /** /feed/categories/{videoId} 형태의 경로에서 videoId를 추출한다. */
+  /** /feed/categories 또는 /feed/categories/{id} 또는 /feed/categories/{id}/{slug} 경로 여부 */
+  function isCategoryPath(path: string): boolean {
+    return /^\/feed\/categories(\/.*)?$/.test(path);
+  }
+
+  /**
+   * /feed/categories/{videoId} 또는 /feed/categories/{videoId}/{slug} 에서 videoId 추출.
+   * 카탈로그 목록 경로(/feed/categories/)는 null 반환.
+   */
   function parseCategoryDetailPath(path: string): string | null {
-    const match = path.match(/^\/feed\/categories\/([^/]+)\/?$/);
+    const match = path.match(/^\/feed\/categories\/([^/]+)(?:\/[^/]*)?\/?\/?$/);
     return match ? match[1] : null;
+  }
+
+  /** 제목을 URL-safe 슬러그로 변환 */
+  function toSlug(title: string): string {
+    return title
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .trim()
+      .slice(0, 60);
+  }
+
+  /** 영상 제목으로 슬러그 URL 생성: /feed/categories/{videoId}/{slug} */
+  function categoryDetailUrl(video: FeedVideo): string {
+    const slug = toSlug(video.title || "video");
+    return `/feed/categories/${video.youtube_video_id}/${slug}`;
   }
 
   /**
@@ -1003,12 +1033,13 @@ export function FeedView({
           onOpenVideo={(video, row, origin) => {
             const index = row.items.findIndex((item) => item.id === video.id);
             setDetail({ row, index: index < 0 ? 0 : index, origin });
-            // URL을 /feed/categories/{youtube_video_id} 로 업데이트
+            // URL을 /feed/categories/{youtube_video_id}/{slug} 로 업데이트
             if (typeof window !== "undefined") {
+              const url = categoryDetailUrl(video);
               window.history.pushState(
                 { loopine: true, view: "catalog-detail", videoId: video.youtube_video_id },
                 "",
-                `/feed/categories/${video.youtube_video_id}`,
+                url,
               );
             }
           }}

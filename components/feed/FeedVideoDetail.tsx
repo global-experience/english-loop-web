@@ -193,7 +193,18 @@ export function FeedVideoDetail({
 
   async function share(target: FeedVideo) {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://loopine.life";
-    const url = `${origin}/feed/categories/${target.youtube_video_id}`;
+    const slug = target.title
+      ? target.title
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^\w\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .trim()
+          .slice(0, 60)
+      : "video";
+    const url = `${origin}/feed/categories/${target.youtube_video_id}/${slug}`;
     const payload = { title: target.title, text: `${target.title} · ${target.channel_title}`, url };
     try {
       if (typeof navigator !== "undefined" && navigator.share) {
