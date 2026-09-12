@@ -133,6 +133,7 @@ input:disabled,
   cursor: not-allowed;
 }
 
+html.modal-open,
 body.modal-open {
   overflow: hidden !important;
   touch-action: none !important;

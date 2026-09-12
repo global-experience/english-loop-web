@@ -104,9 +104,11 @@ describe("Editing a saved item", () => {
     const row = await openLibrary();
 
     fireEvent.click(within(row).getByRole("button", { name: "keeping it simple 수정" }));
-    fireEvent.change(within(row).getByLabelText("keeping it simple 한국어 뜻"), { target: { value: "일을 단순하게 가져가기" } });
-    fireEvent.change(within(row).getByLabelText("keeping it simple 내 메모"), { target: { value: "회의에서 써보기" } });
-    fireEvent.click(within(row).getByRole("button", { name: /저장/ }));
+    const dialog = screen.getByRole("dialog", { name: "저장한 단어 수정" });
+    expect(document.body).toHaveClass("modal-open");
+    fireEvent.change(within(dialog).getByLabelText("keeping it simple 한국어 뜻"), { target: { value: "일을 단순하게 가져가기" } });
+    fireEvent.change(within(dialog).getByLabelText("keeping it simple 내 메모"), { target: { value: "회의에서 써보기" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /저장/ }));
 
     await waitFor(() => {
       const patch = calls.find((call) => call.method === "PATCH");
@@ -119,6 +121,8 @@ describe("Editing a saved item", () => {
     expect(await screen.findByText("일을 단순하게 가져가기")).toBeInTheDocument();
     expect(screen.getByText("회의에서 써보기")).toBeInTheDocument();
     expect(screen.getByText(/내가 수정/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "저장한 단어 수정" })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveClass("modal-open");
     expect(calls.filter((call) => call.path.startsWith("/api/review/library")).length).toBe(1);
   });
 
@@ -152,8 +156,9 @@ describe("Editing a saved item", () => {
     expect(within(row).getByText("내가 고친 뜻")).toBeInTheDocument();
 
     fireEvent.click(within(row).getByRole("button", { name: "keeping it simple 수정" }));
-    expect(within(row).getByText("원래 뜻: 단순하게 유지하기")).toBeInTheDocument();
-    fireEvent.click(within(row).getByRole("button", { name: /원래 뜻으로/ }));
+    const dialog = screen.getByRole("dialog", { name: "저장한 단어 수정" });
+    expect(within(dialog).getByText("원래 뜻: 단순하게 유지하기")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /원래 뜻으로/ }));
 
     await waitFor(() => {
       const patch = calls.find((call) => call.method === "PATCH");
@@ -173,10 +178,11 @@ describe("Editing a saved item", () => {
     render(<ReviewView />);
     const row = await openLibrary();
     fireEvent.click(within(row).getByRole("button", { name: "keeping it simple 수정" }));
-    fireEvent.click(within(row).getByRole("button", { name: /저장/ }));
+    const dialog = screen.getByRole("dialog", { name: "저장한 단어 수정" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /저장/ }));
 
-    expect(await within(row).findByRole("alert")).toHaveTextContent("수정한 내용을 저장하지 못했습니다.");
-    expect(within(row).getByLabelText("keeping it simple 한국어 뜻")).toBeInTheDocument();
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("수정한 내용을 저장하지 못했습니다.");
+    expect(within(dialog).getByLabelText("keeping it simple 한국어 뜻")).toBeInTheDocument();
   });
 });
 
