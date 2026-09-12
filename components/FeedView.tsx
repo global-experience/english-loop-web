@@ -695,13 +695,23 @@ export function FeedView({
     }
   }, [applyMuteToActive, armWatchdog, cancelPrewarm, clearWatchdog, destroyEntry, markBlocked, pausePlayer, releaseWarmPlayers, settlePlayback]);
 
+  /**
+   * 세로 피드의 플레이어가 돌아도 되는 상태인가.
+   *
+   * "피드 탭이 보이는가"(active)만으로는 부족하다. 카테고리 카탈로그나 상세가 위에 떠 있으면
+   * 피드는 가려져 있고 거기서 소리가 나면 안 된다. 아래 effect 들이 제각각 active 만 보고
+   * activeTabRef 를 덮어쓰는 바람에, 카탈로그를 열어 둔 채 다른 탭에 갔다 돌아오면
+   * 가려진 피드 영상이 다시 재생되는 문제가 있었다. 판단은 여기 한 곳에서만 한다.
+   */
+  const feedPlayerActive = active && !catalogOpen && !detail;
+
   // ── 현재 영상 + 이웃(네이티브 전용) 플레이어를 맞춘다 ──
   // 현재 영상은 playIndex 가 정착한 즉시, 이웃은 거기서 PREWARM_DELAY_MS 를 더 기다린 뒤에
   // 만든다. 그래서 빠르게 넘기는 동안에는 지나가는 영상의 임베드가 하나도 생기지 않는다.
   useEffect(() => {
-    activeTabRef.current = active && !catalogOpen;
+    activeTabRef.current = feedPlayerActive;
 
-    if (catalogOpen) {
+    if (catalogOpen || detail) {
       pausePlayer(false);
       clearWatchdog();
       cancelPrewarm();
@@ -806,7 +816,8 @@ export function FeedView({
       }, delay);
     }
   }, [
-    active, catalogOpen, apiReady, playIndex, items, prewarmEnabled, blockedVideoIds,
+    active, catalogOpen, detail, feedPlayerActive, apiReady, playIndex, items,
+    prewarmEnabled, blockedVideoIds,
     pausePlayer, clearWatchdog, cancelPrewarm, releaseWarmPlayers, destroyEntry,
     createPlayer, armWatchdog, settlePlayback, applyMuteToActive,
   ]);
@@ -838,7 +849,7 @@ export function FeedView({
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
-    activeTabRef.current = active;
+    activeTabRef.current = feedPlayerActive;
     if (!activeTabRef.current) {
       pausePlayer(true);
       return;
@@ -847,18 +858,19 @@ export function FeedView({
       if (isMuted) player.mute();
       else { player.unMute(); player.playVideo(); }
     } catch { /* player not ready yet */ }
-  }, [active, isMuted, pausePlayer]);
+  }, [feedPlayerActive, isMuted, pausePlayer]);
 
   useEffect(() => {
-    activeTabRef.current = active;
-    if (!active) pausePlayer(true);
-  }, [active, pausePlayer]);
+    activeTabRef.current = feedPlayerActive;
+    if (!feedPlayerActive) pausePlayer(true);
+  }, [feedPlayerActive, pausePlayer]);
 
   useEffect(() => {
     const handleTabVisibility = (rawEvent: Event) => {
       const event = rawEvent as CustomEvent<{ tab?: string; active?: boolean }>;
       if (event.detail?.tab !== "feed") return;
-      activeTabRef.current = event.detail.active === true;
+      // 탭이 보이더라도 카탈로그·상세가 위에 있으면 피드는 재생하지 않는다.
+      activeTabRef.current = event.detail.active === true && !catalogOpen && !detail;
       const player = playerRef.current;
       if (!player) return;
       try {
@@ -901,7 +913,7 @@ export function FeedView({
       window.removeEventListener("loopine:tab-reselect", handleTabReselect);
       window.removeEventListener("loopine:app-background", pauseForBackground);
     };
-  }, [pausePlayer, cancelPrewarm, releaseWarmPlayers, catalogOpen, closeCatalog]);
+  }, [pausePlayer, cancelPrewarm, releaseWarmPlayers, catalogOpen, detail, closeCatalog]);
 
   // ── Focus a video handed over by the Today tab ──
   const focusVideoId = focusVideo?.id || "";
