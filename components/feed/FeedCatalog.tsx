@@ -367,6 +367,15 @@ function CatalogCategoryRow({
     return list;
   }, [pages, initialRow.items]);
 
+  const currentRow: CatalogRow = useMemo(() => {
+    const lastPage = pages && pages.length > 0 ? pages[pages.length - 1] : null;
+    return {
+      ...initialRow,
+      items,
+      next_cursor: lastPage ? lastPage.next_cursor : initialRow.next_cursor,
+    };
+  }, [initialRow, items, pages]);
+
   // 가로 스크롤이 끝에 가까워지면 다음 페이지 영상 로드
   const onScroll = useCallback(() => {
     const track = trackRef.current;
@@ -406,7 +415,7 @@ function CatalogCategoryRow({
             type="button"
             className="catalog-card"
             key={video.id}
-            onClick={(event) => onOpenVideo(video, initialRow, event.currentTarget.getBoundingClientRect())}
+            onClick={(event) => onOpenVideo(video, currentRow, event.currentTarget.getBoundingClientRect())}
           >
             <span className="catalog-card-thumb">
               {video.thumbnail_url ? (

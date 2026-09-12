@@ -42,7 +42,7 @@ export function FeedVideoDetail({
 
   const streamRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
-  const initialScrolledRef = useRef(false);
+  const initialScrolledRef = useRef(startIndex === 0);
 
   const video = items[index];
 
@@ -95,6 +95,7 @@ export function FeedVideoDetail({
     if (targetCard) {
       root.style.scrollBehavior = "auto";
       root.style.scrollSnapType = "none";
+      targetCard.scrollIntoView({ behavior: "instant", block: "start" });
       root.scrollTop = targetCard.offsetTop;
       initialScrolledRef.current = true;
       window.requestAnimationFrame(() => {
@@ -113,6 +114,7 @@ export function FeedVideoDetail({
     const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-feed-index]"));
     const observer = new IntersectionObserver(
       (entries) => {
+        if (!initialScrolledRef.current) return;
         const visible = entries
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
