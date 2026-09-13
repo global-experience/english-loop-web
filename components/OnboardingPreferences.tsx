@@ -154,9 +154,9 @@ export function OnboardingPreferences({
             {selected.length ? `${selected.length}개 선택하고 시작하기` : "주제를 골라주세요"}
           </button>
           {/* 건너뛸 자유가 있어야 한다. 고르지 않아도 온보딩은 끝난 것으로 본다. */}
-          <button className="text-button" onClick={() => void save([])} disabled={saving}>
+          {/* <button className="text-button" onClick={() => void save([])} disabled={saving}>
             나중에 고를게요
-          </button>
+          </button> */}
         </div>
       </section>
     </main>
